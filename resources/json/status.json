@@ -1,0 +1,54 @@
+{
+    "data": [
+        {
+            "id": 1,
+            "kd_status": 20,
+            "deskripsi": "Proses Validasi Permohonan"
+        },
+        {
+            "id": 2,
+            "kd_status": 10,
+            "deskripsi": "Dokumen Lengkap"
+        },
+        {
+            "id": 3,
+            "kd_status": 11,
+            "deskripsi": "Dokumen Tidak Lengkap"
+        },
+        {
+            "id": 4,
+            "kd_status": 30,
+            "deskripsi": "Verifikasi Pembayaran"
+        },
+        {
+            "id": 5,
+            "kd_status": 31,
+            "deskripsi": "Konfirmasi Pembayaran"
+        },
+        {
+            "id": 6,
+            "kd_status": 50,
+            "deskripsi": "Disetujui"
+        },
+        {
+            "id": 8,
+            "kd_status": 90,
+            "deskripsi": "Permohonan Ditolak"
+        },
+        {
+            "id": 11,
+            "kd_status": 92,
+            "deskripsi": "Permohonan Dibatalkan"
+        },
+        {
+            "id": 14,
+            "kd_status": 70,
+            "deskripsi": "Pembekuan"
+        },
+        {
+            "id": 17,
+            "kd_status": 91,
+            "deskripsi": "Pencabutan"
+        }
+    ]
+}
