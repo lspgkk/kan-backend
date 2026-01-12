@@ -14,7 +14,7 @@ class JadwalController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Jadwal::select(['jadwal_id', 'nama_kegiatan', 'tanggal_uji', 'status', 'jenis_kelas']);
+        $query = Jadwal::select(['id', 'jadwal_id', 'nama_kegiatan', 'tanggal_uji', 'status', 'jenis_kelas'])->whereIn('status', ['sinkronisasi-bnsp', 'draft']);
 
         // Search filter (by role name, you can add more fields if needed)
         if ($search = trim($request->input('search'))) {
@@ -33,8 +33,52 @@ class JadwalController extends Controller
         ]);
     }
 
-    public function show(Jadwal $jadwal)
+    public function blankos(Request $request)
     {
+        $query = Jadwal::select(['id', 'jadwal_id', 'nama_kegiatan', 'tanggal_uji', 'status', 'jenis_kelas'])->whereIn('status', ['buat-blanko']);
+
+        // Search filter (by role name, you can add more fields if needed)
+        if ($search = trim($request->input('search'))) {
+            $query->where('nama_kegiatan', 'like', "%{$search}%");
+        }
+
+        // Get per_page from request, default to 20
+        $perPage = min((int) $request->input('per_page', 20), 100);
+
+        // Paginate the result
+        $jadwals = $query->orderBy('tanggal_uji', 'desc')->paginate($perPage);
+
+        return response()->json([
+            'message' => 'Jadwal retrieved successfully',
+            'data' => $jadwals
+        ]);
+    }
+
+    public function sertifikasi(Request $request)
+    {
+        $query = Jadwal::select(['id', 'jadwal_id', 'nama_kegiatan', 'tanggal_uji', 'status', 'jenis_kelas'])->whereIn('status', ['get-blanko', 'jadwal-selesai']);
+
+        // Search filter (by role name, you can add more fields if needed)
+        if ($search = trim($request->input('search'))) {
+            $query->where('nama_kegiatan', 'like', "%{$search}%");
+        }
+
+        // Get per_page from request, default to 20
+        $perPage = min((int) $request->input('per_page', 20), 100);
+
+        // Paginate the result
+        $jadwals = $query->orderBy('tanggal_uji', 'desc')->paginate($perPage);
+
+        return response()->json([
+            'message' => 'Jadwal retrieved successfully',
+            'data' => $jadwals
+        ]);
+    }
+
+    public function show($id)
+    {
+        $jadwal = Jadwal::where('id', $id)->first();
+
         return response()->json([
             'message' => 'Jadwal retrieved successfully',
             'data' => $jadwal

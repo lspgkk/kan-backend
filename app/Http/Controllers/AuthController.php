@@ -16,6 +16,7 @@ class AuthController extends Controller
             'message' => 'Login successful',
             'data' => [
                 'id_user' => auth()->user()->id,
+                'role_id' => auth()->user()->role_id,
                 'access_token' => $token,
                 'token_type' => 'bearer',
                 'expires_in' => auth()->factory()->getTTL() * 60,

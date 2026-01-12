@@ -4,12 +4,7 @@ namespace App\Http\Controllers;
 
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use App\Models\Incident;
-use App\Models\Branch;
-use App\Models\FrtDetail;
-use App\Models\Panel;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache;
 
 class DashboardController extends Controller
 {
@@ -39,30 +34,13 @@ class DashboardController extends Controller
 
         $allowedTuks = null;
 
-        // if ($user && !$user->hasRole('superadmin')) {
-        //     // Only branches assigned to the user
-        //     $allowedTuks = $user->branches()->pluck('branch_id');
-
-        //     if ($allowedTuks->isEmpty()) {
-        //         return response()->json([
-        //             'message' => 'Dashboard data retrieved successfully',
-        //             'data' => [
-        //                 'alarm_locations' => [],
-        //             ]
-        //         ]);
-        //     }
-        // }
-
-        // if ($tukId) {
-        //     $incidentQuery->where('branch_id', $tukId);
-        // }
-
-        $alarmLocations = DB::table('mytuk as tuk')
+        $allTuk = DB::table('mytuk as tuk')
+            ->where('id_lsp', 16)
             ->when($tukId, fn($q) => $q->where('tuk.id', $tukId))
             ->when($allowedTuks, fn($q) => $q->whereIn('tuk.id', $allowedTuks))
             ->select([
                 'tuk.id as id_tuk',
-                'tuk.nama as nama_tuk',
+                'tuk.nama_tuk as nama_tuk',
                 'tuk.latitude',
                 'tuk.longitude',
             ])
@@ -73,7 +51,10 @@ class DashboardController extends Controller
         $response = [
             'message' => 'Dashboard data retrieved successfully',
             'data' => [
-                'alarm_locations' => $alarmLocations,
+                'tuk_count' => $allTuk->count(),
+                'skk_count' => 2054,
+                'uji_count' => 75,
+                'tuk' => $allTuk,
             ]
         ];
         return response()->json($response);

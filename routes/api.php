@@ -144,7 +144,9 @@ Route::middleware(['auth:api'])->group(function () {
 
     Route::prefix('jadwal')->group(function () {
         Route::get('/', [JadwalController::class, 'index']);
-        Route::get('/{jadwal}', [JadwalController::class, 'show']);
+        Route::get('/blanko', [JadwalController::class, 'blankos']);
+        Route::get('/sertifikasi', [JadwalController::class, 'sertifikasi']);
+        Route::get('/{id}', [JadwalController::class, 'show']);
     });
 
     Route::post('/verifikasi/{id_izin}', [HitStatusController::class, 'hitVerifikasi']);
