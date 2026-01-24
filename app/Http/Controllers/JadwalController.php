@@ -573,8 +573,19 @@ class JadwalController extends Controller
             return $resp;
         }
 
+        $ttd = filter_var($request->query('ttd'), FILTER_VALIDATE_BOOLEAN);
+
         $jadwals = $this->baseJadwalQuery()
             ->where('ketua_lsp', auth()->id())
+            ->when($ttd, function ($q) {
+                $q->where('has_spt_asesor', true)
+                ->where('has_spt_komtek', true);
+            }, function ($q) {
+                $q->where(function ($sq) {
+                    $sq->where('has_spt_asesor', false)
+                    ->orWhere('has_spt_komtek', false);
+                });
+            })
             ->paginate($this->perPage($request));
 
         return response()->json([
