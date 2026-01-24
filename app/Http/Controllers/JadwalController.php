@@ -628,7 +628,18 @@ class JadwalController extends Controller
 
     public function listAsesi($id)
     {
-        $listAsesi = AsesiJadwal::where('jadwal_id', $id)->get();
+        $listAsesi = AsesiJadwal::query()
+        ->join('personals', 'personals.id_izin', '=', 'asesi_jadwals.id_izin')
+        ->where('asesi_jadwals.jadwal_id', $id)
+        ->select([
+            'asesi_jadwals.jadwal_id',
+            'asesi_jadwals.id_izin',
+            'personals.nama',
+            'asesi_jadwals.is_started',
+            'asesi_jadwals.started_at',
+            'asesi_jadwals.kompeten',
+        ])
+        ->get();
 
         return response()->json([
             'message' => 'Success',

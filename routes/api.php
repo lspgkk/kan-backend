@@ -155,7 +155,8 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/komtek', [JadwalController::class, 'getKegiatanKomtek']);
         Route::get('/direktur', [JadwalController::class, 'getKegiatanDirektur']);
         Route::get('/admin-tuk', [JadwalController::class, 'getKegiatanAdminTuk']);
-        Route::get('/{id}/start', [JadwalController::class, 'startAsesmen']);
+        Route::post('/{id}/start', [JadwalController::class, 'startAsesmen']);
+        Route::get('/{id}/list-asesi', [JadwalController::class, 'listAsesi']);
     });
 
     Route::post('/verifikasi/{id_izin}', [HitStatusController::class, 'hitVerifikasi']);
