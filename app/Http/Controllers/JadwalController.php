@@ -2,13 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AsesiJadwal;
+use App\Models\AsesorBnsp;
 use App\Models\Jadwal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use GuzzleHttp\Exception\RequestException;
 use Illuminate\Database\QueryException;
 use App\Models\KlasifikasiKualifikasi;
-
+use App\Models\User;
 
 class JadwalController extends Controller
 {
@@ -461,5 +463,176 @@ class JadwalController extends Controller
         } else {
             return redirect()->back()->with('error', json_encode($error_id));
         }
+    }
+
+    private function baseJadwalQuery()
+    {
+        return Jadwal::select([
+            'jadwal_id',
+            'nama_kegiatan',
+            'tuk_id',
+            'asesor_id',
+            'asesor2_id',
+            'skema_id',
+            'jenjang_id',
+            'tanggal_uji',
+            'tanggal_selesai',
+            'is_started',
+            'jenis_kelas',
+            'tahap'
+        ])->with([
+            'tuk:id,nama,alamat',
+            'asesor:id,nama,noreg',
+            'asesor2:id,nama,noreg',
+            'skema:id,nama'
+        ]);
+    }
+
+    private function checkRole(string $roleId)
+    {
+        if (auth()->user()->role_id !== $roleId) {
+            return response()->json([
+                'message' => 'Invalid Role',
+                'data' => null
+            ], 403);
+        }
+
+        return null;
+    }
+
+    private function perPage(Request $request, int $default = 10): int
+    {
+        return (int) $request->get('per_page', $default);
+    }
+
+    public function getKegiatanAsesi()
+    {
+        if ($resp = $this->checkRole('8')) {
+            return $resp;
+        }
+
+        $jadwalId = AsesiJadwal::where('account', auth()->user()->name)
+            ->value('jadwal_id');
+
+        $jadwals = $this->baseJadwalQuery()
+            ->where('jadwal_id', $jadwalId)
+            ->first();
+
+        return response()->json([
+            'message' => 'Kegiatan Asesi retrieved successfully.',
+            'data' => $jadwals
+        ]);
+    }
+
+    public function getKegiatanAsesor()
+    {
+        if ($resp = $this->checkRole('5')) {
+            return $resp;
+        }
+
+        $noreg = User::where('id', auth()->id())->value('noreg');
+        $asesorId = AsesorBnsp::where('noreg', $noreg)->value('id');
+
+        $jadwals = $this->baseJadwalQuery()
+            ->where(function ($q) use ($asesorId) {
+                $q->where('asesor_id', $asesorId)
+                ->orWhere('asesor2_id', $asesorId);
+            })
+            ->whereDate('tanggal_uji', today())
+            ->first();
+
+        return response()->json([
+            'message' => 'Kegiatan Asesor retrieved successfully.',
+            'data' => $jadwals
+        ]);
+    }
+
+    public function getKegiatanKomtek(Request $request)
+    {
+        if ($resp = $this->checkRole('4')) {
+            return $resp;
+        }
+
+        $jadwals = $this->baseJadwalQuery()
+            ->where(function ($q) {
+                $q->where('komtek1', auth()->id())
+                ->orWhere('komtek2', auth()->id())
+                ->orWhere('komtek3', auth()->id());
+            })
+            ->paginate($this->perPage($request));
+
+        return response()->json([
+            'message' => 'Kegiatan Komtek retrieved successfully.',
+            'data' => $jadwals
+        ]);
+    }
+
+    public function getKegiatanDirektur(Request $request)
+    {
+        if ($resp = $this->checkRole('6')) {
+            return $resp;
+        }
+
+        $jadwals = $this->baseJadwalQuery()
+            ->where('ketua_lsp', auth()->id())
+            ->paginate($this->perPage($request));
+
+        return response()->json([
+            'message' => 'Kegiatan Direktur retrieved successfully.',
+            'data' => $jadwals
+        ]);
+    }
+
+    public function getKegiatanAdminTuk(Request $request)
+    {
+        if ($resp = $this->checkRole('3')) {
+            return $resp;
+        }
+
+        $jadwals = $this->baseJadwalQuery()
+            ->where('admin_id', auth()->id())
+            ->when($request->filled('tanggal_uji'), function ($query) use ($request) {
+                $query->whereDate('tanggal_uji', $request->tanggal_uji);
+            })
+            ->paginate($this->perPage($request));
+
+        return response()->json([
+            'message' => 'Kegiatan Direktur retrieved successfully.',
+            'data' => $jadwals
+        ]);
+    }
+
+    public function startAsesmen($id)
+    {
+        $jadwal = Jadwal::where('jadwal_id', $id)
+            ->where('tahap', '!=', 2)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $jadwal) {
+            return response()->json([
+                'message' => 'Jadwal tidak ditemukan atau sudah dimulai.'
+            ], 409);
+        }
+
+        $jadwal->update([
+            'is_started' => true,
+            'started_at' => now(),
+            'tahap' => 2
+        ]);
+
+        return response()->json([
+            'message' => 'Jadwal berhasil dimulai.'
+        ]);
+    }
+
+    public function listAsesi($id)
+    {
+        $listAsesi = AsesiJadwal::where('jadwal_id', $id)->get();
+
+        return response()->json([
+            'message' => 'Success',
+            'list_asesi' => $listAsesi
+        ]);
     }
 }

@@ -26,37 +26,43 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        // 1️⃣ Authenticate credentials
-        if (! $token = auth()->attempt([
-            'email' => $request->email,
-            'password' => $request->password,
-        ])) {
-            return response()->json([
-                'error' => 'Unauthorized',
-                'message' => 'Email atau password salah.',
-            ], 401);
-        }
-
-        // 2️⃣ Fetch user with soft-delete check
-        $user = User::where('email', $request->email)
+        // 1️⃣ Try to find user by email OR name
+        $user = User::where('email', $request->account)
+            ->orWhere('name', $request->account) // allow same input field
             ->where('is_deleted', false)
             ->first();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'error' => 'Unauthorized',
-                'message' => 'Akun telah dinonaktifkan.',
+                'message' => 'Akun tidak ditemukan atau dinonaktifkan.',
             ], 401);
         }
 
-        // 4️⃣ Log login activity
-        // AuthLog::create([
-        //     'user_id' => $user->id,
-        //     'description' => 'User logged in',
-        //     'login_ip' => $request->ip(),
-        // ]);
+        // 2️⃣ Decide credentials based on role
+        if ($user->role_id == 8) {
+            // Role 8 → login using name + password
+            $credentials = [
+                'name'     => $request->account,
+                'password' => $request->password,
+            ];
+        } else {
+            // Other roles → login using email + password
+            $credentials = [
+                'email'    => $request->account,
+                'password' => $request->password,
+            ];
+        }
 
-        // 5️⃣ Return the token
+        // 3️⃣ Attempt authentication
+        if (! $token = auth()->attempt($credentials)) {
+            return response()->json([
+                'error' => 'Unauthorized',
+                'message' => 'Akun atau password salah.',
+            ], 401);
+        }
+
+        // 4️⃣ Return token
         return $this->respondWithToken($token);
     }
 

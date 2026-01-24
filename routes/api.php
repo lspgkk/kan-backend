@@ -149,5 +149,14 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{id}', [JadwalController::class, 'show']);
     });
 
+    Route::prefix('kegiatan')->group(function () {
+        Route::get('/asesi', [JadwalController::class, 'getKegiatanAsesi']);
+        Route::get('/asesor', [JadwalController::class, 'getKegiatanAsesor']);
+        Route::get('/komtek', [JadwalController::class, 'getKegiatanKomtek']);
+        Route::get('/direktur', [JadwalController::class, 'getKegiatanDirektur']);
+        Route::get('/admin-tuk', [JadwalController::class, 'getKegiatanAdminTuk']);
+        Route::get('/{id}/start', [JadwalController::class, 'startAsesmen']);
+    });
+
     Route::post('/verifikasi/{id_izin}', [HitStatusController::class, 'hitVerifikasi']);
 });
