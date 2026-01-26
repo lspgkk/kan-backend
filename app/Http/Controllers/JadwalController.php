@@ -511,7 +511,7 @@ class JadwalController extends Controller
             return $resp;
         }
 
-        $jadwalId = AsesiJadwal::where('account', auth()->user()->name)
+        $jadwalId = AsesiJadwal::where('account', auth()->user()->email)
             ->value('jadwal_id');
 
         $jadwals = $this->baseJadwalQuery()

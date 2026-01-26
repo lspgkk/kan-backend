@@ -3,6 +3,7 @@
 use App\Http\Controllers\AsesorController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BuktiController;
 use App\Http\Controllers\CityController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\DashboardController;
@@ -157,6 +158,13 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/admin-tuk', [JadwalController::class, 'getKegiatanAdminTuk']);
         Route::post('/{id}/start', [JadwalController::class, 'startAsesmen']);
         Route::get('/{id}/list-asesi', [JadwalController::class, 'listAsesi']);
+    });
+
+    Route::prefix('bukti')->group(function () {
+        Route::post('/absen-asesmen/mulai', [BuktiController::class, 'absensiAsesmen']);
+        Route::post('/absen-asesmen/akhir', [BuktiController::class, 'absensiAsesmen']);
+        Route::post('/absen-praasesmen/mulai', [BuktiController::class, 'absensiPraAsesmen']);
+        Route::post('/absen-praasesmen/akhir', [BuktiController::class, 'absensiPraAsesmen']);
     });
 
     Route::post('/verifikasi/{id_izin}', [HitStatusController::class, 'hitVerifikasi']);

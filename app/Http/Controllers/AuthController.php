@@ -26,9 +26,11 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        // 1️⃣ Try to find user by email OR name
-        $user = User::where('email', $request->account)
-            ->orWhere('name', $request->account) // allow same input field
+        // Normalize account to email
+        $account = $request->account;
+
+        // 1️⃣ Find user by email
+        $user = User::where('email', $account)
             ->where('is_deleted', false)
             ->first();
 
@@ -39,20 +41,11 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // 2️⃣ Decide credentials based on role
-        if ($user->role_id == 8) {
-            // Role 8 → login using name + password
-            $credentials = [
-                'name'     => $request->account,
-                'password' => $request->password,
-            ];
-        } else {
-            // Other roles → login using email + password
-            $credentials = [
-                'email'    => $request->account,
-                'password' => $request->password,
-            ];
-        }
+        // 2️⃣ Credentials
+        $credentials = [
+            'email'    => $account,
+            'password' => $request->password,
+        ];
 
         // 3️⃣ Attempt authentication
         if (! $token = auth()->attempt($credentials)) {
