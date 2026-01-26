@@ -553,13 +553,34 @@ class JadwalController extends Controller
             return $resp;
         }
 
+        $userId = auth()->id();
+        $ttd = filter_var($request->query('ttd'), FILTER_VALIDATE_BOOLEAN);
+
         $jadwals = $this->baseJadwalQuery()
-            ->where(function ($q) {
-                $q->where('komtek1', auth()->id())
-                ->orWhere('komtek2', auth()->id())
-                ->orWhere('komtek3', auth()->id());
-            })
-            ->paginate($this->perPage($request));
+        ->join('ba_komteks', 'ba_komteks.jadwal_id', '=', 'jadwals.jadwal_id')
+        ->where(function ($q) use ($userId) {
+            $q->where('komtek1', $userId)
+            ->orWhere('komtek2', $userId)
+            ->orWhere('komtek3', $userId);
+        })
+        ->when($ttd !== null, function ($q) use ($ttd, $userId) {
+            $q->where(function ($sq) use ($ttd, $userId) {
+                $sq->where(function ($s) use ($ttd, $userId) {
+                    $s->where('komtek1', $userId)
+                    ->where('ba_komteks.has_ttd_komtek1', $ttd);
+                })
+                ->orWhere(function ($s) use ($ttd, $userId) {
+                    $s->where('komtek2', $userId)
+                    ->where('ba_komteks.has_ttd_komtek2', $ttd);
+                })
+                ->orWhere(function ($s) use ($ttd, $userId) {
+                    $s->where('komtek3', $userId)
+                    ->where('ba_komteks.has_ttd_komtek3', $ttd);
+                });
+            });
+        })
+        ->select('jadwals.*') // <-- specify jadwals table explicitly
+        ->paginate($this->perPage($request));
 
         return response()->json([
             'message' => 'Kegiatan Komtek retrieved successfully.',
