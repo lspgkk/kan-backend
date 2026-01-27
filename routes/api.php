@@ -139,8 +139,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/rekening', [InvoiceController::class, 'rekening']);
         Route::get('/konfirmasi', [InvoiceController::class, 'viewKonfirmasi']);
         Route::get('/history', [InvoiceController::class, 'history']);
-        Route::get('/sync/permohonan', [PermohonanController::class, 'syncPermohonan']);
-        Route::get('/{id}', [PermohonanController::class, 'detailPermohonan']);
+        Route::post('/create', [InvoiceController::class, 'createInvoice']);
     });
 
     Route::prefix('jadwal')->group(function () {

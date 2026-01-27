@@ -60,6 +60,16 @@ return [
             'report' => false,
         ],
 
+        'str_moon' => [
+            'driver' => 'ftp',
+            'host' => "ftp.lspgatensi.id",
+            'username' => "internalfile@lspgatensi.id",
+            'password' => "dCs)G}oE&@Er",
+            'port' => 21,
+            'passive' => true,
+            'ssl' => false,
+        ],
+
     ],
 
     /*

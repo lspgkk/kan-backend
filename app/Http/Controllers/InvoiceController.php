@@ -16,6 +16,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class InvoiceController extends Controller
 {
@@ -362,16 +365,14 @@ class InvoiceController extends Controller
                 * 1. INSTANSI
                 * ===================================================== */
                 if (Auth::user()->role === "adm_tuk") {
-                    $data_instansi = DB::connection("mygatensi_2")
-                        ->table("mytuk")
+                    $data_instansi = DB::table("mytuk")
                         ->select(['nama_tuk as nama', 'alamat', 'id'])
                         ->where("id", Auth::user()->tuk)
                         ->first();
                 } else {
-                    $data_instansi = DB::connection("mygatensi_2")
-                        ->table("mytuk")
+                    $data_instansi = DB::table("mytuk")
                         ->select(['nama_tuk as nama', 'alamat', 'id'])
-                        ->where("id", $validatedData['nama_tuk'])
+                        ->where("nama_tuk", $validatedData['nama_tuk'])
                         ->first();
                 }
 
@@ -395,31 +396,22 @@ class InvoiceController extends Controller
                 * ===================================================== */
                 foreach ($validatedData['id_izin_kompeten'] as $id_izin) {
 
-                    $personal = DB::connection("mygatensi_2")
-                        ->table("mystatuspermohonan")
-                        ->select(['ID_Ijin as id_izin', 'NamaAsesi as nama', 'vertgluji as tanggal_uji', 'invno'])
-                        ->where("ID_Ijin", trim($id_izin))
-                        ->first();
-
-                    if (! $personal) {
+                    $nama = DB::table("personals")->where("id_izin", trim($id_izin))->value("nama");
+                    $hasInvoice = InvoiceDetail::where("id_izin", trim($id_izin))->exists();
+                    if (! $nama) {
                         throw new \Exception("Asesi tidak ditemukan: {$id_izin}");
                     }
 
-                    if (! empty($personal->invno)) {
+                    if ($hasInvoice) {
                         throw new \Exception("{$id_izin} sudah memiliki invoice");
                     }
 
-                    $klas_kua = KlasifikasiKualifikasi::where('id_izin', $id_izin)->first()
-                        ?? DB::connection("mygatensi_2")
-                            ->table("myklasifikasikualifikasi")
-                            ->select([
-                                'ID_Ijinklasifikasikualifikasi as id_izin',
-                                'jenjang',
-                                'tuk',
-                                'jabatan_kerja'
-                            ])
-                            ->where("ID_Ijinklasifikasikualifikasi", trim($id_izin))
-                            ->first();
+                    $klas_kua = KlasifikasiKualifikasi::select([
+                        'id_izin',
+                        'jenjang',
+                        'tuk',
+                        'jabatan_kerja'
+                    ])->where('id_izin', $id_izin)->first();
 
                     if (! $klas_kua) {
                         throw new \Exception("Klasifikasi tidak ditemukan: {$id_izin}");
@@ -434,13 +426,11 @@ class InvoiceController extends Controller
                         throw new \Exception("Harga tidak ditemukan");
                     }
 
-                    $jabatan_kerja = DB::connection("mygatensi_2")
-                        ->table("myjabatankerja")
+                    $jabatan_kerja = DB::table("jabatan_kerjas")
                         ->where("id_jabatan_kerja", $klas_kua->jabatan_kerja)
                         ->value('jabatan_kerja');
 
-                    $nama_tuk = DB::connection("mygatensi_2")
-                        ->table("mytuk")
+                    $nama_tuk = DB::table("mytuk")
                         ->where("id", $klas_kua->tuk)
                         ->value('nama_tuk');
 
@@ -465,24 +455,23 @@ class InvoiceController extends Controller
 
                     $data_asesi_beserta_harga[] = [
                         "id_izin" => $id_izin,
-                        "nama" => $personal->nama,
+                        "nama" => $nama,
                         "jabatan_kerja" => $jabatan_kerja,
                         "jenjang" => $klas_kua->jenjang,
                         "harga" => (int)$harga->tahap1,
                         "harga_2" => (int)$harga->tahap2,
                         "nama_tuk" => $nama_tuk,
                         "diskon" => $diskon,
-                        "tanggal_uji" => $personal->tanggal_uji,
+                        "tanggal_uji" => $request->jatuh_tempo,
                     ];
                 }
 
                 /* =====================================================
                 * 4. INVOICE NUMBER
                 * ===================================================== */
-                $latest_inv = DB::connection("mygatensi_2")
-                    ->table("myinvoice")
-                    ->orderByDesc('InputDate')
-                    ->value('InvNo');
+                $latest_inv = DB::table("invoices")
+                    ->orderByDesc('input_date')
+                    ->value('invoice_number');
 
                 [$a,$b,$c,$d] = explode("/", $latest_inv);
                 $c = date('Y');
@@ -503,7 +492,7 @@ class InvoiceController extends Controller
                     'bulan'          => (int) date('m'),
                     'tahun'          => (int) date('Y'),
                     'nomor'          => $num,
-                    'jatuh_tempo'    => (int) $validatedData['jatuh_tempo'],
+                    'jatuh_tempo'    => 7,
                     'nama_tuk'       => $data_instansi->nama,
                     'class_uji'      => ucwords($validatedData['metode']),
                     'kode_rekening'  => $validatedData['rekening'],
@@ -519,6 +508,11 @@ class InvoiceController extends Controller
                         'id_izin'    => $asesi['id_izin'],
                         'biaya'      => $asesi['harga'] + $asesi['harga_2'],
                         'ditagihkan' => $asesi['harga'] + $asesi['harga_2'] - $asesi['diskon'],
+                        'metode_pembayaran' => $validatedData['metode_pembayaran'],
+                        'tahap_invoice'    => 'Langsung',
+                        'jenis_permohonan' => 1, // Jenis baru, nanti ganti aja id nya,
+                        'deposit' => $asesi['harga'],
+                        'ditagihkan' => $asesi['nama_tuk'],
                     ]);
                 }
 
@@ -539,12 +533,17 @@ class InvoiceController extends Controller
         /* =====================================================
         * 6. PDF GENERATION (OUTSIDE TRANSACTION)
         * ===================================================== */
-        $pdf = Pdf::loadView('invoice.pdf-invoice', [
+        $pdf = Pdf::loadView('template-invoice.pdf-invoice', [
             'latest_invno' => $latest_invno,
             'data_instansi' => $data_instansi,
             'data_asesi_beserta_harga' => $data_asesi_beserta_harga,
             'total_harga' => $total_harga,
             'total_diskon' => $total_diskon,
+            'tanggal_uji' => $validatedData['tanggal_uji'],
+            'metode' => $validatedData['metode'],
+            'kategori_tuk' => $tuk_disc->kategori,
+            'total_word' => 'RP 90.000.000',
+            'issued_by' => Auth::user()->name,
         ]);
 
         $pdf_filename = 'inv_' . now()->format('Ymd_His') . '.pdf';
