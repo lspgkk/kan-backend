@@ -168,4 +168,7 @@ Route::middleware(['auth:api'])->group(function () {
     });
 
     Route::post('/verifikasi/{id_izin}', [HitStatusController::class, 'hitVerifikasi']);
+    Route::post('/validasi/lengkap/{id_izin}', [HitStatusController::class, 'hitLengkap']);
+    Route::post('/validasi/tidak-lengkap/{id_izin}', [HitStatusController::class, 'hitTidakLengkap']);
+    Route::post('/tolak/{id_izin}', [HitStatusController::class, 'hitTolak']);
 });

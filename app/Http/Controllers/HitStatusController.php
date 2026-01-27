@@ -47,7 +47,7 @@ class HitStatusController extends Controller
             $httpClient->request('POST', $apiEndpoint, [
                 'headers' => [
                     'Content-Type' => 'application/json',
-                    'token' => env('SIKI_API'),
+                    'token' => env('SIKI_TOKEN'),
                 ],
                 'json' => $apiData,
             ]);
@@ -119,7 +119,7 @@ class HitStatusController extends Controller
 
         $headers = [
             'Content-Type' => 'application/json',
-            'token' => env('SIKI_API'),
+            'token' => env('SIKI_TOKEN'),
         ];
 
         $payload = [
@@ -162,8 +162,8 @@ class HitStatusController extends Controller
         // Update local data
         Personal::where('id_izin', $id_izin)->update([
             'status'        => '10',
-            'validpjby_id'  => Auth::id(),
-            'validpj_time'  => now(),
+            'validby_id'  => Auth::id(),
+            'valid_time'  => now(),
         ]);
 
         return response()->json([
@@ -218,7 +218,7 @@ class HitStatusController extends Controller
 
         $headers = [
             'Content-Type' => 'application/json',
-            'token'        => env('SIKI_API'),
+            'token'        => env('SIKI_TOKEN'),
         ];
 
         $payload = [
@@ -285,7 +285,7 @@ class HitStatusController extends Controller
 
         $headers = [
             'Content-Type' => 'application/json',
-            'token' => env('SIKI_API')
+            'token' => env('SIKI_TOKEN')
         ];
 
         $status11 = [
@@ -339,7 +339,7 @@ class HitStatusController extends Controller
 
         $headers = [
             'Content-Type' => 'application/json',
-            'token' => env('SIKI_API')
+            'token' => env('SIKI_TOKEN')
         ];
 
         $status70 = [

@@ -80,4 +80,13 @@ class Invoice extends Model
         'tgl_uji'        => 'date',
         'input_date'     => 'datetime',
     ];
+
+    public function details()
+    {
+        return $this->hasMany(
+            InvoiceDetail::class,
+            'no_invoice',        // FK on invoice_details
+            'invoice_number'     // PK on invoices
+        );
+    }
 }

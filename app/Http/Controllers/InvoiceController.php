@@ -9,9 +9,13 @@ use App\Models\KlasifikasiKualifikasi;
 use App\Models\JabatanKerja;
 use App\Models\MyTuk;
 use App\Models\HargaInvoice;
+use App\Models\InvoiceDetail;
 use App\Models\Rekening;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class InvoiceController extends Controller
 {
@@ -21,18 +25,34 @@ class InvoiceController extends Controller
     public function viewInvoiceBaruReguler(Request $request)
     {
         $perPage = $request->get('per_page', 10);
+        $search  = $request->get('search');
 
-        // 1️⃣ Paginate FIRST
-        $asesiPaginated = Personal::where('status', 10)->where('type', 'reguler')->paginate($perPage);
+        // 1️⃣ Paginate FIRST (with search)
+        $asesiPaginated = Personal::query()
+            ->where('status', 10)
+            ->where('type', 'reguler')
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($w) use ($search) {
+                    $w->where('id_izin', 'like', "%{$search}%")
+                    ->orWhere('nik', 'like', "%{$search}%")
+                    ->orWhere('nama', 'like', "%{$search}%")
+                    ->orWhereExists(function ($sub) use ($search) {
+                        $sub->select(DB::raw(1))
+                            ->from('klasifikasi_kualifikasis as kk')
+                            ->join('mytuk as t', 't.id', '=', 'kk.tuk')
+                            ->whereColumn('kk.id_izin', 'personals.id_izin')
+                            ->where('t.nama_tuk', 'like', "%{$search}%");
+                    });
+                });
+            })
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
 
-        // 2️⃣ Transform the paginated items
+        // 2️⃣ Transform (UNCHANGED)
         $asesiPaginated->getCollection()->transform(function ($asesi) {
 
             $klasifikasi = KlasifikasiKualifikasi::where('id_izin', $asesi->id_izin)->first();
-
-            if (!$klasifikasi) {
-                return null;
-            }
+            if (!$klasifikasi) return null;
 
             $tuk = MyTuk::where('id', $klasifikasi->tuk)->first();
 
@@ -56,7 +76,137 @@ class InvoiceController extends Controller
             ];
         });
 
-        // 3️⃣ Remove nulls (important)
+        // 3️⃣ Remove nulls
+        $asesiPaginated->setCollection(
+            $asesiPaginated->getCollection()->filter()->values()
+        );
+
+        return response()->json([
+            'message' => 'Invoice Reguler retrieved successfully!',
+            'data' => $asesiPaginated
+        ]);
+    }
+
+    public function viewInvoiceBaruBalai(Request $request)
+    {
+        $perPage = $request->get('per_page', 10);
+        $search  = $request->get('search');
+
+        // 1️⃣ Paginate FIRST (with search)
+        $asesiPaginated = Personal::query()
+            ->where('status', 10)
+            ->where('type', 'balai')
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($w) use ($search) {
+                    $w->where('id_izin', 'like', "%{$search}%")
+                    ->orWhere('nik', 'like', "%{$search}%")
+                    ->orWhere('nama', 'like', "%{$search}%")
+                    ->orWhereExists(function ($sub) use ($search) {
+                        $sub->select(DB::raw(1))
+                            ->from('klasifikasi_kualifikasis as kk')
+                            ->join('mytuk as t', 't.id', '=', 'kk.tuk')
+                            ->whereColumn('kk.id_izin', 'personals.id_izin')
+                            ->where('t.nama_tuk', 'like', "%{$search}%");
+                    });
+                });
+            })
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
+
+        // 2️⃣ Transform (UNCHANGED)
+        $asesiPaginated->getCollection()->transform(function ($asesi) {
+
+            $klasifikasi = KlasifikasiKualifikasi::where('id_izin', $asesi->id_izin)->first();
+            if (!$klasifikasi) return null;
+
+            $tuk = MyTuk::where('id', $klasifikasi->tuk)->first();
+
+            $jabker = JabatanKerja::where(
+                'id_jabatan_kerja',
+                $klasifikasi->jabatan_kerja
+            )->first();
+
+            $harga = HargaInvoice::where('jenjang', $klasifikasi->jenjang)
+                ->where('tipe', 'Luring')
+                ->first();
+
+            return [
+                'nama'          => $asesi->nama,
+                'nik'           => $asesi->nik,
+                'id_izin'       => $asesi->id_izin,
+                'jabatan_kerja' => $jabker->jabatan_kerja ?? '-',
+                'jenjang'       => $klasifikasi->jenjang,
+                'tuk'           => $tuk->nama_tuk ?? '-',
+                'harga_bayar'   => ($harga->tahap1 ?? 0) + ($harga->tahap2 ?? 0),
+            ];
+        });
+
+        // 3️⃣ Remove nulls
+        $asesiPaginated->setCollection(
+            $asesiPaginated->getCollection()->filter()->values()
+        );
+
+        return response()->json([
+            'message' => 'Invoice Reguler retrieved successfully!',
+            'data' => $asesiPaginated
+        ]);
+    }
+
+    public function viewInvoiceBaruFg(Request $request)
+    {
+        $perPage = $request->get('per_page', 10);
+        $search  = $request->get('search');
+
+        // 1️⃣ Paginate FIRST (with search)
+        $asesiPaginated = Personal::query()
+            ->where('status', 10)
+            ->where('type', 'fg')
+            ->when($search, function ($q) use ($search) {
+                $q->where(function ($w) use ($search) {
+                    $w->where('id_izin', 'like', "%{$search}%")
+                    ->orWhere('nik', 'like', "%{$search}%")
+                    ->orWhere('nama', 'like', "%{$search}%")
+                    ->orWhereExists(function ($sub) use ($search) {
+                        $sub->select(DB::raw(1))
+                            ->from('klasifikasi_kualifikasis as kk')
+                            ->join('mytuk as t', 't.id', '=', 'kk.tuk')
+                            ->whereColumn('kk.id_izin', 'personals.id_izin')
+                            ->where('t.nama_tuk', 'like', "%{$search}%");
+                    });
+                });
+            })
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
+
+        // 2️⃣ Transform (UNCHANGED)
+        $asesiPaginated->getCollection()->transform(function ($asesi) {
+
+            $klasifikasi = KlasifikasiKualifikasi::where('id_izin', $asesi->id_izin)->first();
+            if (!$klasifikasi) return null;
+
+            $tuk = MyTuk::where('id', $klasifikasi->tuk)->first();
+
+            $jabker = JabatanKerja::where(
+                'id_jabatan_kerja',
+                $klasifikasi->jabatan_kerja
+            )->first();
+
+            $harga = HargaInvoice::where('jenjang', $klasifikasi->jenjang)
+                ->where('tipe', 'Luring')
+                ->first();
+
+            return [
+                'nama'          => $asesi->nama,
+                'nik'           => $asesi->nik,
+                'id_izin'       => $asesi->id_izin,
+                'jabatan_kerja' => $jabker->jabatan_kerja ?? '-',
+                'jenjang'       => $klasifikasi->jenjang,
+                'tuk'           => $tuk->nama_tuk ?? '-',
+                'harga_bayar'   => ($harga->tahap1 ?? 0) + ($harga->tahap2 ?? 0),
+            ];
+        });
+
+        // 3️⃣ Remove nulls
         $asesiPaginated->setCollection(
             $asesiPaginated->getCollection()->filter()->values()
         );
@@ -74,103 +224,6 @@ class InvoiceController extends Controller
         return response()->json([
             'message' => 'Rekening TUK retrieved successfully!',
             'data' => $rekening
-        ]);
-    }
-    public function viewInvoiceBaruBalai(Request $request)
-    {
-        $perPage = $request->get('per_page', 10);
-
-        // 1️⃣ Paginate FIRST
-        $asesiPaginated = Personal::where('status', 10)->where('type', 'fg')->paginate($perPage);
-
-        // 2️⃣ Transform the paginated items
-        $asesiPaginated->getCollection()->transform(function ($asesi) {
-
-            $klasifikasi = KlasifikasiKualifikasi::where('id_izin', $asesi->id_izin)->first();
-
-            if (!$klasifikasi) {
-                return null;
-            }
-
-            $tuk = MyTuk::where('id', $klasifikasi->tuk)->first();
-
-            $jabker = JabatanKerja::where(
-                'id_jabatan_kerja',
-                $klasifikasi->jabatan_kerja
-            )->first();
-
-            $harga = HargaInvoice::where('jenjang', $klasifikasi->jenjang)
-                ->where('tipe', 'Luring')
-                ->first();
-
-            return [
-                'nama'          => $asesi->nama,
-                'nik'           => $asesi->nik,
-                'id_izin'       => $asesi->id_izin,
-                'jabatan_kerja' => $jabker->jabatan_kerja ?? '-',
-                'jenjang'       => $klasifikasi->jenjang,
-                'tuk'           => $tuk->nama_tuk ?? '-',
-                'harga_bayar'   => ($harga->tahap1 ?? 0) + ($harga->tahap2 ?? 0),
-            ];
-        });
-
-        // 3️⃣ Remove nulls (important)
-        $asesiPaginated->setCollection(
-            $asesiPaginated->getCollection()->filter()->values()
-        );
-
-        return response()->json([
-            'message' => 'Invoice Balai retrieved successfully!',
-            'data' => $asesiPaginated
-        ]);
-    }
-
-    public function viewInvoiceBaruFg(Request $request)
-    {
-        $perPage = $request->get('per_page', 10);
-
-        // 1️⃣ Paginate FIRST
-        $asesiPaginated = Personal::where('status', 10)->where('type', 'fg')->paginate($perPage);
-
-        // 2️⃣ Transform the paginated items
-        $asesiPaginated->getCollection()->transform(function ($asesi) {
-
-            $klasifikasi = KlasifikasiKualifikasi::where('id_izin', $asesi->id_izin)->first();
-
-            if (!$klasifikasi) {
-                return null;
-            }
-
-            $tuk = MyTuk::where('id', $klasifikasi->tuk)->first();
-
-            $jabker = JabatanKerja::where(
-                'id_jabatan_kerja',
-                $klasifikasi->jabatan_kerja
-            )->first();
-
-            $harga = HargaInvoice::where('jenjang', $klasifikasi->jenjang)
-                ->where('tipe', 'Luring')
-                ->first();
-
-            return [
-                'nama'          => $asesi->nama,
-                'nik'           => $asesi->nik,
-                'id_izin'       => $asesi->id_izin,
-                'jabatan_kerja' => $jabker->jabatan_kerja ?? '-',
-                'jenjang'       => $klasifikasi->jenjang,
-                'tuk'           => $tuk->nama_tuk ?? '-',
-                'harga_bayar'   => ($harga->tahap1 ?? 0) + ($harga->tahap2 ?? 0),
-            ];
-        });
-
-        // 3️⃣ Remove nulls (important)
-        $asesiPaginated->setCollection(
-            $asesiPaginated->getCollection()->filter()->values()
-        );
-
-        return response()->json([
-            'message' => 'Invoice FG retrieved successfully!',
-            'data' => $asesiPaginated
         ]);
     }
 
@@ -277,267 +330,254 @@ class InvoiceController extends Controller
 
     public function createInvoice(Request $request)
     {
+        $validatedData = $request->validate([
+            "id_izin_kompeten"    => ['required', 'array'],
+            "jenis_permohonan"    => ['required'],
+            "metode"              => ['required'],
+            "metode_pembayaran"   => ['required'],
+            "nama_tuk"            => ['required'],
+            "rekening"            => ['required'],
+            "jatuh_tempo"         => ['required'],
+            "tanggal_uji"         => ['required'],
+        ]);
+
         $maxRetries = 3;
         $attempt = 0;
-        $personalUpdates = [];
-        $invoiceData = [];
-        $filename_invoice = null;
+
+        /* =====================================================
+        * DATA HOLDERS
+        * ===================================================== */
+        $data_asesi_beserta_harga = [];
+        $total_harga  = 0;
+        $total_diskon = 0;
+        $latest_invno = null;
+        $invoice      = null;
+        $invoice_pdf  = null;
 
         while ($attempt < $maxRetries) {
+            DB::beginTransaction();
+
             try {
-                $validatedData = $request->validate([
-                    "id_izin_kompeten" => ['required'],
-                    "metode" => ['required'],
-                    "nama_instansi" => ['required'],
-                    "tanggal_uji" => ['required']
-                ]);
-
-                // Get data tuk for instansi
-                if (Auth::user()->role == "adm_tuk") {
-                    $data_instansi = MyTuk::select(['nama_tuk as nama', 'alamat', 'id'])->where("id", Auth::user()->tuk)->first();
+                /* =====================================================
+                * 1. INSTANSI
+                * ===================================================== */
+                if (Auth::user()->role === "adm_tuk") {
+                    $data_instansi = DB::connection("mygatensi_2")
+                        ->table("mytuk")
+                        ->select(['nama_tuk as nama', 'alamat', 'id'])
+                        ->where("id", Auth::user()->tuk)
+                        ->first();
                 } else {
-                    $data_instansi = MyTuk::select(['nama_tuk as nama', 'alamat', 'id'])->where("id", $validatedData['nama_instansi'])->first();
+                    $data_instansi = DB::connection("mygatensi_2")
+                        ->table("mytuk")
+                        ->select(['nama_tuk as nama', 'alamat', 'id'])
+                        ->where("id", $validatedData['nama_tuk'])
+                        ->first();
                 }
-                $data_asesi_beserta_harga = [];
-                $total_harga = 0;
-                $total_diskon = 0;
 
-                $tuk_disc = DB::table("tuk_discounts")->select(['kategori'])->where("id_tuk_lpjk", $data_instansi->id)->first();
+                if (! $data_instansi) {
+                    throw new \Exception("Instansi tidak ditemukan");
+                }
 
+                /* =====================================================
+                * 2. DISCOUNT CONFIG
+                * ===================================================== */
+                $tuk_disc = DB::table("tuk_discounts")
+                    ->where("id_tuk_lpjk", $data_instansi->id)
+                    ->first();
+
+                if (! $tuk_disc) {
+                    throw new \Exception("TUK belum rilis diskon");
+                }
+
+                /* =====================================================
+                * 3. LOOP ASESI
+                * ===================================================== */
                 foreach ($validatedData['id_izin_kompeten'] as $id_izin) {
-                    $personal = DB::connection("mygatensi_2")->table("mystatuspermohonan")->select(['ID_Ijin as id_izin', 'NamaAsesi as nama', 'vertgluji as tanggal_uji'])->where("ID_Ijin", trim($id_izin))->first();
-                    if (isset($personal->invno)) {
-                        return back()->with("error", $personal->id_izin . " sudah create invoice!");
-                    }
-                    $klas_kua = KlasifikasiKualifikasi::where('id_izin', $id_izin)->first();
-                    if(!isset($klas_kua)) {
-                        $klas_kua = DB::connection("mygatensi_2")->table("myklasifikasikualifikasi")->select(['ID_Ijinklasifikasikualifikasi as id_izin', 'jenjang as jenjang', 'tuk as tuk', 'jabatan_kerja as jabatan_kerja'])->where("ID_Ijinklasifikasikualifikasi", trim($id_izin))->first();
-                    }
-                    $get_harga = DB::table("harga_invoice")->select(['tahap1', 'tahap2', 'tipe', 'jenjang'])->where("jenjang", "$klas_kua->jenjang")->where("tipe", $validatedData['metode'])->first();
-                    $jabatan_kerja = DB::connection("mygatensi_2")->table("myjabatankerja")->select(['jabatan_kerja'])->where("id_jabatan_kerja", $klas_kua->jabatan_kerja)->first();
-                    if (!$jabatan_kerja) {
-                        throw new \Exception("Jabatan kerja not found for ID: " . $klas_kua->jabatan_kerja);
-                    }
-                    $total_harga += (int)$get_harga->tahap1 + (int)$get_harga->tahap2;
 
-                    $nama_tuk = DB::connection("mygatensi_2")->table("mytuk")->select(['nama_tuk'])->where("id", $klas_kua->tuk)->first();
-                    if (!$nama_tuk) {
-                        throw new \Exception("TUK not found for ID: " . $klas_kua->tuk);
+                    $personal = DB::connection("mygatensi_2")
+                        ->table("mystatuspermohonan")
+                        ->select(['ID_Ijin as id_izin', 'NamaAsesi as nama', 'vertgluji as tanggal_uji', 'invno'])
+                        ->where("ID_Ijin", trim($id_izin))
+                        ->first();
+
+                    if (! $personal) {
+                        throw new \Exception("Asesi tidak ditemukan: {$id_izin}");
                     }
 
-                    if ($tuk_disc) {
-                        $jenjang_disc = DB::table("jenjang_discounts")->where("metode", "Luring")->where("jenjang", (int)$klas_kua->jenjang)->first();
-                        $disc_full = [
-                            "1" => $jenjang_disc->kategori_1,
-                            "2" => $jenjang_disc->kategori_2,
-                            "3" => $jenjang_disc->kategori_3,
-                            "4" => $jenjang_disc->kategori_4,
-                            "Pusat" => 0,
-                            "Pemerintahan" => 0
-                        ];
-                        $dapat_disc = $disc_full[$tuk_disc->kategori];
-                        $total_diskon = $total_diskon + $dapat_disc;
-                    } else {
-                        return back()->with("error", $nama_tuk->nama_tuk . " belum rilis!");
+                    if (! empty($personal->invno)) {
+                        throw new \Exception("{$id_izin} sudah memiliki invoice");
                     }
 
-                    array_push($data_asesi_beserta_harga, [
+                    $klas_kua = KlasifikasiKualifikasi::where('id_izin', $id_izin)->first()
+                        ?? DB::connection("mygatensi_2")
+                            ->table("myklasifikasikualifikasi")
+                            ->select([
+                                'ID_Ijinklasifikasikualifikasi as id_izin',
+                                'jenjang',
+                                'tuk',
+                                'jabatan_kerja'
+                            ])
+                            ->where("ID_Ijinklasifikasikualifikasi", trim($id_izin))
+                            ->first();
+
+                    if (! $klas_kua) {
+                        throw new \Exception("Klasifikasi tidak ditemukan: {$id_izin}");
+                    }
+
+                    $harga = DB::table("harga_invoice")
+                        ->where("jenjang", $klas_kua->jenjang)
+                        ->where("tipe", $validatedData['metode'])
+                        ->first();
+
+                    if (! $harga) {
+                        throw new \Exception("Harga tidak ditemukan");
+                    }
+
+                    $jabatan_kerja = DB::connection("mygatensi_2")
+                        ->table("myjabatankerja")
+                        ->where("id_jabatan_kerja", $klas_kua->jabatan_kerja)
+                        ->value('jabatan_kerja');
+
+                    $nama_tuk = DB::connection("mygatensi_2")
+                        ->table("mytuk")
+                        ->where("id", $klas_kua->tuk)
+                        ->value('nama_tuk');
+
+                    $total_harga += (int)$harga->tahap1 + (int)$harga->tahap2;
+
+                    $jenjang_disc = DB::table("jenjang_discounts")
+                        ->where("metode", ucwords($validatedData['metode']))
+                        ->where("jenjang", (int)$klas_kua->jenjang)
+                        ->first();
+
+                    $disc_map = [
+                        "1" => $jenjang_disc->kategori_1 ?? 0,
+                        "2" => $jenjang_disc->kategori_2 ?? 0,
+                        "3" => $jenjang_disc->kategori_3 ?? 0,
+                        "4" => $jenjang_disc->kategori_4 ?? 0,
+                        "Pusat" => 0,
+                        "Pemerintahan" => 0,
+                    ];
+
+                    $diskon = $disc_map[$tuk_disc->kategori] ?? 0;
+                    $total_diskon += $diskon;
+
+                    $data_asesi_beserta_harga[] = [
                         "id_izin" => $id_izin,
                         "nama" => $personal->nama,
-                        "jabatan_kerja" => $jabatan_kerja->jabatan_kerja,
+                        "jabatan_kerja" => $jabatan_kerja,
                         "jenjang" => $klas_kua->jenjang,
-                        "harga" => $get_harga->tahap1,
-                        "harga_2" => $get_harga->tahap2,
-                        "nama_tuk" => $nama_tuk->nama_tuk,
-                        "id_tuk" => $klas_kua->tuk,
-                        "diskon" => $dapat_disc,
-                        "rencana_tanggal_uji" => $personal->tanggal_uji
-                    ]);
+                        "harga" => (int)$harga->tahap1,
+                        "harga_2" => (int)$harga->tahap2,
+                        "nama_tuk" => $nama_tuk,
+                        "diskon" => $diskon,
+                        "tanggal_uji" => $personal->tanggal_uji,
+                    ];
                 }
 
-                $latest_invno = DB::connection("mygatensi_2")->table("myinvoice")->select(["invoice_number"])->orderBy('input_date', 'desc')->first();
-                $latest_invno = explode("/", $latest_invno->invoice_number);
-                $latest_invno[2] = date("Y");
+                /* =====================================================
+                * 4. INVOICE NUMBER
+                * ===================================================== */
+                $latest_inv = DB::connection("mygatensi_2")
+                    ->table("myinvoice")
+                    ->orderByDesc('InputDate')
+                    ->value('InvNo');
 
-                $number_invno = explode("-", $latest_invno[3]);
-                if ($number_invno[0] == str(date("m"))) {
-                    $number_invno[1] = (int)$number_invno[1] + 1;
-                    $copy_number = (int)$number_invno[1];
-                    $number_invno[1] = str_pad($number_invno[1], 4, '0', STR_PAD_LEFT);
-                } else {
-                    $number_invno[0] = str(date("m"));
-                    $copy_number = 1;
-                    $number_invno[1] = str_pad("1", 4, '0', STR_PAD_LEFT);
-                }
-                $latest_invno[3] = implode("-", $number_invno);
-                $latest_invno = implode("/", $latest_invno);
+                [$a,$b,$c,$d] = explode("/", $latest_inv);
+                $c = date('Y');
+                [$month,$num] = explode("-", $d);
 
-                // Input excel
-                $invoice_sps = IOFactory::load(resource_path("views/template-invoice/invoice_sistem.xlsx"));
-                $worksheet = $invoice_sps->getActiveSheet();
-                $cell_to_copy = ["B", "C", "D", "E", "F", "G", "H"];
+                $num = ($month == date('m')) ? $num + 1 : 1;
+                $month = date('m');
 
-                // Duplicate that shit
-                $formatRows = 22;
+                $latest_invno = implode("/", [$a,$b,$c,$month . '-' . str_pad($num, 4, '0', STR_PAD_LEFT)]);
 
-                for ($i = 0; $i < count($data_asesi_beserta_harga); $i++) {
-                    $worksheet->setCellValue('B' . (string)$formatRows + $i, $i + 1);
-                    $worksheet->setCellValue('C' . (string)$formatRows + $i, $data_asesi_beserta_harga[$i]['nama']);
-                    $worksheet->setCellValue('E' . (string)$formatRows + $i, $data_asesi_beserta_harga[$i]['jabatan_kerja']);
-                    $worksheet->setCellValue('F' . (string)$formatRows + $i, $data_asesi_beserta_harga[$i]['jenjang']);
-                    $worksheet->setCellValue('G' . (string)$formatRows + $i, (int)$data_asesi_beserta_harga[$i]['harga'] + (int)$data_asesi_beserta_harga[$i]['harga_2']);
-                    if($i === count($data_asesi_beserta_harga) - 1) {
-                        $worksheet->setCellValue('F' . (string)39 + $i, 'Issued by:');
-                        $worksheet->setCellValue('G' . (string)39 + $i, Auth::user()->name);
-                    }
-                    
-                    // Insert the new row
-                    if ($i != count($data_asesi_beserta_harga) - 1) {
-                        $worksheet->insertNewRowBefore($formatRows + $i + 1, 1);
-
-                        // Copy style from the format row to the new row
-                        // Repeat this line for each column you want to copy styles from
-                        foreach ($cell_to_copy as $word) {
-                            $worksheet->duplicateStyle($worksheet->getStyle($word . $formatRows), $word . (string)$formatRows + $i + 1);
-                        }
-                    }
-                }
-
-                // Instansi
-                $worksheet->setCellValue("B11", $data_instansi->nama);
-                $worksheet->setCellValue("B12", $data_instansi->alamat);
-
-                // Tuk
-                $worksheet->setCellValue("E15", $data_asesi_beserta_harga[0]['nama_tuk']);
-                $worksheet->setCellValue("E17", ucwords($validatedData['metode']));
-
-                // Tanggal invoice
-                $worksheet->setCellValue("G11", \Carbon\Carbon::now()->setTimezone('Asia/Jakarta')->isoFormat('DD MMMM Y'));
-
-                // Tanggal uji
-                $worksheet->setCellValue("E16", \Carbon\Carbon::parse($validatedData['tanggal_uji'])->setTimezone('Asia/Jakarta')->isoFormat('DD MMMM Y'));
-                $worksheet->setCellValue("E19", str($tuk_disc->kategori));
-
-                // No Invoice
-                $worksheet->setCellValue('G10', $latest_invno);
-
-
-                // Total
-                $worksheet->setCellValue('G' . str($formatRows + count($data_asesi_beserta_harga) + 2), '=SUM(G22:' . 'G' . str((count($data_asesi_beserta_harga) - 1) + $formatRows) . ')');
-                $worksheet->setCellValue('G' . str($formatRows + count($data_asesi_beserta_harga) + 3), $total_diskon);
-
-                $total_in_word = $worksheet->getCell('E' . str($formatRows + count($data_asesi_beserta_harga) + 2))->getCalculatedValue();
-                $worksheet->getCell('E' . str($formatRows + count($data_asesi_beserta_harga) + 2))->setValue($total_in_word);
-
-
-                // Save to xlsx
-                $writer = IOFactory::createWriter($invoice_sps, "Xlsx");
-                // $writer->save(resource_path("views/template-invoice/results.xlsx"));
-                ob_start();
-                $writer->save('php://output');
-                $content = ob_get_contents();
-                ob_end_clean();
-
-                $filename_invoice = "invoice_" . \Carbon\Carbon::now()->setTimezone('Asia/Jakarta')->toDateTimeString() .  '.xlsx';
-                $result_save = Storage::disk("sertif_ftp")->put("/baru/invoice/" . $filename_invoice, $content);
-
-                $response = Http::withHeaders([
-                    "Content-Type" => "application/json",
-                    "token" => "3703A37836D0D2B451CAABEDD969A26A15FCFBB65C75070ECB4142611FA5F6A070063E18C762D13AED801B2B174A9BAA97F07EDE9A9587F4C5DB3A39CC930744"
-                ])->post("http://147.139.174.124:6183/convert", [
-                    "file" => "https://lspgatensi.id/files/baru/invoice/" . $filename_invoice
+                /* =====================================================
+                * 5. CREATE INVOICE
+                * ===================================================== */
+                $invoice = Invoice::create([
+                    'invoice_number' => $latest_invno,
+                    'nama'           => $data_instansi->nama,
+                    'inv_type'       => $validatedData['metode'] === 'luring' ? 2 : 1,
+                    'bulan'          => (int) date('m'),
+                    'tahun'          => (int) date('Y'),
+                    'nomor'          => $num,
+                    'jatuh_tempo'    => (int) $validatedData['jatuh_tempo'],
+                    'nama_tuk'       => $data_instansi->nama,
+                    'class_uji'      => ucwords($validatedData['metode']),
+                    'kode_rekening'  => $validatedData['rekening'],
+                    'keterangan'     => $validatedData['jenis_permohonan'],
+                    'total_biaya'    => $total_harga - $total_diskon,
+                    'tgl_uji'        => $validatedData['tanggal_uji'],
+                    'input_by'       => Auth::user()->email,
                 ]);
-                if ($response->ok()) {
-                    $result_json = $response->json();
-                    $invoice_pdf = $result_json['link'];
-                } else {
-                    dd("Terjadi masalah: converter xls_pdf sedang bermasalah");
-                    abort(500);
-                }
 
                 foreach ($data_asesi_beserta_harga as $asesi) {
-                    $api_url = "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . trim($asesi['id_izin']);
-                    $headers = [
-                        'Content-Type' => 'application/json',
-                        'token' => env('SIKI_TOKEN')
-                    ];
-
-                    $status30 = ["kd_status" => "30", "keterangan" => "Invoice"];
-
-                    $this->updateSikiStatus($api_url, $headers, $status30, 30, $asesi['id_izin']);
-
-                    // If all SIKI updates are successful, prepare data for personal table update and invoice creation
-                    $personalUpdates[] = [
-                        'id_izin' => $asesi['id_izin'],
-                        'status' => 30,
-                        'harga_2' => $asesi['harga_2'],
-                        'harga' => $asesi['harga']
-                    ];
-
-                    usleep(500000); // 0.5 seconds delay
-                }
-
-                foreach ($personalUpdates as $personalUpdate) {
-                    DB::connection("mygatensi_2")->table("mystatuspermohonan")->where("ID_Ijin", $personalUpdate['id_izin'])->update([
-                        "invby" => Auth::user()->email,
-                        "invstatus" => $personalUpdate['status'],
-                        "invno" => $latest_invno,
-                        "InvBiaya" => $personalUpdate['harga_2'],
-                        "InvBayar" => $personalUpdate['harga'],
-                        "invdate" => date("Y-m-d"),
-                        "Invbayarby" => "novi_rara",
-                        "Invbayarstatus" => "30",
-                        "Invbayardate" => now()
-                    ]);
-
-                    Personal::where('id_izin', $personalUpdate['id_izin'])->update([
-                        'status' => 30
+                    InvoiceDetail::create([
+                        'no_invoice' => $latest_invno,
+                        'id_izin'    => $asesi['id_izin'],
+                        'biaya'      => $asesi['harga'] + $asesi['harga_2'],
+                        'ditagihkan' => $asesi['harga'] + $asesi['harga_2'] - $asesi['diskon'],
                     ]);
                 }
 
-                DB::connection("mygatensi_2")->table("myinvoice")->insert([
-                    "ID_Ijin" => $validatedData['metode'] == "luring" ? "TUK Mandiri" : "BJKW Kolektif",
-                    "Nama" => $data_instansi->nama,
-                    "InvType" => $validatedData['metode'] == "luring" ? 2 : 1,
-                    "bulan" => (int)date("m"),
-                    "tahun" => (int)date("Y"),
-                    "nomor" => $copy_number,
-                    "JatuhTempo" => 7,
-                    "invoice_number" => $latest_invno,
-                    "nama_tuk" => $data_instansi->nama,
-                    "ClassUji" => $validatedData['metode'] == "luring" ? "Luring" : "On_Site",
-                    "KodeRekening" => "000",
-                    "Keterangan" => $validatedData['metode'] == "luring" ? "Biaya Sertifikasi TUK" : "Biaya Sertifikasi Kolektif",
-                    "TotalBiaya" => $total_harga - $total_diskon,
-                    "BayarTahap1" => 0,
-                    "BayarTahap2" => 0,
-                    "RefundBayar" => 0,
-                    "TglUji" => $data_asesi_beserta_harga[0]['rencana_tanggal_uji'],
-                    "StatusJadwal" => 0,
-                    "inv_link" => $invoice_pdf,
-                    "InputBy" => Auth::user()->email,
-                    "SinServer" => "0"
-                ]);
+                DB::commit();
+                break;
 
-                DB::table("file_invoices")->insert([
-                    "no_invoice" => $latest_invno,
-                    "link" => "https://lspgatensi.id/files/baru/invoice/" . $filename_invoice
-                ]);
-
-                if (Auth::user()->role == "adm_tuk") {
-                    return redirect("/invoice/laporan")->with('success', 'Berhasil membuat laporan, silahkan klik link berikut download file pdf <a class="underline" download href="' . $invoice_pdf . '">' . $invoice_pdf . '</a>');
-                } else {
-                    return redirect("/invoice-admin/laporan")->with('success', 'Berhasil membuat laporan, silahkan klik link berikut download file pdf <a class="underline" download href="' . $invoice_pdf . '">' . $invoice_pdf . '</a>');
-                }
-
-            } catch (\Exception $e) {
-                $attempt++;
-                if ($attempt >= $maxRetries) {
-                    dd($e);
-                    return back()->with("error", "Terjadi kesalahan: " . $e->getMessage())->withInput();
+            } catch (\Throwable $e) {
+                DB::rollBack();
+                if (++$attempt >= $maxRetries) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $e->getMessage(),
+                    ], 500);
                 }
             }
         }
+
+        /* =====================================================
+        * 6. PDF GENERATION (OUTSIDE TRANSACTION)
+        * ===================================================== */
+        $pdf = Pdf::loadView('invoice.pdf-invoice', [
+            'latest_invno' => $latest_invno,
+            'data_instansi' => $data_instansi,
+            'data_asesi_beserta_harga' => $data_asesi_beserta_harga,
+            'total_harga' => $total_harga,
+            'total_diskon' => $total_diskon,
+        ]);
+
+        $pdf_filename = 'inv_' . now()->format('Ymd_His') . '.pdf';
+        Storage::disk("str_moon")->put("/invoice-tuk/" . $pdf_filename, $pdf->output());
+
+        $invoice_pdf = "https://moon.lspgatensi.id/files/invoice-tuk/" . $pdf_filename;
+        $invoice->update(['inv_link' => $invoice_pdf]);
+
+        /* =====================================================
+        * 7. SIKI + PERSONAL UPDATE
+        * ===================================================== */
+        foreach ($data_asesi_beserta_harga as $asesi) {
+            $this->updateSikiStatus(
+                "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi['id_izin'],
+                [
+                    'Content-Type' => 'application/json',
+                    'token' => env('SIKI_TOKEN'),
+                ],
+                ['kd_status' => '30', 'keterangan' => 'Invoice'],
+                30,
+                $asesi['id_izin']
+            );
+
+            Personal::where('id_izin', $asesi['id_izin'])->update(['status' => 30]);
+            usleep(500000);
+        }
+
+        return response()->json([
+            'success' => true,
+            'invoice_number' => $latest_invno,
+            'invoice_link' => $invoice_pdf,
+            'total_biaya' => $total_harga - $total_diskon,
+        ]);
     }
 
     private function updateSikiStatus($api_url, $headers, $status_payload, $status_code, $id_izin)

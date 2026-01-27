@@ -388,19 +388,13 @@ class PermohonanController extends Controller
             throw new \Exception($detail['message'] ?? 'Unknown error');
         }
 
-        $status = Http::withHeaders($headers)
-            ->timeout(60)->connectTimeout(60)
-            ->get("$baseUrl/status-skk{$endpoint}{$id_izin}")
-            ->json();
-
-        if (($status['status'] ?? null) === 'errors') {
-            throw new \Exception($status['message'] ?? 'Unknown error');
-        }
-
-        DB::transaction(function () use ($detail, $status, $id_izin, $type) {
+        DB::transaction(function () use ($detail, $id_izin, $type) {
 
             // Personal
             foreach ($detail['personal'] as $p) {
+                if (!is_array($p)) {
+                    continue;
+                }
                 Personal::updateOrInsert(
                     ['id_izin' => $id_izin],
                     [
@@ -414,7 +408,7 @@ class PermohonanController extends Controller
                         'nama' => $p['nama'],
                         'tempat_lahir' => $p['tempat_lahir'],
                         'tanggal_lahir' => $p['tanggal_lahir'],
-                        'email' => str_replace(' ', '', $p['email']),
+                        'email' => str_replace(' ', '', $p['email'] ?? ''),
                         'telepon' => $p['telepon'],
                         'npwp' => $p['npwp'],
                         'jenis_kelamin' => $p['jenis_kelamin'],
@@ -424,7 +418,7 @@ class PermohonanController extends Controller
                         'kabupaten' => $p['kabupaten'],
                         'kodepos' => $p['kodepos'],
                         'ktp' => $p['ktp'],
-                        'status' => $status['current_status'],
+                        'status' => null,
                         'surat_pernyataan_kebenaran_data' => $p['surat_pernyataan_kebenaran_data'],
                         'file_npwp' => $p['file_npwp'],
                         'pas_foto' => $p['pas_foto'],
@@ -433,7 +427,9 @@ class PermohonanController extends Controller
             }
 
             // Pendidikan
-            collect($detail['pendidikan'])->each(fn ($d) =>
+            collect($detail['pendidikan'] ?? [])
+            ->filter(fn ($d) => is_array($d))
+            ->each(fn ($d) =>
                 Pendidikan::create([
                     'id_izin' => $id_izin,
                     'id_pendidikan' => $d['id'],
@@ -459,7 +455,9 @@ class PermohonanController extends Controller
             );
 
             // Proyek
-            collect($detail['proyek'])->each(fn ($d) =>
+            collect($detail['proyek'] ?? [])
+            ->filter(fn ($d) => is_array($d))
+            ->each(fn ($d) =>
                 Proyek::create([
                     'id_izin' => $id_izin,
                     'id_proyek' => $d['id'],
@@ -476,13 +474,14 @@ class PermohonanController extends Controller
                     'surat_referensi' => $d['surat_referensi'],
                     'jenis_pengalaman' => $d['jenis_pengalaman'],
                     'pemberi_kerja' => $d['pemberi_kerja'],
-                    'nik' => $d['nik'],
                     'no_registrasi' => $d['no_registrasi'],
                 ])
             );
 
             // Pelatihan
-            collect($detail['pelatihan'])->each(fn ($d) =>
+            collect($detail['pelatihan'] ?? [])
+            ->filter(fn ($d) => is_array($d))
+            ->each(fn ($d) =>
                 Pelatihan::create([
                     'id_izin' => $id_izin,
                     'id_pelatihan' => $d['id'],
@@ -500,7 +499,9 @@ class PermohonanController extends Controller
             );
 
             // Sertifikat
-            collect($detail['sertifikat_surat_keterangan'])->each(fn ($d) =>
+            collect($detail['sertifikat_surat_keterangan'] ?? [])
+            ->filter(fn ($d) => is_array($d))
+            ->each(fn ($d) =>
                 SertifikatSuket::create([
                     'id_izin' => $id_izin,
                     'id_sertifikat_suket' => $d['id'],
@@ -516,7 +517,9 @@ class PermohonanController extends Controller
             );
 
             // Klasifikasi
-            collect($detail['klasifikasi_kualifikasi'])->each(fn ($d) =>
+            collect($detail['klasifikasi_kualifikasi'] ?? [])
+            ->filter(fn ($d) => is_array($d))
+            ->each(fn ($d) =>
                 KlasifikasiKualifikasi::create([
                     'id_izin' => $id_izin,
                         'updated' => $d['updated'],
@@ -543,19 +546,6 @@ class PermohonanController extends Controller
                 ])
             );
         });
-    }
-
-    private function normalizeDate($date)
-    {
-        if (
-            empty($date) ||
-            $date === '0000-00-00' ||
-            $date === '0000-00-00 00:00:00'
-        ) {
-            return null;
-        }
-
-        return $date;
     }
 
     private function basePermohonanList(
