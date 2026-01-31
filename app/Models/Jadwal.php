@@ -25,7 +25,9 @@ class Jadwal extends Model
         'tanggal_uji',
         'nama_kegiatan',
         'status',
+        'is_started_praasesmen',
         'is_started',
+        'tahap',
         'started_at'
     ]);
 

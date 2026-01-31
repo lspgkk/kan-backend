@@ -4,13 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Models\AsesiJadwal;
 use App\Models\AsesorBnsp;
+use App\Models\JabatanKerja;
 use App\Models\Jadwal;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use GuzzleHttp\Exception\RequestException;
 use Illuminate\Database\QueryException;
 use App\Models\KlasifikasiKualifikasi;
+use App\Models\MyTuk;
+use App\Models\MyTukBnsp;
+use App\Models\Pendidikan;
+use App\Models\Personal;
 use App\Models\User;
+use Illuminate\Support\Facades\Http;
 
 class JadwalController extends Controller
 {
@@ -89,61 +95,191 @@ class JadwalController extends Controller
     
     public function store(Request $request)
     {
+        // 1️⃣ Validation (API-style)
         try {
-            $validate = $request->validate([
-                "jadwal_id" => ['required'],
-                "asesor_id" => ['required'],
-                "asesor2_id" => ['nullable'],
-                "id_izin" => ['required'],
+            $validated = $request->validate([
+                "nama_jadwal" => ['required'],
+                "tuk" => ['required'],
+                "subklasifikasi" => ['required'],
+                "kualifikasi" => ['required'],
+                "asesor1" => ['required'],
+                "asesor2" => ['nullable'],
+                "tanggal_mulai" => ['required'],
+                "tanggal_selesai" => ['required'],
+                "sesi" => ['required'],
+                "jenis_kelas" => ['required'],
+                "jenis_anggaran" => ['required'],
                 "komtek1" => ['required'],
                 "komtek2" => ['required'],
                 "komtek3" => ['required'],
+                "ketua_lsp" => ['required'],
+                "manajer_sertifikasi" => ['required'],
+                "admin_tuk" => ['required'],
+                "all_id_izin" => ['required', 'array', 'min:1'],
             ]);
-        } catch (\Exception $e) {
-            return back()->with('error', 'Terjadi kesalahan pada validation: ' . str($e));
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors'  => $e->errors(),
+            ], 422);
         }
 
-        $id_izin = $request->input("id_izin");
-        $all_id_izin = explode(",", $id_izin);
+        // 2️⃣ Resolve Skema IDs
+        $all_skema_ids = [];
+
+        $jabatanKerjaList = KlasifikasiKualifikasi::whereIn('id_izin', $validated['all_id_izin'])
+            ->pluck('jabatan_kerja')
+            ->unique()
+            ->toArray();
+
+        $authData = DB::table('b_n_s_p_auths')->value('x_authorization');
+
+        foreach ($jabatanKerjaList as $jabatanKerja) {
+            $url = 'https://konstruksi.bnsp.go.id/api/v1/skema?kode_lpjk=' . $jabatanKerja;
+
+            try {
+                $response = Http::withHeaders([
+                    'Content-Type'    => 'application/json',
+                    'x-authorization' => $authData,
+                ])->get($url);
+
+                $responseData = $response->json();
+
+                if (($responseData['code'] ?? null) !== 'ERR') {
+                    $all_skema_ids[] = $responseData['data']['id'];
+                    continue;
+                }
+
+                // Hardcoded fallback
+                if ($jabatanKerja === 'SI101015') {
+                    $all_skema_ids[] = 63566;
+                } elseif ($jabatanKerja === 'SI013041') {
+                    $all_skema_ids[] = 63538;
+                } else {
+                    // return response()->json([
+                    //     'success' => false,
+                    //     'message' => 'Skema BNSP tidak ditemukan',
+                    //     'jabatan_kerja' => $jabatanKerja,
+                    // ], 404);
+                }
+            } catch (\Throwable $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal mengambil data skema dari BNSP',
+                    'error'   => $e->getMessage(),
+                ], 500);
+            }
+        }
+
+        // 3️⃣ Resolve TUK ID
+        $tukName = MyTuk::where('id', $validated['tuk'])->value('nama_tuk');
+        $id_tuk = MyTukBnsp::where('nama', $tukName)->value('id');
+
+        if (!$id_tuk) {
+            return response()->json([
+                'success' => false,
+                'message' => 'TUK tidak ditemukan',
+            ], 404);
+        }
+
+        // 4️⃣ Prepare payload for BNSP API
+        $createData = [
+            "tuk_id"            => $id_tuk,
+            "jenis_jadwal"      => 6, // Reguler, pilih 6
+            "jenis_anggaran"    => $validated['jenis_anggaran'],
+            "nama_jadwal"       => $validated['nama_jadwal'],
+            "klasifikasi_id"    => $validated['kualifikasi'],
+            "subklasifikasi_id" => $validated['subklasifikasi'],
+            "tanggal_mulai"     => $validated['tanggal_mulai'],
+            "tanggal_selesai"   => $validated['tanggal_selesai'],
+            "keterangan"        => "",
+            "jabker_id"         => $all_skema_ids,
+        ];
+
+        // 5️⃣ Call BNSP Create Jadwal API
+        try {
+            $client = new \GuzzleHttp\Client();
+
+            $response = $client->post('https://konstruksi.bnsp.go.id/api/v1/jadwal', [
+                'headers' => [
+                    'Authorization'   => $request->header('Authorization'),
+                    'x-authorization' => $authData,
+                    'Content-Type'    => 'application/json',
+                    'Accept'          => 'application/json',
+                ],
+                'json' => $createData,
+            ]);
+
+            $responseData = json_decode($response->getBody()->getContents(), true);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Jadwal berhasil dibuat',
+                'data'    => $responseData,
+            ], 201);
+
+        } catch (RequestException $e) {
+            $responseBody = $e->hasResponse()
+                ? $e->getResponse()->getBody()->getContents()
+                : null;
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membuat jadwal di BNSP',
+                'error'   => $responseBody,
+            ], 500);
+        }
+
         $error_id = [];
 
         DB::beginTransaction();
 
         foreach ($all_id_izin as $id_izin) {
-            // Retrieve values from the "personals" table
-            $id_izin = preg_replace('/\s+/', '', $id_izin);
-            $personalsData = DB::table('personals')->where('id_izin', $id_izin)->select('nik', 'nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kabupaten', 'propinsi', 'telepon', 'email')->first();
-
-            if (!$personalsData) {
-                dd("Hapus spasi pada ID Izin");
-            }
-
+            $personalsData = Personal::where('id_izin', $id_izin)->select('nik', 'nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kabupaten', 'propinsi', 'telepon', 'email')->first();
             $jadwal_id = (int)$request->input('jadwal_id');
             $asesor_id = (int)$request->input('asesor_id');
             $asesor2_id = (int)$request->input('asesor2_id');
-            $jenis_kelamin = $personalsData->jenis_kelamin;
             $nik = $personalsData->nik;
             $nama = $personalsData->nama;
             $tempat_lahir = $personalsData->tempat_lahir;
             $tanggal_lahir = $personalsData->tanggal_lahir;
-            $jenis_kelamin = ($personalsData->jenis_kelamin == 'pria') ? 2 : 1;
-            $alamat = $personalsData->alamat;
+            $jenis_kelamin = ($personalsData->jenis_kelamin == 'Pria') ? 2 : 1;
+            $alamat = $personalsData->alamat ?? null;
             $kota_id = $personalsData->kabupaten;
             $provinsi_id = $personalsData->propinsi;
             $telepon = $personalsData->telepon;
             $email = $personalsData->email;
-            
+
             $klasifikasi = KlasifikasiKualifikasi::where('id_izin', $id_izin)->select(['jabatan_kerja', 'tuk'])->first();
-            $jabker = DB::connection('mygatensi')->table('myjabatankerja')->where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->orderBy('InputDate', 'desc')->pluck('jabatan_kerja')->first();
-            $skema_id = DB::connection('mygatensi')->table('myskemabnsp')->where('nama', $jabker)->orderBy('id', 'desc')->pluck('id')->first();
-            
-            $tuk = DB::connection("mygatensi")->table('mytuk')->select(['nama_tuk'])->where('id', $klasifikasi->tuk)->first();
-            $tuk_id = DB::connection("mygatensi")->table('mytukbnsp')->select('ID')->where('Nama', $tuk->nama_tuk)->first();
-            
-            // dd($tuk_id->ID);
+            $jabker = JabatanKerja::where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->orderBy('InputDate', 'desc')->pluck('jabatan_kerja')->first();
+            $normalizedJabker = strtoupper(trim($jabker));
+            $skema_id = DB::connection('mygatensi')->table('myskemabnsp')->whereRaw("UPPER(TRIM(REPLACE(nama, '`', ''))) = ?", [$normalizedJabker])->orderBy('id', 'desc')->pluck('id')->first();
+            if (!$skema_id) {
+                $similarSkema = DB::connection('mygatensi')
+                    ->table('myskemabnsp')
+                    ->whereRaw("UPPER(nama) LIKE ?", ["%{$normalizedJabker}%"])
+                    ->limit(5)
+                    ->pluck('nama');
+
+                return response()->json([
+                    'id_izin' => $id_izin,
+                    'error' => 'Skema tidak ditemukan untuk jabatan: ' . $jabker,
+                    'jabatan_dicari' => $jabker,
+                    'saran_skema' => $similarSkema->isEmpty()
+                        ? 'Tidak ada skema yang mirip. Silakan cek list skema yang tersedia.'
+                        : $similarSkema,
+                    'total_skema_tersedia' => DB::connection('mygatensi')
+                        ->table('myskemabnsp')
+                        ->count()
+                ], 404);
+            }
+
+            $tuk = MyTuk::select(['nama_tuk'])->where('id', $klasifikasi->tuk)->first();
+            $tuk_id = MyTukBnsp::select('ID')->where('Nama', $tuk->nama_tuk)->first();
 
             // Retrieve values from the "pendidikans" table
-            $pendidikansData = DB::table('pendidikans')->where('id_izin', $id_izin)->select('program_studi', 'no_ijazah', 'tahun_lulus', 'propinsi', 'jenjang', 'kabupaten', 'nama_sekolah_perguruan_tinggi', 'scan_surat_keterangan', 'scan_ijazah_legalisir')->first();
+            $pendidikansData = Pendidikan::where('id_izin', $id_izin)->select('program_studi', 'no_ijazah', 'tahun_lulus', 'propinsi', 'jenjang', 'kabupaten', 'nama_sekolah_perguruan_tinggi', 'scan_surat_keterangan', 'scan_ijazah_legalisir')->first();
             try {
                 $prodi = $pendidikansData->program_studi;
             } catch (\Exception $e) {
@@ -181,6 +317,7 @@ class JadwalController extends Controller
                 "jadwal_id" => $jadwal_id,
                 "tuk_id" => $tuk_id->ID,
                 "asesor_id" => $asesor_id,
+                "asesor2_id" => $asesor2_id,
                 "is_fg" => 0,
                 "nik" => $nik,
                 "nib" => "",
@@ -188,7 +325,7 @@ class JadwalController extends Controller
                 "tempat_lahir" => $tempat_lahir,
                 "tanggal_lahir" => $tanggal_lahir,
                 "jenis_kelamin" => $jenis_kelamin,
-                "alamat" => $alamat,
+                "alamat" => $alamat ?? null,
                 "kota_id" => $kota_id,
                 "provinsi_id" => $provinsi_id,
                 "negara_id" => 1,
@@ -208,7 +345,7 @@ class JadwalController extends Controller
                 "nama_sekolah" => $nama_sekolah,
                 "pekerjaan" => 89,
                 "instansi_pekerjaan" => "",
-                "jabatan_pekerjaan" => "",
+                "jabatan_pekerjaan" => $jabker,
                 "file_foto" => $file_foto,
                 "file_ktp" => $file_ktp,
                 "file_nib" => "-",
@@ -256,14 +393,14 @@ class JadwalController extends Controller
                             $jadwalBnsp->tempat_lahir = $apiData['tempat_lahir'];
                             $jadwalBnsp->tanggal_lahir = $apiData['tanggal_lahir'];
                             $jadwalBnsp->jenis_kelamin = $apiData['jenis_kelamin'];
-                            $jadwalBnsp->alamat = $apiData['alamat'];
+                            $jadwalBnsp->alamat = $apiData['alamat'] ?? null;
                             $jadwalBnsp->kota_id = $apiData['kota_id'];
                             $jadwalBnsp->provinsi_id = $apiData['provinsi_id'];
                             $jadwalBnsp->negara_id = $apiData['negara_id'];
                             $jadwalBnsp->telepon = $apiData['telepon'];
                             $jadwalBnsp->email = $apiData['email'];
                             $jadwalBnsp->jenis_mohon = $apiData['jenis_mohon'];
-                            $jadwalBnsp->skema_id = $apiData['skema_id'];
+                            $jadwalBnsp->skema_id = $apiData['skema_id'] ?? null;
                             $jadwalBnsp->keterangan = $apiData['keterangan'];
                             $jadwalBnsp->jenjang_id = $apiData['jenjang_id'];
                             $jadwalBnsp->prodi = $apiData['prodi'];
@@ -296,20 +433,20 @@ class JadwalController extends Controller
                                 "asesor_id" => $apiData['asesor_id'],
                                 "asesor2_id" => $asesor2_id,
                                 "is_fg" => $apiData['is_fg'],
-                                "nik" => $apiData['nik'],
+                                "nik" => $apiData['nik'] ?? $nik,
                                 "nib" => $apiData['nib'],
                                 "nama" => $apiData['nama'],
                                 "tempat_lahir" => $apiData['tempat_lahir'],
                                 "tanggal_lahir" => $apiData['tanggal_lahir'],
                                 "jenis_kelamin" => $apiData['jenis_kelamin'],
-                                "alamat" => $apiData['alamat'],
+                                "alamat" => $apiData['alamat'] ?? null,
                                 "kota_id" => $apiData['kota_id'],
                                 "provinsi_id" => $apiData['provinsi_id'],
                                 "negara_id" => $apiData['negara_id'],
                                 "telepon" => $apiData['telepon'],
                                 "email" => $apiData['email'],
                                 "jenis_mohon" => $apiData['jenis_mohon'],
-                                "skema_id" => $apiData['skema_id'],
+                                "skema_id" => $apiData['skema_id'] ?? null,
                                 "keterangan" => $apiData['keterangan'],
                                 "jenjang_id" => $apiData['jenjang_id'],
                                 "prodi" => $apiData['prodi'],
@@ -335,22 +472,13 @@ class JadwalController extends Controller
                                 "mgr_sertif" => "Akhmadi Hafid",
                             ]);
                         }
+                        dd($responseData, $apiData);
                         array_push($error_id, ['id_izin' => $id_izin, 'msg' => $responseData['message']]);
                         continue;
                     }
-                    
-                    array_push($error_id, ['id_izin' => $id_izin, 'msg' => $responseData]);
-
-                    // Log the Error
-                    error_log("API Request here Failed with status code: $statusCode, response body: $responseBody");
-
-                    // Return the error response to the user
-                    // return response()->json(['error' => 'Failed to process data', 'message' => $responseData['message']], $statusCode);
+                    // dd($responseData, $apiData);
+                    array_push($error_id, ['id_izin' => $id_izin, 'msg' => $responseData['message']]);
                 }
-                // else {
-                //     // Handle the exception if no response is available
-                //     return response()->json(['error' => 'Failed to process data', 'message' => 'An error occurred during the API request'], 500);
-                // }
             }
             // }
 
@@ -449,7 +577,6 @@ class JadwalController extends Controller
                         "mgr_sertif" => "Akhmadi Hafid",
                     ]);
                 }
-                // return response()->json(['success' => true, 'apiData' => $apiData]);
             } catch (QueryException $e) {
                 continue;
                 // DB::rollBack();
@@ -459,7 +586,7 @@ class JadwalController extends Controller
         }
         DB::commit();
         if (count($error_id) == 0) {
-            return redirect('persiapan-uji')->with('success', 'Berhasil input asesi ke jadwal BNSP');
+            return redirect('persiapan-uji')->with('success', 'Berhasil input asesi' . $id_izin . 'ke jadwal BNSP');
         } else {
             return redirect()->back()->with('error', json_encode($error_id));
         }
@@ -478,6 +605,7 @@ class JadwalController extends Controller
             'tanggal_uji',
             'tanggal_selesai',
             'is_started',
+            'is_started_praasesmen',
             'jenis_kelas',
             'tahap'
         ])->with([
@@ -516,6 +644,7 @@ class JadwalController extends Controller
 
         $jadwals = $this->baseJadwalQuery()
             ->where('jadwal_id', $jadwalId)
+            ->where('tahap', '!=', 0)
             ->first();
 
         return response()->json([
@@ -538,6 +667,7 @@ class JadwalController extends Controller
                 $q->where('asesor_id', $asesorId)
                 ->orWhere('asesor2_id', $asesorId);
             })
+            ->where('tahap', '!=', 0)
             ->whereDate('tanggal_uji', today())
             ->first();
 
@@ -637,7 +767,7 @@ class JadwalController extends Controller
     public function startAsesmen($id)
     {
         $jadwal = Jadwal::where('jadwal_id', $id)
-            ->where('tahap', '!=', 2)
+            ->where('tahap', '=', 1)
             ->lockForUpdate()
             ->first();
 
@@ -655,6 +785,29 @@ class JadwalController extends Controller
 
         return response()->json([
             'message' => 'Jadwal berhasil dimulai.'
+        ]);
+    }
+
+    public function startPraAsesmen($id)
+    {
+        $jadwal = Jadwal::where('jadwal_id', $id)
+            ->where('tahap', '=', 0)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $jadwal) {
+            return response()->json([
+                'message' => 'Jadwal tidak ditemukan atau sudah dimulai.'
+            ], 409);
+        }
+
+        $jadwal->update([
+            'is_started_praasesmen' => true,
+            'tahap' => 1
+        ]);
+
+        return response()->json([
+            'message' => 'Pra Asesmen berhasil dimulai.'
         ]);
     }
 
@@ -676,6 +829,30 @@ class JadwalController extends Controller
         return response()->json([
             'message' => 'Success',
             'list_asesi' => $listAsesi
+        ]);
+    }
+
+    public function listAsesiCreateJadwal(Request $request)
+    {
+        $validated = $request->validate([
+            'tuk_id' => ['required'],
+            'subklasifikasi_id' => ['required'],
+        ]);
+
+        $listAsesi = Personal::where('status', 31)->whereIn('id_izin', function ($q) use ($validated) {
+            $q->select('id_izin')
+            ->from('klasifikasi_kualifikasis')
+            ->where('tuk', $validated['tuk_id'])
+            ->where('subklasifikasi', $validated['subklasifikasi_id']);
+        })->select([
+            'id_izin',
+            'nama',
+        ])->get();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Success',
+            'list_asesi' => $listAsesi,
         ]);
     }
 }

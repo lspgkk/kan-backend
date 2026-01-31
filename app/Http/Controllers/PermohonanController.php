@@ -584,21 +584,29 @@ class PermohonanController extends Controller
 
             if (str_starts_with($search, 'I-')) {
                 $q->where('id_izin', 'like', "{$search}%");
-            } elseif (preg_match('/\d{8}/', $search)) {
-                $q->where('id_izin', 'like', "%{$search}%");
-            } elseif (ctype_digit($search)) {
-                $q->where('nik', 'like', "%{$search}%");
-            } elseif (preg_match('/\d{2}\s\w{3}\s\d{4}/', $search)) {
-                $q->whereRaw(
-                    "DATE_FORMAT(created, '%d %b %Y %H:%i') LIKE ?",
-                    ["%{$search}%"]
-                );
-            } else {
-                $q->where('nama', 'like', "%{$search}%")
-                ->orWhereHas('klasifikasi_kualifikasi.tuk', function ($tuk) use ($search) {
-                    $tuk->where('nama_tuk', 'like', "%{$search}%");
-                });
+                return;
             }
+
+            if (ctype_digit($search)) {
+                $q->where('nik', 'like', "{$search}%");
+                return;
+            }
+
+            if (preg_match('/\d{8}/', $search)) {
+                $q->where('id_izin', 'like', "%{$search}%");
+                return;
+            }
+
+            if (preg_match('/\d{2}\s\w{3}\s\d{4}/', $search)) {
+                $q->whereDate('created', 'like', "%{$search}%");
+                return;
+            }
+
+            // Only hit this if none above matched
+            $q->where('nama', 'like', "{$search}%") // 🔥 prefix search
+            ->orWhereHas('klasifikasi_kualifikasi.tuk', function ($tuk) use ($search) {
+                $tuk->where('nama_tuk', 'like', "{$search}%"); // 🔥 prefix search
+            });
         });
     }
 }

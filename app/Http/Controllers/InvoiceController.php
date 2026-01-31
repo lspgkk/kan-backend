@@ -239,7 +239,7 @@ class InvoiceController extends Controller
 
         // PAGINATED QUERY
         $invoices = $belum_konfirm
-            ->select(['invoice_number', 'nama_tuk', 'inv_link', 'input_date', 'total_biaya'])
+            ->select(['invoice_number', 'nama_tuk', 'inv_link', 'inv_excel', 'input_date', 'total_biaya'])
             ->orderBy('input_date', 'desc')
             ->paginate($perPage);
 
@@ -249,6 +249,7 @@ class InvoiceController extends Controller
                 'no_invoice' => $invoice->invoice_number,
                 'tuk'        => $invoice->nama_tuk,
                 'link'       => $invoice->inv_link,
+                'link_excel' => $invoice->inv_excel,
                 'total_biaya' => $invoice->total_biaya,
                 'created_at' => $invoice->input_date,
             ];
@@ -482,10 +483,118 @@ class InvoiceController extends Controller
 
                 $latest_invno = implode("/", [$a,$b,$c,$month . '-' . str_pad($num, 4, '0', STR_PAD_LEFT)]);
 
+                // Input excel
+                $invoice_sps = IOFactory::load(resource_path("views/template-invoice/invoice_sistem.xlsx"));
+                $worksheet = $invoice_sps->getActiveSheet();
+                $cell_to_copy = ["B", "C", "D", "E", "F", "G", "H"];
+
+                // Duplicate that shit
+                $formatRows = 22;
+
+                for ($i = 0; $i < count($data_asesi_beserta_harga); $i++) {
+                    $worksheet->setCellValue('B' . (string)$formatRows + $i, $i + 1);
+                    $worksheet->setCellValue('C' . (string)$formatRows + $i, $data_asesi_beserta_harga[$i]['nama']);
+                    $worksheet->setCellValue('E' . (string)$formatRows + $i, $data_asesi_beserta_harga[$i]['jabatan_kerja']);
+                    $worksheet->setCellValue('F' . (string)$formatRows + $i, $data_asesi_beserta_harga[$i]['jenjang']);
+                    $worksheet->setCellValue('G' . (string)$formatRows + $i, (int)$data_asesi_beserta_harga[$i]['harga'] + (int)$data_asesi_beserta_harga[$i]['harga_2']);
+                    if($i === count($data_asesi_beserta_harga) - 1) {
+                        $worksheet->setCellValue('F' . (string)39 + $i, 'Issued by:');
+                        $worksheet->setCellValue('G' . (string)39 + $i, Auth::user()->name);
+                    }
+
+                    // Insert the new row
+                    if ($i != count($data_asesi_beserta_harga) - 1) {
+                        $worksheet->insertNewRowBefore($formatRows + $i + 1, 1);
+
+                        // Copy style from the format row to the new row
+                        // Repeat this line for each column you want to copy styles from
+                        foreach ($cell_to_copy as $word) {
+                            $worksheet->duplicateStyle($worksheet->getStyle($word . $formatRows), $word . (string)$formatRows + $i + 1);
+                        }
+                    }
+                }
+
+                // Instansi
+                $worksheet->setCellValue("B11", $data_instansi->nama);
+                $worksheet->setCellValue("B12", $data_instansi->alamat);
+
+                // Tuk
+                $worksheet->setCellValue("E15", $data_asesi_beserta_harga[0]['nama_tuk']);
+                $worksheet->setCellValue("E17", ucwords($validatedData['metode']));
+
+                // Tanggal invoice
+                $worksheet->setCellValue("G11", \Carbon\Carbon::now()->setTimezone('Asia/Jakarta')->isoFormat('DD MMMM Y'));
+
+                // Tanggal uji
+                $worksheet->setCellValue("E16", \Carbon\Carbon::parse($validatedData['tanggal_uji'])->setTimezone('Asia/Jakarta')->isoFormat('DD MMMM Y'));
+                $worksheet->setCellValue("E19", str($tuk_disc->kategori));
+
+                // No Invoice
+                $worksheet->setCellValue('G10', $latest_invno);
+
+
+                // Total
+                $worksheet->setCellValue('G' . str($formatRows + count($data_asesi_beserta_harga) + 2), '=SUM(G22:' . 'G' . str((count($data_asesi_beserta_harga) - 1) + $formatRows) . ')');
+                $worksheet->setCellValue('G' . str($formatRows + count($data_asesi_beserta_harga) + 3), $total_diskon);
+
+                $total_in_word = $worksheet->getCell('E' . str($formatRows + count($data_asesi_beserta_harga) + 2))->getCalculatedValue();
+                $worksheet->getCell('E' . str($formatRows + count($data_asesi_beserta_harga) + 2))->setValue($total_in_word);
+
+
+                // Save to xlsx
+                $writer = IOFactory::createWriter($invoice_sps, "Xlsx");
+                // $writer->save(resource_path("views/template-invoice/results.xlsx"));
+                ob_start();
+                $writer->save('php://output');
+                $content = ob_get_contents();
+                ob_end_clean();
+
+                $filename_invoice = "invoice_" . Carbon::now()->setTimezone('Asia/Jakarta')->format('Ymd_His') . '.xlsx';
+                $result_save = Storage::disk("sertif_ftp")->put("/baru/invoice/" . $filename_invoice, $content);
+
+                /* =====================================================
+                * 6. PDF GENERATION (OUTSIDE TRANSACTION)
+                * ===================================================== */
+                if($result_save) {
+                    $pdf = Pdf::loadView('template-invoice.pdf-invoice', [
+                        'latest_invno' => $latest_invno,
+                        'data_instansi' => $data_instansi,
+                        'data_asesi_beserta_harga' => $data_asesi_beserta_harga,
+                        'total_harga' => $total_harga,
+                        'total_diskon' => $total_diskon,
+                        'tanggal_uji' => $validatedData['tanggal_uji'],
+                        'metode' => $validatedData['metode'],
+                        'kategori_tuk' => $tuk_disc->kategori,
+                        'total_word' => $total_in_word,
+                        'issued_by' => Auth::user()->name,
+                    ]);
+
+                    $pdf_filename = 'inv_' . now()->format('Ymd_His') . '.pdf';
+                    Storage::disk("str_moon")->put("/invoice-tuk/" . $pdf_filename, $pdf->output());
+
+                    $invoice_pdf = "https://moon.lspgatensi.id/files/invoice-tuk/" . $pdf_filename;
+                }
+
+                foreach ($data_asesi_beserta_harga as $asesi) {
+                    $this->updateSikiStatus(
+                        "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi['id_izin'],
+                        [
+                            'Content-Type' => 'application/json',
+                            'token' => env('SIKI_TOKEN'),
+                        ],
+                        ['kd_status' => '30', 'keterangan' => 'Invoice'],
+                        30,
+                        $asesi['id_izin']
+                    );
+
+                    Personal::where('id_izin', $asesi['id_izin'])->update(['status' => 30]);
+                    usleep(500000);
+                }
+
                 /* =====================================================
                 * 5. CREATE INVOICE
                 * ===================================================== */
-                $invoice = Invoice::create([
+                Invoice::create([
                     'invoice_number' => $latest_invno,
                     'nama'           => $data_instansi->nama,
                     'inv_type'       => $validatedData['metode'] === 'luring' ? 2 : 1,
@@ -500,6 +609,8 @@ class InvoiceController extends Controller
                     'total_biaya'    => $total_harga - $total_diskon,
                     'tgl_uji'        => $validatedData['tanggal_uji'],
                     'input_by'       => Auth::user()->email,
+                    'inv_link'       => $invoice_pdf,
+                    'inv_excel'      => "https://moon.lspgatensi.id/files/baru/invoice/" . $filename_invoice,
                 ]);
 
                 foreach ($data_asesi_beserta_harga as $asesi) {
@@ -528,48 +639,7 @@ class InvoiceController extends Controller
                     ], 500);
                 }
             }
-        }
-
-        /* =====================================================
-        * 6. PDF GENERATION (OUTSIDE TRANSACTION)
-        * ===================================================== */
-        $pdf = Pdf::loadView('template-invoice.pdf-invoice', [
-            'latest_invno' => $latest_invno,
-            'data_instansi' => $data_instansi,
-            'data_asesi_beserta_harga' => $data_asesi_beserta_harga,
-            'total_harga' => $total_harga,
-            'total_diskon' => $total_diskon,
-            'tanggal_uji' => $validatedData['tanggal_uji'],
-            'metode' => $validatedData['metode'],
-            'kategori_tuk' => $tuk_disc->kategori,
-            'total_word' => 'RP 90.000.000',
-            'issued_by' => Auth::user()->name,
-        ]);
-
-        $pdf_filename = 'inv_' . now()->format('Ymd_His') . '.pdf';
-        Storage::disk("str_moon")->put("/invoice-tuk/" . $pdf_filename, $pdf->output());
-
-        $invoice_pdf = "https://moon.lspgatensi.id/files/invoice-tuk/" . $pdf_filename;
-        $invoice->update(['inv_link' => $invoice_pdf]);
-
-        /* =====================================================
-        * 7. SIKI + PERSONAL UPDATE
-        * ===================================================== */
-        foreach ($data_asesi_beserta_harga as $asesi) {
-            $this->updateSikiStatus(
-                "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi['id_izin'],
-                [
-                    'Content-Type' => 'application/json',
-                    'token' => env('SIKI_TOKEN'),
-                ],
-                ['kd_status' => '30', 'keterangan' => 'Invoice'],
-                30,
-                $asesi['id_izin']
-            );
-
-            Personal::where('id_izin', $asesi['id_izin'])->update(['status' => 30]);
-            usleep(500000);
-        }
+        }    
 
         return response()->json([
             'success' => true,
@@ -620,51 +690,120 @@ class InvoiceController extends Controller
         }
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function confirmInvoice(Request $request)
     {
-        //
-    }
+        try {
+            $validatedData = $request->validate([
+                "no_invoice" => ['required'],
+            ]);
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+            $headers = [
+                'Content-Type' => 'application/json',
+                'token' => env('SIKI_TOKEN'),
+            ];
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(Invoice $invoice)
-    {
-        //
-    }
+            $asesi_invoice = InvoiceDetail::where("no_invoice", $validatedData['no_invoice'])->get();
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Invoice $invoice)
-    {
-        //
-    }
+            DB::beginTransaction();
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, Invoice $invoice)
-    {
-        //
-    }
+            foreach ($asesi_invoice as $asesi) {
+                while (true) {
+                    error_log("try again");
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Invoice $invoice)
-    {
-        //
+                    $api_url = "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi->ID_Ijin;
+
+                    $status31 = [
+                        "kd_status" => "31",
+                        "keterangan" => "Konfirmasi Pembayaran"
+                    ];
+
+                    try {
+                        $response_post_bnsp = Http::withHeaders($headers)->post($api_url, $status31);
+                    } catch (\Exception $e) {
+                        error_log("try again");
+                        continue;
+                    }
+
+                    if ($response_post_bnsp->successful()) {
+                        $responseData = $response_post_bnsp->json();
+
+                        if ($responseData['status'] == "success") {
+                            Personal::where('id_izin', $asesi->ID_Ijin)
+                                ->update(['status' => 31]);
+                            break;
+
+                        } elseif ($responseData['status'] == "errors") {
+                            DB::rollBack();
+                            return response()->json([
+                                'success' => false,
+                                'message' => 'Terjadi kesalahan saat naik ke 31',
+                                'detail'  => $responseData['message'] ?? null,
+                            ], 422);
+
+                        } else {
+                            DB::rollBack();
+                            return response()->json([
+                                'success' => false,
+                                'message' => 'Terjadi kesalahan post pencatatan siki',
+                                'detail'  => $responseData['message'] ?? null,
+                            ], 500);
+                        }
+
+                    } else {
+                        $errorMessage = $response_post_bnsp->json()['message'] ?? null;
+
+                        if ($errorMessage === 'tidak dapat mengirim kode status 31, kode status saat ini 31') {
+                            Personal::where('id_izin', $asesi->ID_Ijin)
+                                ->update(['status' => 31]);
+                            break;
+                        }
+
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Server SIKI sedang bermasalah',
+                            'detail'  => $errorMessage,
+                        ], 503);
+                    }
+                }
+
+                sleep(2);
+            }
+
+            $invoice_current = Invoice::where("invoice_number", $validatedData['no_invoice'])->first();
+
+            $update_invoice = Invoice::where("invoice_number", $validatedData['no_invoice'])->update([
+                "bayar_tahap2" => $invoice_current->total_biaya,
+                "tgl_tahap2"   => now()->toDateString(),
+                "kode_bayar2"  => "-",
+                "input_bayar2" => "novi_rara",
+            ]);
+
+            if ($update_invoice) {
+                DB::commit();
+
+                return response()->json([
+                    'success'    => true,
+                    'message'    => 'Berhasil confirm invoice',
+                    'no_invoice' => $validatedData['no_invoice'],
+                ], 200);
+            }
+
+            DB::rollBack();
+            return response()->json([
+                'success'    => false,
+                'message'    => 'Gagal update invoice',
+                'no_invoice' => $validatedData['no_invoice'],
+            ], 500);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Unexpected server error',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
     }
 }

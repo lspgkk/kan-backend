@@ -15,6 +15,7 @@ use App\Http\Controllers\JadwalController;
 use App\Http\Controllers\JenisAnggaranController;
 use App\Http\Controllers\JenisKelasController;
 use App\Http\Controllers\JenjangController;
+use App\Http\Controllers\KebenaranDataController;
 use App\Http\Controllers\KomtekController;
 use App\Http\Controllers\KualifikasiController;
 use App\Http\Controllers\MigrationController;
@@ -140,12 +141,16 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/konfirmasi', [InvoiceController::class, 'viewKonfirmasi']);
         Route::get('/history', [InvoiceController::class, 'history']);
         Route::post('/create', [InvoiceController::class, 'createInvoice']);
+        Route::post('/konfirmasi', [InvoiceController::class, 'confirmInvoice']);
     });
 
     Route::prefix('jadwal')->group(function () {
         Route::get('/', [JadwalController::class, 'index']);
         Route::get('/blanko', [JadwalController::class, 'blankos']);
         Route::get('/sertifikasi', [JadwalController::class, 'sertifikasi']);
+        Route::get('/list-asesi-create', [JadwalController::class, 'listAsesiCreateJadwal']);
+        Route::post('/create-jadwal', [JadwalController::class, 'store']);
+
         Route::get('/{id}', [JadwalController::class, 'show']);
     });
 
@@ -156,7 +161,9 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/direktur', [JadwalController::class, 'getKegiatanDirektur']);
         Route::get('/admin-tuk', [JadwalController::class, 'getKegiatanAdminTuk']);
         Route::post('/{id}/start', [JadwalController::class, 'startAsesmen']);
+        Route::post('/{id}/start-praasesmen', [JadwalController::class, 'startPraAsesmen']);
         Route::get('/{id}/list-asesi', [JadwalController::class, 'listAsesi']);
+        Route::get('/{id}/dokumen-asesi', [BuktiController::class, 'dokumenAsesi']);
     });
 
     Route::prefix('bukti')->group(function () {
@@ -164,6 +171,10 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/absen-asesmen/akhir', [BuktiController::class, 'absensiAsesmen']);
         Route::post('/absen-praasesmen/mulai', [BuktiController::class, 'absensiPraAsesmen']);
         Route::post('/absen-praasesmen/akhir', [BuktiController::class, 'absensiPraAsesmen']);
+    });
+    
+    Route::prefix('praasesmen')->group(function () {
+        Route::get('/kebenaran-data', [KebenaranDataController::class, 'index']);
     });
 
     Route::post('/verifikasi/{id_izin}', [HitStatusController::class, 'hitVerifikasi']);
