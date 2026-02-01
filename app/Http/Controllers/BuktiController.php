@@ -7,12 +7,14 @@ use App\Models\ImpBukti;
 use App\Models\JabatanKerja;
 use App\Models\JenjangJabatanKerja;
 use App\Models\KlasifikasiKualifikasi;
+use App\Models\MyTuk;
 use App\Models\Pendidikan;
 use App\Models\Personal;
 use App\Models\Proyek;
 use App\Models\SPTAsesor;
 use App\Models\UnitKompetensi;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class BuktiController extends Controller
 {
@@ -153,4 +155,73 @@ class BuktiController extends Controller
             ]
         ]);
     }
+
+    public function getApl02($id)
+    {
+        $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
+            ->where('id_izin', $id)
+            ->first();
+        $jabatanKerja = JabatanKerja::where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->value('jabatan_kerja');
+
+        $nomorSkema = ImpBukti::where('id_jabatan', $klasifikasi->jabatan_kerja)->value('skema');
+        // Load units → subunits → kuks
+        $units = UnitKompetensi::with(['subunits.kuks'])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->get();
+
+        if ($units->isEmpty()) {
+            return response()->json([
+                'message' => 'Success',
+                'data' => null
+            ]);
+        }
+
+        $data = [
+            'jabatan_kerja' => $jabatanKerja,
+            'no_skema' => $nomorSkema,
+            'units' => $units->map(function ($unit) {
+
+                return [
+                    'id' => (string) $unit->id,
+                    'kode' => $unit->kode,
+                    'judul_kompetensi' => $unit->nama,
+                    'subunits' => $unit->subunits->map(function ($subunit) {
+
+                        return [
+                            'id' => (string) $subunit->id,
+                            'no_elemen' => $subunit->kode,
+                            'judul_elemen' => $subunit->nama,
+                            'kuk_list' => $subunit->kuks->map(function ($kuk) {
+
+                                return [
+                                    'no_kuk' => $kuk->kode,
+                                    'judul_kuk' => $kuk->nama,
+                                ];
+
+                            })->values()
+                        ];
+
+                    })->values()
+                ];
+
+            })->values()
+        ];
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => $data
+        ]);
+    }
+
+    public function getMapa01($id)
+    {
+        
+    }
+
+    public function getMapa02($id)
+    {
+        
+    }
+
+    
 }
