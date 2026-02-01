@@ -4,14 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\AsesiJadwal;
 use App\Models\ImpBukti;
+use App\Models\JabatanConfigA;
 use App\Models\JabatanDokumen;
 use App\Models\JabatanKerja;
+use App\Models\Jadwal;
 use App\Models\JenjangJabatanKerja;
 use App\Models\KlasifikasiKualifikasi;
 use App\Models\MyTuk;
 use App\Models\Pendidikan;
 use App\Models\Personal;
 use App\Models\Proyek;
+use App\Models\Referensi;
 use App\Models\SPTAsesor;
 use App\Models\UnitKompetensi;
 use Illuminate\Http\Request;
@@ -52,6 +55,45 @@ class BuktiController extends Controller
         return response()->json([
             'message' => 'Success',
             'data' => $kebenaranData
+        ]);
+    }
+
+    public function getDokumenHeader($id)
+    {
+        $jadwalId = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
+        $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
+            ->where('id_izin', $id)
+            ->first();
+        $jabatanKerja = JabatanKerja::where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->value('jabatan_kerja');
+        $jabatanConfig = JabatanConfigA::select(['no_skema'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
+        $jadwal = Jadwal::select([
+            'jadwal_id',
+            'tuk_id',
+            'asesor_id',
+            'asesor2_id',
+            'tanggal_uji',
+            'tanggal_selesai',
+            'jenis_kelas',
+        ])->with([
+            'tuk:id,nama',
+            'asesor:id,nama,noreg',
+            'asesor2:id,nama,noreg',
+        ])->where('jadwal_id', $jadwalId)->first();
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => [
+                'jabatan_kerja' => $jabatanKerja,
+                'nomor_skema' => $jabatanConfig->no_skema,
+                'tuk' => $jadwal->tuk ? $jadwal->tuk->nama : null,
+                'asesor_1' => $jadwal->asesor ? $jadwal->asesor->nama : null,
+                'asesor_2' => $jadwal->asesor2 ? $jadwal->asesor2->nama : null,
+                'noreg_asesor_1' => $jadwal->asesor ? $jadwal->asesor->noreg : null,
+                'noreg_asesor_2' => $jadwal->asesor2 ? $jadwal->asesor2->noreg : null,
+                'tanggal_uji' => $jadwal->tanggal_uji,
+                'tanggal_selesai' => $jadwal->tanggal_selesai,
+                'jenis_kelas' => $jadwal->jenis_kelas,
+            ]
         ]);
     }
 
@@ -119,7 +161,7 @@ class BuktiController extends Controller
             }
         }
 
-        $nomorSkema = ImpBukti::where('id_jabatan', $klasifikasi->jabatan_kerja)->value('skema');
+        $nomorSkema = JabatanConfigA::where('id_jabatan', $klasifikasi->jabatan_kerja)->value('no_skema');
         return response()->json([
             'message' => 'Success',
             'data' => [
@@ -162,9 +204,7 @@ class BuktiController extends Controller
         $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
             ->where('id_izin', $id)
             ->first();
-        $jabatanKerja = JabatanKerja::where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->value('jabatan_kerja');
-
-        $nomorSkema = ImpBukti::where('id_jabatan', $klasifikasi->jabatan_kerja)->value('skema');
+        
         // Load units → subunits → kuks
         $units = UnitKompetensi::with(['subunits.kuks'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
@@ -178,8 +218,6 @@ class BuktiController extends Controller
         }
 
         $data = [
-            'jabatan_kerja' => $jabatanKerja,
-            'no_skema' => $nomorSkema,
             'units' => $units->map(function ($unit) {
 
                 return [
@@ -258,7 +296,6 @@ class BuktiController extends Controller
                                 'id_unit'   => $unit->id_unit,
                                 'nama_unit' => $unit->unit?->nama,
                                 'kode_unit' => $unit->unit?->kode,
-                                'urut'      => $unit->urut,
                             ];
                         })->values()
                     ];
@@ -269,8 +306,112 @@ class BuktiController extends Controller
 
     public function getMapa02($id)
     {
-        
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$klasifikasi) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null
+            ], 404);
+        }
+
+        $dokumen = JabatanDokumen::with([
+                'kelompoks.units.unit'
+            ])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where('kode', 'MAPA02')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dokumen) {
+            return response()->json([
+                'message' => 'Success',
+                'data' => []
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => [
+                'id' => $dokumen->id,
+                'kode' => $dokumen->kode,
+                'nama_dokumen' => $dokumen->nama_dokumen,
+                'kelompok_kerja' => $dokumen->kelompoks->map(function ($kelompok) {
+                    return [
+                        'id' => $kelompok->id,
+                        'nama' => $kelompok->nama,
+                        'urut' => $kelompok->urut,
+                        'units' => $kelompok->units->map(function ($unit) {
+                            return [
+                                'id_unit'   => $unit->id_unit,
+                                'nama_unit' => $unit->unit?->nama,
+                                'kode_unit' => $unit->unit?->kode,
+                            ];
+                        })->values()
+                    ];
+                })->values()
+            ]
+        ]);
     }
 
-    
+    public function getAk07()
+    {
+        $referensis = Referensi::with([
+                'kategoriRel',
+                'kelompokRel'
+            ])
+            ->where('kategori', 'AK07')
+            ->whereNotNull('id_kategori')
+            ->whereNotNull('id_kelompok')
+            ->get()
+            ->filter(fn ($r) =>
+                $r->kategoriRel !== null &&
+                $r->kelompokRel !== null
+            );
+
+        $data = $referensis
+            ->groupBy('id_kelompok')
+            ->values()
+            ->map(function ($kelompokItems) {
+
+                $kelompok = $kelompokItems->first()->kelompokRel;
+
+                return [
+                    'kelompok' => [
+                        'id'   => $kelompok->id,
+                        'nama' => $kelompok->nama,
+                        'urut' => $kelompok->urut,
+
+                        'kategoris' => $kelompokItems
+                            ->groupBy('id_kategori')
+                            ->values()
+                            ->map(function ($kategoriItems) {
+
+                                $kategori = $kategoriItems->first()->kategoriRel;
+
+                                return [
+                                    'id'          => $kategori->id,
+                                    'kategori'    => $kategori->kategori,
+                                    'nama'        => $kategori->nama,
+                                    'urut'        => $kategori->urut,
+                                    'id_kelompok' => $kategori->id_kelompok,
+
+                                    'referensis' => $kategoriItems->map(fn ($item) => [
+                                        'id'   => $item->id,
+                                        'nama' => $item->nama,
+                                    ])->values(),
+                                ];
+                            })->values(),
+                    ]
+                ];
+            });
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data
+        ]);
+    }
+
 }
