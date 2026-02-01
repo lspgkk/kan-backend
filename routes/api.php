@@ -177,6 +177,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/kebenaran-data', [KebenaranDataController::class, 'index']);
         Route::get('/{id}/apl01', [BuktiController::class, 'getApl01']);
         Route::get('/{id}/apl02', [BuktiController::class, 'getApl02']);
+        Route::get('/{id}/mapa01', [BuktiController::class, 'getMapa01']);
     });
 
     Route::post('/verifikasi/{id_izin}', [HitStatusController::class, 'hitVerifikasi']);

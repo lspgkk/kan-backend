@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AsesiJadwal;
 use App\Models\ImpBukti;
+use App\Models\JabatanDokumen;
 use App\Models\JabatanKerja;
 use App\Models\JenjangJabatanKerja;
 use App\Models\KlasifikasiKualifikasi;
@@ -215,7 +216,55 @@ class BuktiController extends Controller
 
     public function getMapa01($id)
     {
-        
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$klasifikasi) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null
+            ], 404);
+        }
+
+        $dokumen = JabatanDokumen::with([
+                'kelompoks.units.unit'
+            ])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where('kode', 'MAPA01')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dokumen) {
+            return response()->json([
+                'message' => 'Success',
+                'data' => []
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => [
+                'id' => $dokumen->id,
+                'kode' => $dokumen->kode,
+                'nama_dokumen' => $dokumen->nama_dokumen,
+                'kelompok_kerja' => $dokumen->kelompoks->map(function ($kelompok) {
+                    return [
+                        'id' => $kelompok->id,
+                        'nama' => $kelompok->nama,
+                        'urut' => $kelompok->urut,
+                        'units' => $kelompok->units->map(function ($unit) {
+                            return [
+                                'id_unit'   => $unit->id_unit,
+                                'nama_unit' => $unit->unit?->nama,
+                                'kode_unit' => $unit->unit?->kode,
+                                'urut'      => $unit->urut,
+                            ];
+                        })->values()
+                    ];
+                })->values()
+            ]
+        ]);
     }
 
     public function getMapa02($id)
