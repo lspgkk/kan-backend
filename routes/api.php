@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AsesmenController;
 use App\Http\Controllers\AsesorController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\KebenaranDataController;
 use App\Http\Controllers\KomtekController;
 use App\Http\Controllers\KualifikasiController;
 use App\Http\Controllers\MigrationController;
+use App\Http\Controllers\PraAsesmenController;
 use App\Http\Controllers\ProvinceController;
 use App\Http\Controllers\SesiController;
 use App\Http\Controllers\SubklasifikasiController;
@@ -150,7 +152,6 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/sertifikasi', [JadwalController::class, 'sertifikasi']);
         Route::get('/list-asesi-create', [JadwalController::class, 'listAsesiCreateJadwal']);
         Route::post('/create-jadwal', [JadwalController::class, 'store']);
-
         Route::get('/{id}', [JadwalController::class, 'show']);
     });
 
@@ -175,12 +176,21 @@ Route::middleware(['auth:api'])->group(function () {
     
     Route::prefix('praasesmen')->group(function () {
         Route::get('/kebenaran-data', [KebenaranDataController::class, 'index']);
-        Route::get('/{id}/data-dokumen', [BuktiController::class, 'getDokumenHeader']);
-        Route::get('/{id}/apl01', [BuktiController::class, 'getApl01']);
-        Route::get('/{id}/apl02', [BuktiController::class, 'getApl02']);
-        Route::get('/{id}/mapa01', [BuktiController::class, 'getMapa01']);
-        Route::get('/{id}/mapa02', [BuktiController::class, 'getMapa02']);
-        Route::get('/ak07', [BuktiController::class, 'getAk07']);
+        Route::get('/{id}/data-dokumen', [PraAsesmenController::class, 'getDokumenHeader']);
+        Route::get('/{id}/apl01', [PraAsesmenController::class, 'getApl01']);
+        Route::get('/{id}/apl02', [PraAsesmenController::class, 'getApl02']);
+        Route::get('/{id}/mapa01', [PraAsesmenController::class, 'getMapa01']);
+        Route::get('/{id}/mapa02', [PraAsesmenController::class, 'getMapa02']);
+        Route::get('/{id}/ak07', [PraAsesmenController::class, 'getAk07']);
+        Route::get('/{id}/ak04', [PraAsesmenController::class, 'getAk04']);
+        Route::get('/{id}/k3', [PraAsesmenController::class, 'getK3Asesmen']);
+        Route::get('/{id}/ak01', [PraAsesmenController::class, 'getAk01']);
+    });
+
+    Route::prefix('asesmen')->group(function () {
+        Route::get('/{id}/ia04a', [AsesmenController::class, 'getIa04a']);
+        Route::get('/{id}/ia04b', [AsesmenController::class, 'getIa04b']);
+        Route::get('/{id}/ia05', [AsesmenController::class, 'getIa05']);
     });
 
     Route::post('/verifikasi/{id_izin}', [HitStatusController::class, 'hitVerifikasi']);
