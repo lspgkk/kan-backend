@@ -10,6 +10,7 @@ use App\Models\JabatanKerja;
 use App\Models\Jadwal;
 use App\Models\JenjangJabatanKerja;
 use App\Models\KlasifikasiKualifikasi;
+use App\Models\Pendidikan;
 use App\Models\Personal;
 use App\Models\Proyek;
 use App\Models\Referensi;
@@ -61,10 +62,11 @@ class PraAsesmenController extends Controller
     {
         $personal = Personal::select(['nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kodepos', 'telepon', 'email'])->where('id_izin', $id)->first();
         $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])->where('id_izin', $id)->first();
-        $jabatanKerja = JabatanKerja::select(['jabatan_kerja'])->where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->first();
+        $jabatanKerja = JabatanKerja::select(['jabatan_kerja', 'acuan'])->where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->first();
         $pekerjaan = Proyek::where('id_izin', $id)->latest('created_at')->first();
         $kualifikasi = JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)->value('jabatan_kerja');
         $unitKompetensi = UnitKompetensi::select(['kode', 'nama'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->get();
+        $jenjang = Pendidikan::where('id_izin', $id)->orderBy('created_at', 'desc')->value('jenjang');
         $persyaratan = ImpBukti::select(['no', 'bukti'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->whereNotLike('bukti', 'Syarat Administrasi%')
@@ -151,7 +153,16 @@ class PraAsesmenController extends Controller
                 'data_sertifikasi' => [
                     'judul' => $jabatanKerja->jabatan_kerja,
                     'nomor' => $nomorSkema,
+                    'options' => [
+                        ['id' => '1', 'label' => 'Sertifikasi', 'checked' => true],
+                        ['id' => '2', 'label' => 'Sertifikasi Ulang', 'checked' => false],
+                        ['id' => '3', 'label' => 'Pengakuan Kompetensi Terkini (PKT)', 'checked' => false],
+                        ['id' => '4', 'label' => 'Rekognisi Pembelajaran Lampau', 'checked' => false],
+                        ['id' => '5', 'label' => 'Lainnya:', 'checked' => false]
+                    ]
                 ],
+                'is_memenuhi_syarat' => true,
+                'skkni' => $jabatanKerja->acuan,
                 'data_unit_kompetensi' => $unitKompetensi,
                 'bukti_persyaratan' => $persyaratan,
                 'bukti_administratif' => $formattedAdministratif->values(),
@@ -363,26 +374,23 @@ class PraAsesmenController extends Controller
         }
 
         $kelompokKerja = [
-            'message' => 'Success',
-            'data' => [
-                'id' => $dokumen->id,
-                'kode' => $dokumen->kode,
-                'nama_dokumen' => $dokumen->nama_dokumen,
-                'kelompok_kerja' => $dokumen->kelompoks->map(function ($kelompok) {
-                    return [
-                        'id' => $kelompok->id,
-                        'nama' => $kelompok->nama,
-                        'urut' => $kelompok->urut,
-                        'units' => $kelompok->units->map(function ($unit) {
-                            return [
-                                'id_unit'   => $unit->id_unit,
-                                'nama_unit' => $unit->unit?->nama,
-                                'kode_unit' => $unit->unit?->kode,
-                            ];
-                        })->values()
-                    ];
-                })->values()
-            ]
+            'id' => $dokumen->id,
+            'kode' => $dokumen->kode,
+            'nama_dokumen' => $dokumen->nama_dokumen,
+            'kelompok_kerja' => $dokumen->kelompoks->map(function ($kelompok) {
+                return [
+                    'id' => $kelompok->id,
+                    'nama' => $kelompok->nama,
+                    'urut' => $kelompok->urut,
+                    'units' => $kelompok->units->map(function ($unit) {
+                        return [
+                            'id_unit'   => $unit->id_unit,
+                            'nama_unit' => $unit->unit?->nama,
+                            'kode_unit' => $unit->unit?->kode,
+                        ];
+                    })->values()
+                ];
+            })->values()
         ];
 
         $referensis = Referensi::select(['id', 'nama', 'kategori', 'isdefault'])
