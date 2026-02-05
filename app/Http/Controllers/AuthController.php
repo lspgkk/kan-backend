@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AsesiJadwal;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\AuthLog;
@@ -62,12 +63,23 @@ class AuthController extends Controller
     public function me()
     {
         $user = auth()->user();
+
         $role = Role::with('permissions')->findOrFail($user->role_id);
+
+        $response = [
+            'user' => $user,
+            'role' => $role,
+        ];
+
+        if ($role->name === 'Asesi') {
+            $idIzin = AsesiJadwal::where('account', $user->email)
+                ->value('id_izin');
+
+            $response['id_izin'] = $idIzin;
+        }
+
         return response()->json([
-            'data' => [
-                'user' => $user,
-                'role' => $role
-            ]
+            'data' => $response
         ]);
     }
 

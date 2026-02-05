@@ -15,6 +15,7 @@ use App\Models\Personal;
 use App\Models\Proyek;
 use App\Models\Referensi;
 use App\Models\UnitKompetensi;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class PraAsesmenController extends Controller
@@ -41,12 +42,17 @@ class PraAsesmenController extends Controller
             'asesor2:id,nama,noreg',
         ])->where('jadwal_id', $jadwalId)->first();
 
+        $idAsesor1 = User::where('noreg', $jadwal->asesor ? $jadwal->asesor->noreg : null)->value('id');
+        $idAsesor2 = User::where('noreg', $jadwal->asesor2 ? $jadwal->asesor2->noreg : null)->value('id');
+
         return response()->json([
             'message' => 'Success',
             'data' => [
                 'jabatan_kerja' => $jabatanKerja,
                 'nomor_skema' => $jabatanConfig->no_skema,
                 'tuk' => $jadwal->tuk ? $jadwal->tuk->nama : null,
+                'id_asesor_1' => $idAsesor1,
+                'id_asesor_2' => $idAsesor2,
                 'asesor_1' => $jadwal->asesor ? $jadwal->asesor->nama : null,
                 'asesor_2' => $jadwal->asesor2 ? $jadwal->asesor2->nama : null,
                 'noreg_asesor_1' => $jadwal->asesor ? $jadwal->asesor->noreg : null,
@@ -511,9 +517,14 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    public function getK3Asesmen($id)
+    public function getK3Asesmen()
     {
-        
+        return response()->json([
+            'message' => 'Success',
+            'data'    => [
+                'file' => env('APP_URL') . '/files/k3_asesmen.pdf',
+            ]
+        ]);
     }
 
     public function getAk01($id)

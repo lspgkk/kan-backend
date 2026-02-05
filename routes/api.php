@@ -183,7 +183,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{id}/mapa02', [PraAsesmenController::class, 'getMapa02']);
         Route::get('/{id}/ak07', [PraAsesmenController::class, 'getAk07']);
         Route::get('/{id}/ak04', [PraAsesmenController::class, 'getAk04']);
-        Route::get('/{id}/k3', [PraAsesmenController::class, 'getK3Asesmen']);
+        Route::get('/file-k3', [PraAsesmenController::class, 'getK3Asesmen']);
         Route::get('/{id}/ak01', [PraAsesmenController::class, 'getAk01']);
     });
 
@@ -191,6 +191,8 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{id}/ia04a', [AsesmenController::class, 'getIa04a']);
         Route::get('/{id}/ia04b', [AsesmenController::class, 'getIa04b']);
         Route::get('/{id}/ia05', [AsesmenController::class, 'getIa05']);
+        Route::get('/{id}/ak02', [AsesmenController::class, 'getAk02']);
+        Route::get('/{id}/ak03', [AsesmenController::class, 'getAk03']);
     });
 
     Route::post('/verifikasi/{id_izin}', [HitStatusController::class, 'hitVerifikasi']);
