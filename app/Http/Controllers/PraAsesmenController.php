@@ -43,6 +43,7 @@ class PraAsesmenController extends Controller
 
     public function getDokumenHeader($id)
     {
+        $namaAsesi = Personal::where('id_izin', $id)->value('nama');
         $jadwalId = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
         $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
             ->where('id_izin', $id)
@@ -74,6 +75,7 @@ class PraAsesmenController extends Controller
                 'tuk' => $jadwal->tuk ? $jadwal->tuk->nama : null,
                 'id_asesor_1' => $idAsesor1,
                 'id_asesor_2' => $idAsesor2,
+                'nama_asesi' => $namaAsesi,
                 'asesor_1' => $jadwal->asesor ? $jadwal->asesor->nama : null,
                 'asesor_2' => $jadwal->asesor2 ? $jadwal->asesor2->nama : null,
                 'noreg_asesor_1' => $jadwal->asesor ? $jadwal->asesor->noreg : null,

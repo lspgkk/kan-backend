@@ -8,6 +8,7 @@ use App\Models\JabatanDokumen;
 use App\Models\JabatanKerja;
 use App\Models\Jadwal;
 use App\Models\KlasifikasiKualifikasi;
+use App\Models\Personal;
 use App\Models\Referensi;
 use App\Models\Soal;
 use App\Models\User;
@@ -81,6 +82,7 @@ class AsesmenController extends Controller
 
     public function getDokumenHeader($id)
     {
+        $namaAsesi = Personal::where('id_izin', $id)->value('nama');
         $jadwalId = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
         $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
             ->where('id_izin', $id)
@@ -112,6 +114,7 @@ class AsesmenController extends Controller
                 'tuk' => $jadwal->tuk ? $jadwal->tuk->nama : null,
                 'id_asesor_1' => $idAsesor1,
                 'id_asesor_2' => $idAsesor2,
+                'nama_asesi' => $namaAsesi,
                 'asesor_1' => $jadwal->asesor ? $jadwal->asesor->nama : null,
                 'asesor_2' => $jadwal->asesor2 ? $jadwal->asesor2->nama : null,
                 'noreg_asesor_1' => $jadwal->asesor ? $jadwal->asesor->noreg : null,
