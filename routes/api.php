@@ -188,6 +188,7 @@ Route::middleware(['auth:api'])->group(function () {
     });
 
     Route::prefix('asesmen')->group(function () {
+        Route::get('/{id}/data-dokumen', [AsesmenController::class, 'getDokumenHeader']);
         Route::get('/{id}/ia04a', [AsesmenController::class, 'getIa04a']);
         Route::get('/{id}/ia04b', [AsesmenController::class, 'getIa04b']);
         Route::get('/{id}/ia05', [AsesmenController::class, 'getIa05']);

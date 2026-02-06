@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AsesiJadwal;
+use App\Models\BuktiAsesmen;
 use App\Models\ImpBukti;
 use App\Models\JabatanConfigA;
 use App\Models\JabatanDokumen;
@@ -14,12 +15,32 @@ use App\Models\Pendidikan;
 use App\Models\Personal;
 use App\Models\Proyek;
 use App\Models\Referensi;
+use App\Models\Role;
 use App\Models\UnitKompetensi;
 use App\Models\User;
 use Illuminate\Http\Request;
 
 class PraAsesmenController extends Controller
 {
+    public function absenAwal(Request $request, $id)
+    {
+        $user = auth()->user();
+
+        $role = Role::findOrFail($user->role_id);
+
+        if ($role->name === 'Asesi') {
+            $bukti = BuktiAsesmen::updateOrCreate(['id_izin' => $id],[
+                'id_izin'    => $id,
+                'url_absen_asesi_awal' => $request->url_absen,
+            ]);
+        }
+        
+        if ($role->name === 'Asesor') {
+            $roleAsesor = null;
+            
+        }
+    }
+
     public function getDokumenHeader($id)
     {
         $jadwalId = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
