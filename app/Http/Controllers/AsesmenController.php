@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\AsesiJadwal;
+use App\Models\BuktiAsesmen;
+use App\Models\Ia4aAnswer;
 use App\Models\JabatanConfigA;
 use App\Models\JabatanDokumen;
 use App\Models\JabatanKerja;
@@ -13,73 +15,12 @@ use App\Models\Referensi;
 use App\Models\Soal;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Ramsey\Uuid\Uuid;
 
 class AsesmenController extends Controller
 {
-    public function getIa04a($id)
-    {
-        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
-            ->where('id_izin', $id)
-            ->first();
-
-        if (!$klasifikasi) {
-            return response()->json([
-                'message' => 'Data not found',
-                'data' => null
-            ], 404);
-        }
-        
-        $referensis = Referensi::select(['id', 'nama'])
-            ->where('kategori', 'IA04')
-            ->get();
-
-        $dokumen = JabatanDokumen::with([
-                'kelompoks.units.unit'
-            ])
-            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
-            ->where('kode', 'FR.IA.04')
-            ->where('is_active', true)
-            ->first();
-
-        if (!$dokumen) {
-            return response()->json([
-                'message' => 'Success',
-                'data' => []
-            ]);
-        }
-
-        $questions = Soal::select(['id', 'urut', 'jenis', 'soal', 'jawab_a as jawaban', 'is_komentar'])->where('id_dokumen', $dokumen->id)->orderBy('urut', 'asc')->get();
-
-        $kelompokKerja = [
-            'id' => $dokumen->id,
-            'kode' => $dokumen->kode,
-            'nama_dokumen' => $dokumen->nama_dokumen,
-            'kelompok_kerja' => $dokumen->kelompoks->map(function ($kelompok) {
-                return [
-                    'id' => $kelompok->id,
-                    'nama' => $kelompok->nama,
-                    'urut' => $kelompok->urut,
-                    'units' => $kelompok->units->map(function ($unit) {
-                        return [
-                            'id_unit'   => $unit->id_unit,
-                            'nama_unit' => $unit->unit?->nama,
-                            'kode_unit' => $unit->unit?->kode,
-                        ];
-                    })->values()
-                ];
-            })->values()
-        ];
-
-        return response()->json([
-            'message' => 'Success',
-            'data' => [
-                'kelompok_kerja' => $kelompokKerja,
-                'referensi_form' => $referensis,
-                'soal' => $questions
-            ]
-        ]);
-    }
-
     public function getDokumenHeader($id)
     {
         $namaAsesi = Personal::where('id_izin', $id)->value('nama');
@@ -126,9 +67,149 @@ class AsesmenController extends Controller
         ]);
     }
 
+    public function getIa04a($id)
+    {
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$klasifikasi) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null
+            ], 404);
+        }
+
+        $referensis = Referensi::select(['id', 'nama'])
+            ->where('kategori', 'IA04')
+            ->get();
+
+        $dokumen = JabatanDokumen::with(['kelompoks.units.unit'])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where('kode', 'FR.IA.04')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dokumen) {
+            return response()->json([
+                'message' => 'Success',
+                'data' => []
+            ]);
+        }
+
+        // 🔹 Load saved feedback answers
+        $ia04aAnswers = Ia4aAnswer::where('id_izin', $id)
+            ->get()
+            ->keyBy('soal_id');
+
+        // 🔹 Load questions + inject feedback answer
+        $questions = Soal::where('id_dokumen', $dokumen->id)
+            ->orderBy('urut', 'asc')
+            ->get()
+            ->map(function ($q) use ($ia04aAnswers) {
+
+                $answer = $ia04aAnswers->get($q->id);
+
+                return [
+                    'id'          => $q->id,
+                    'urut'        => $q->urut,
+                    'jenis'       => $q->jenis,
+                    'soal'        => $q->soal,
+                    'is_komentar' => $q->is_komentar,
+                    'jawaban'     => $q->is_komentar == 2
+                        ? ($answer?->jawaban ?? '')
+                        : $q->jawab_a,
+                ];
+            });
+
+        $kelompokKerja = [
+            'id' => $dokumen->id,
+            'kode' => $dokumen->kode,
+            'nama_dokumen' => $dokumen->nama_dokumen,
+            'kelompok_kerja' => $dokumen->kelompoks->map(function ($kelompok) {
+                return [
+                    'id' => $kelompok->id,
+                    'nama' => $kelompok->nama,
+                    'urut' => $kelompok->urut,
+                    'units' => $kelompok->units->map(function ($unit) {
+                        return [
+                            'id_unit'   => $unit->id_unit,
+                            'nama_unit' => $unit->unit?->nama,
+                            'kode_unit' => $unit->unit?->kode,
+                        ];
+                    })->values()
+                ];
+            })->values()
+        ];
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => [
+                'kelompok_kerja' => $kelompokKerja,
+                'referensi_form' => $referensis,
+                'soal' => $questions
+            ]
+        ]);
+    }
+
+    public function submitIa04a(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'soal_id' => 'required|integer|exists:soals,id',
+            'jawaban' => 'nullable|string',
+        ]);
+
+        Ia4aAnswer::updateOrCreate(
+            [
+                'id_izin' => $id,
+                'soal_id' => $validated['soal_id'],
+            ],
+            [
+                'jawaban' => $validated['jawaban'],
+            ]
+        );
+
+        return response()->json([
+            'message' => 'IA04A berhasil disimpan'
+        ]);
+    }
+
     public function uploadTugas(Request $request, $id)
     {
-        
+        $request->validate([
+            'file' => 'required|file|mimes:pdf|max:20480' // max 20MB
+        ]);
+
+        DB::transaction(function () use ($request, $id) {
+
+            // 1️⃣ Generate unique filename (NO extension)
+            $file_paparan_url_name = (string) Uuid::uuid4();
+
+            // 2️⃣ Full FTP path
+            $ftpPath = "/dok_asesmen/paparan/{$file_paparan_url_name}.pdf";
+
+            // 3️⃣ Upload to FTP
+            Storage::disk('str_moon')->put(
+                $ftpPath,
+                file_get_contents($request->file('file')->getRealPath())
+            );
+
+            // 4️⃣ Public URL
+            $fullUrlPaparan = "https://moon.lspgatensi.id/files{$ftpPath}";
+
+            // 5️⃣ Save / update DB record
+            BuktiAsesmen::updateOrCreate(
+                ['id_izin' => $id],
+                [
+                    'url_paparan'  => $fullUrlPaparan,
+                    'updated_at' => now(),
+                ]
+            );
+        });
+
+        return response()->json([
+            'message' => 'Tugas berhasil diupload!'
+        ]);
     }
 
     public function getIa04b($id)
