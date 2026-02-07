@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Apl1Answer;
+use App\Models\Apl2Answer;
+use App\Models\Apl2Submission;
 use App\Models\AsesiJadwal;
 use App\Models\BuktiAsesmen;
 use App\Models\ImpBukti;
@@ -19,6 +22,9 @@ use App\Models\Role;
 use App\Models\UnitKompetensi;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Ramsey\Uuid\Uuid;
 
 class PraAsesmenController extends Controller
 {
@@ -37,7 +43,18 @@ class PraAsesmenController extends Controller
         
         if ($role->name === 'Asesor') {
             $roleAsesor = null;
-            
+            $jadwal = Jadwal::where('jadwal_id', AsesiJadwal::where('id_izin', $id)->value('jadwal_id'))->with(['asesor:id,noreg'])->first();
+            if ($user->noreg === $jadwal->asesor->noreg) {
+                $roleAsesor = 'asesor1';
+            } elseif ($user->noreg === $jadwal->asesor2->noreg) {
+                $roleAsesor = 'asesor2';
+            }
+            if ($roleAsesor) {
+                $bukti = BuktiAsesmen::updateOrCreate(['id_izin' => $id],[
+                    'id_izin'    => $id,
+                    "url_absen_{$roleAsesor}_awal" => $request->url_absen,
+                ]);
+            }
         }
     }
 
@@ -93,6 +110,7 @@ class PraAsesmenController extends Controller
         $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])->where('id_izin', $id)->first();
         $jabatanKerja = JabatanKerja::select(['jabatan_kerja', 'acuan'])->where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->first();
         $pekerjaan = Proyek::where('id_izin', $id)->latest('created_at')->first();
+        $apl1Answer = Apl1Answer::where('id_izin', $id)->first();
         $kualifikasi = JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)->value('jabatan_kerja');
         $unitKompetensi = UnitKompetensi::select(['kode', 'nama'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->get();
         $jenjang = Pendidikan::where('id_izin', $id)->orderBy('created_at', 'desc')->value('jenjang');
@@ -171,13 +189,33 @@ class PraAsesmenController extends Controller
                     'kualifikasi' => $kualifikasi,
                 ],
                 'data_pekerjaan' => [
-                    'perusahaan' => $pekerjaan->pemberi_kerja,
-                    'jabatan' => $pekerjaan->jabatan,
-                    'alamat_kantor' => $pekerjaan ? $pekerjaan->alamat : null,
-                    'kode_pos' => $pekerjaan ? $pekerjaan->kode_pos : null,
-                    'telepon_kantor' => $pekerjaan ? $pekerjaan->telepon : null,
-                    'fax' => $pekerjaan ? $pekerjaan->fax : null,
-                    'email_kantor' => $pekerjaan ? $pekerjaan->email : null,
+                    'perusahaan' => $apl1Answer
+                        ? $apl1Answer->perusahaan
+                        : ($pekerjaan ? $pekerjaan->pemberi_kerja : null),
+
+                    'jabatan' => $apl1Answer
+                        ? $apl1Answer->jabatan
+                        : ($pekerjaan ? $pekerjaan->jabatan : null),
+
+                    'alamat_kantor' => $apl1Answer
+                        ? $apl1Answer->alamat_kantor
+                        : ($pekerjaan ? $pekerjaan->alamat : null),
+
+                    'kode_pos' => $apl1Answer
+                        ? $apl1Answer->kode_pos
+                        : ($pekerjaan ? $pekerjaan->kode_pos : null),
+
+                    'telepon_kantor' => $apl1Answer
+                        ? $apl1Answer->telepon_kantor
+                        : ($pekerjaan ? $pekerjaan->telepon : null),
+
+                    'fax' => $apl1Answer
+                        ? $apl1Answer->fax
+                        : ($pekerjaan ? $pekerjaan->fax : null),
+
+                    'email_kantor' => $apl1Answer
+                        ? $apl1Answer->email_kantor
+                        : ($pekerjaan ? $pekerjaan->email : null),
                 ],
                 'data_sertifikasi' => [
                     'judul' => $jabatanKerja->jabatan_kerja,
@@ -199,12 +237,35 @@ class PraAsesmenController extends Controller
         ]);
     }
 
+    public function submitApl01(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'perusahaan'      => 'nullable|string',
+            'jabatan'         => 'nullable|string',
+            'alamat_kantor'   => 'nullable|string',
+            'kode_pos'        => 'nullable|integer',
+            'telepon_kantor'  => 'nullable|string',
+            'fax'             => 'nullable|string',
+            'email_kantor'    => 'nullable|email',
+        ]);
+
+        $apl01 = Apl1Answer::updateOrCreate(
+            ['id_izin' => $id],
+            $validated
+        );
+
+        return response()->json([
+            'message' => 'APL-01 successfully submitted',
+            'data' => $apl01
+        ]);
+    }
+
     public function getApl02($id)
     {
         $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
             ->where('id_izin', $id)
             ->first();
-        
+
         // Load units → subunits → kuks
         $units = UnitKompetensi::with(['subunits.kuks'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
@@ -217,26 +278,38 @@ class PraAsesmenController extends Controller
             ]);
         }
 
+        // 🔑 Load APL-02 header (per id_izin)
+        $submission = Apl2Submission::where('id_izin', $id)->first();
+
+        // 🔑 Load saved answers (keyed by subunit_id)
+        $answers = Apl2Answer::where('id_izin', $id)
+            ->get()
+            ->keyBy('subunit_id');
+
         $data = [
-            'units' => $units->map(function ($unit) {
+            // ✅ HEADER VALUES
+            'metode' => $submission?->metode,
+            'is_dilanjutkan' => $submission?->is_dilanjutkan,
+
+            // ✅ DETAIL VALUES
+            'units' => $units->map(function ($unit) use ($answers) {
 
                 return [
                     'id' => (string) $unit->id,
                     'kode' => $unit->kode,
                     'judul_kompetensi' => $unit->nama,
-                    'subunits' => $unit->subunits->map(function ($subunit) {
+                    'subunits' => $unit->subunits->map(function ($subunit) use ($answers) {
 
                         return [
                             'id' => (string) $subunit->id,
                             'no_elemen' => $subunit->kode,
                             'judul_elemen' => $subunit->nama,
+                            'kompeten' => (bool) ($answers->get($subunit->id)->kompeten ?? false),
                             'kuk_list' => $subunit->kuks->map(function ($kuk) {
-
                                 return [
                                     'no_kuk' => $kuk->kode,
                                     'judul_kuk' => $kuk->nama,
                                 ];
-
                             })->values()
                         ];
 
@@ -249,6 +322,47 @@ class PraAsesmenController extends Controller
         return response()->json([
             'message' => 'Success',
             'data' => $data
+        ]);
+    }
+
+    public function submitApl02(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'metode' => 'required|string',
+            'is_dilanjutkan' => 'required|boolean',
+            'answers' => 'required|array',
+            'answers.*.subunit_id' => 'required|integer',
+            'answers.*.kompeten' => 'required|boolean',
+        ]);
+
+        DB::transaction(function () use ($validated, $id) {
+
+            // 1️⃣ Save header (per id_izin)
+            Apl2Submission::updateOrCreate(
+                ['id_izin' => $id],
+                [
+                    'metode' => $validated['metode'],
+                    'is_dilanjutkan' => $validated['is_dilanjutkan'],
+                    'submitted_at' => now(),
+                ]
+            );
+
+            // 2️⃣ Save detail (per subunit)
+            foreach ($validated['answers'] as $answer) {
+                Apl2Answer::updateOrCreate(
+                    [
+                        'id_izin' => $id,
+                        'subunit_id' => $answer['subunit_id'],
+                    ],
+                    [
+                        'kompeten' => $answer['kompeten'],
+                    ]
+                );
+            }
+        });
+
+        return response()->json([
+            'message' => 'APL-02 successfully submitted'
         ]);
     }
 
@@ -374,6 +488,44 @@ class PraAsesmenController extends Controller
         ]);
     }
 
+    public function submitMapa01(Request $request, $id)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:pdf|max:20480' // max 20MB
+        ]);
+
+        DB::transaction(function () use ($request, $id) {
+
+            // 1️⃣ Generate unique filename (NO extension)
+            $file_mapa_01_url_name = (string) Uuid::uuid4();
+
+            // 2️⃣ Full FTP path
+            $ftpPath = "/dok_asesmen/mapa1/{$file_mapa_01_url_name}.pdf";
+
+            // 3️⃣ Upload to FTP
+            Storage::disk('str_moon')->put(
+                $ftpPath,
+                file_get_contents($request->file('file')->getRealPath())
+            );
+
+            // 4️⃣ Public URL
+            $fullUrlMapa01 = "https://moon.lspgatensi.id/files{$ftpPath}";
+
+            // 5️⃣ Save / update DB record
+            BuktiAsesmen::updateOrCreate(
+                ['id_izin' => $id],
+                [
+                    'url_mapa01'  => $fullUrlMapa01,
+                    'updated_at' => now(),
+                ]
+            );
+        });
+
+        return response()->json([
+            'message' => 'MAPA-01 successfully submitted'
+        ]);
+    }
+
     public function getMapa02($id)
     {
         $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
@@ -449,6 +601,44 @@ class PraAsesmenController extends Controller
         ]);
     }
 
+    public function submitMapa02(Request $request, $id)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:pdf|max:20480' // max 20MB
+        ]);
+
+        DB::transaction(function () use ($request, $id) {
+
+            // 1️⃣ Generate unique filename (NO extension)
+            $file_mapa_01_url_name = (string) Uuid::uuid4();
+
+            // 2️⃣ Full FTP path
+            $ftpPath = "/dok_asesmen/mapa1/{$file_mapa_01_url_name}.pdf";
+
+            // 3️⃣ Upload to FTP
+            Storage::disk('str_moon')->put(
+                $ftpPath,
+                file_get_contents($request->file('file')->getRealPath())
+            );
+
+            // 4️⃣ Public URL
+            $fullUrlMapa02 = "https://moon.lspgatensi.id/files{$ftpPath}";
+
+            // 5️⃣ Save / update DB record
+            BuktiAsesmen::updateOrCreate(
+                ['id_izin' => $id],
+                [
+                    'url_mapa02'  => $fullUrlMapa02,
+                    'updated_at' => now(),
+                ]
+            );
+        });
+
+        return response()->json([
+            'message' => 'MAPA-02 successfully submitted'
+        ]);
+    }
+
     public function getAk07($id)
     {
         $referensis = Referensi::with([
@@ -503,6 +693,11 @@ class PraAsesmenController extends Controller
             'message' => 'Success',
             'data'    => $data
         ]);
+    }
+
+    public function submitAk07(Request $request, $id)
+    {
+        
     }
 
     public function getAk04($id)

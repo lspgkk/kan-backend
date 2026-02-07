@@ -37,4 +37,9 @@ class Soal extends Model
             'id'       // PK on unit_kompetensis
         );
     }
+
+    public function kuk()
+    {
+        return $this->belongsTo(Kuk::class, 'id_kuk', 'id');
+    }
 }

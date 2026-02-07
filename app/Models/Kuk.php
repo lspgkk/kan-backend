@@ -35,4 +35,9 @@ class Kuk extends Model
     {
         return $this->belongsTo(SubunitKompetensi::class, 'id_subunitkompetensi', 'id');
     }
+
+    public function soals()
+    {
+        return $this->hasMany(Soal::class, 'id_kuk', 'id');
+    }
 }

@@ -185,6 +185,14 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{id}/ak04', [PraAsesmenController::class, 'getAk04']);
         Route::get('/file-k3', [PraAsesmenController::class, 'getK3Asesmen']);
         Route::get('/{id}/ak01', [PraAsesmenController::class, 'getAk01']);
+        Route::post('/{id}/apl01', [PraAsesmenController::class, 'submitApl01']);
+        Route::post('/{id}/apl02', [PraAsesmenController::class, 'submitApl02']);
+        Route::post('/{id}/mapa01', [PraAsesmenController::class, 'submitMapa01']);
+        Route::post('/{id}/mapa02', [PraAsesmenController::class, 'submitMapa02']);
+        Route::post('/{id}/ak07', [PraAsesmenController::class, 'submitAk07']);
+        Route::post('/{id}/ak04', [PraAsesmenController::class, 'submitAk04']);
+        Route::post('/file-k3', [PraAsesmenController::class, 'submitK3Asesmen']);
+        Route::post('/{id}/ak01', [PraAsesmenController::class, 'submitAk01']);
     });
 
     Route::prefix('asesmen')->group(function () {

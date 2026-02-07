@@ -201,7 +201,7 @@ class AsesmenController extends Controller
             ]);
         }
 
-        $questions = Soal::with('unit:id,kode')->select(['id', 'no', 'id_unitkompetensi', 'jenis', 'soal', 'jawab_a', 'jawab_b', 'jawab_c', 'jawab_d', 'file_a', 'file_b', 'file_c', 'file_d', 'jawaban'])
+        $questions = Soal::with(['unit:id,kode', 'kuk:id,kode'])->select(['id', 'no', 'id_unitkompetensi', 'id_kuk', 'jenis', 'soal', 'jawab_a', 'jawab_b', 'jawab_c', 'jawab_d', 'file_a', 'file_b', 'file_c', 'file_d', 'jawaban'])
             ->where('id_dokumen', $dokumen->id)->where('tipe', 1)
             ->orderBy('no', 'asc')->get();
 
@@ -243,6 +243,39 @@ class AsesmenController extends Controller
 
     public function getAk03($id)
     {
-        
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$klasifikasi) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null
+            ], 404);
+        }
+
+        $dokumen = JabatanDokumen::with([
+                'kelompoks.units.unit'
+            ])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where('kode', 'FR.AK.03')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dokumen) {
+            return response()->json([
+                'message' => 'Success',
+                'data' => []
+            ]);
+        }
+
+        $questions = Soal::select(['id', 'no', 'jenis', 'soal'])->where('id_dokumen', $dokumen->id)->orderBy('no', 'asc')->get();
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => [
+                'soal' => $questions
+            ]
+        ]);
     }
 }
