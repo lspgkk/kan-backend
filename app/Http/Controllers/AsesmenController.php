@@ -6,6 +6,7 @@ use App\Models\AsesiJadwal;
 use App\Models\BuktiAsesmen;
 use App\Models\Ia4aAnswer;
 use App\Models\Ia4bAnswer;
+use App\Models\Ia5Answer;
 use App\Models\JabatanConfigA;
 use App\Models\JabatanDokumen;
 use App\Models\JabatanKerja;
@@ -14,6 +15,7 @@ use App\Models\KlasifikasiKualifikasi;
 use App\Models\Personal;
 use App\Models\Referensi;
 use App\Models\Soal;
+use App\Models\UnitKompetensi;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -406,9 +408,35 @@ class AsesmenController extends Controller
             ]);
         }
 
-        $questions = Soal::with(['unit:id,kode', 'kuk:id,kode'])->select(['id', 'no', 'id_unitkompetensi', 'id_kuk', 'jenis', 'soal', 'jawab_a', 'jawab_b', 'jawab_c', 'jawab_d', 'file_a', 'file_b', 'file_c', 'file_d', 'jawaban'])
-            ->where('id_dokumen', $dokumen->id)->where('tipe', 1)
-            ->orderBy('no', 'asc')->get();
+        $questions = Soal::query()
+            ->leftJoin('ia5_answers as a', function ($join) use ($id, $dokumen) {
+                $join->on('a.soal_id', '=', 'soals.id')
+                    ->where('a.id_izin', $id)
+                    ->where('a.dokumen_id', $dokumen->id);
+            })
+            ->with(['unit:id,kode', 'kuk:id,kode'])
+            ->where('soals.id_dokumen', $dokumen->id)
+            ->where('soals.tipe', 1)
+            ->orderBy('soals.no', 'asc')
+            ->select([
+                'soals.id',
+                'soals.no',
+                'soals.id_unitkompetensi',
+                'soals.id_kuk',
+                'soals.jenis',
+                'soals.soal',
+                'soals.jawab_a',
+                'soals.jawab_b',
+                'soals.jawab_c',
+                'soals.jawab_d',
+                'soals.file_a',
+                'soals.file_b',
+                'soals.file_c',
+                'soals.file_d',
+                'soals.jawaban as kunci_jawaban', // correct answer
+                'a.jawaban as jawaban_asesi'        // answer by id_izin
+            ])
+            ->get();
 
         return response()->json([
             'message' => 'Success',
@@ -416,6 +444,35 @@ class AsesmenController extends Controller
                 'dokumen' => $dokumen,
                 'soal' => $questions
             ]
+        ]);
+    }
+
+    public function submitIa05(Request $request, $idIzin)
+    {
+        $request->validate([
+            'dokumen_id' => 'required|integer',
+            'answers' => 'required|array',
+            'answers.*.soal_id' => 'required|integer',
+            'answers.*.jawaban' => 'required|in:A,B,C,D',
+        ]);
+
+        DB::transaction(function () use ($request, $idIzin) {
+            foreach ($request->answers as $answer) {
+                Ia5Answer::updateOrCreate(
+                    [
+                        'id_izin' => $idIzin,
+                        'soal_id' => $answer['soal_id'],
+                    ],
+                    [
+                        'dokumen_id' => $request->dokumen_id,
+                        'jawaban' => $answer['jawaban'],
+                    ]
+                );
+            }
+        });
+
+        return response()->json([
+            'message' => 'IA05 answers saved successfully'
         ]);
     }
 
@@ -432,18 +489,14 @@ class AsesmenController extends Controller
             ], 404);
         }
 
-        $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
-            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
-            ->where('kode', 'FR.AK.02')
-            ->where('is_active', true)
-            ->first();
+        $unitKompetensi = UnitKompetensi::select(['kode', 'nama'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->get();
 
-        if (!$dokumen) {
-            return response()->json([
-                'message' => 'Success',
-                'data' => []
-            ]);
-        }
+        return response()->json([
+            'message' => 'Success',
+            'data' => [
+                'data_unit_kompetensi' => $unitKompetensi,
+            ]
+        ]);
     }
 
     public function getAk03($id)
