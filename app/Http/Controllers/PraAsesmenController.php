@@ -612,10 +612,10 @@ class PraAsesmenController extends Controller
         DB::transaction(function () use ($request, $id) {
 
             // 1️⃣ Generate unique filename (NO extension)
-            $file_mapa_01_url_name = (string) Uuid::uuid4();
+            $file_mapa_02_url_name = (string) Uuid::uuid4();
 
             // 2️⃣ Full FTP path
-            $ftpPath = "/dok_asesmen/mapa1/{$file_mapa_01_url_name}.pdf";
+            $ftpPath = "/dok_asesmen/mapa2/{$file_mapa_02_url_name}.pdf";
 
             // 3️⃣ Upload to FTP
             Storage::disk('str_moon')->put(
@@ -824,6 +824,44 @@ class PraAsesmenController extends Controller
         return response()->json([
             'message' => 'Success',
             'data'    => $ak01
+        ]);
+    }
+
+    public function submitAk01(Request $request, $id)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:pdf|max:20480' // max 20MB
+        ]);
+
+        DB::transaction(function () use ($request, $id) {
+
+            // 1️⃣ Generate unique filename (NO extension)
+            $file_ak_01_url_name = (string) Uuid::uuid4();
+
+            // 2️⃣ Full FTP path
+            $ftpPath = "/dok_asesmen/ak1/{$file_ak_01_url_name}.pdf";
+
+            // 3️⃣ Upload to FTP
+            Storage::disk('str_moon')->put(
+                $ftpPath,
+                file_get_contents($request->file('file')->getRealPath())
+            );
+
+            // 4️⃣ Public URL
+            $fullUrlAk01 = "https://moon.lspgatensi.id/files{$ftpPath}";
+
+            // 5️⃣ Save / update DB record
+            BuktiAsesmen::updateOrCreate(
+                ['id_izin' => $id],
+                [
+                    'url_ak01'  => $fullUrlAk01,
+                    'updated_at' => now(),
+                ]
+            );
+        });
+
+        return response()->json([
+            'message' => 'AK-01 successfully submitted'
         ]);
     }
 }
