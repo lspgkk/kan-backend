@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AsesiJadwal;
 use App\Models\BuktiAsesmen;
 use App\Models\Ia4aAnswer;
+use App\Models\Ia4bAnswer;
 use App\Models\JabatanConfigA;
 use App\Models\JabatanDokumen;
 use App\Models\JabatanKerja;
@@ -238,21 +239,144 @@ class AsesmenController extends Controller
             ]);
         }
 
-        $questions = Soal::select(['id', 'no', 'jenis', 'soal', 'soal1', 'soal2', 'is_komentar'])
-            ->where('id_dokumen', $dokumen->id)->where('tipe', 8)
-            ->orderBy('no', 'asc')->get();
+        /**
+         * QUESTIONS + ANSWERS + PENCAPAIAN
+         */
+        $questions = Soal::select([
+                'soals.id',
+                'soals.no',
+                'soals.jenis',
+                'soals.soal',
+                'soals.soal1',
+                'soals.soal2',
+                'soals.is_komentar',
+                'ia4b_answers.jawaban',
+                'ia4b_answers.pencapaian'
+            ])
+            ->leftJoin('ia4b_answers', function ($join) use ($id) {
+                $join->on('ia4b_answers.soal_id', '=', 'soals.id')
+                    ->where('ia4b_answers.id_izin', $id);
+            })
+            ->where('soals.id_dokumen', $dokumen->id)
+            ->where('soals.tipe', 8)
+            ->orderBy('soals.no', 'asc')
+            ->get();
 
-        $rekomendasi = Soal::select(['id', 'no', 'jenis', 'soal', 'is_komentar'])
-            ->where('id_dokumen', $dokumen->id)->where('tipe', 3)
-            ->first();
+        $questions = $questions->map(function ($q) {
+            $q->pencapaian = $q->pencapaian !== null
+                ? (bool) $q->pencapaian
+                : null;
+
+            return $q;
+        });
+
+        /**
+         * REKOMENDASI + VALUE
+         */
+        $rekomendasi = Soal::select([
+            'soals.id',
+            'soals.no',
+            'soals.jenis',
+            'soals.soal',
+            'soals.is_komentar',
+            'ia4b_answers.rekomendasi'
+        ])
+        ->leftJoin('ia4b_answers', function ($join) use ($id) {
+            $join->on('ia4b_answers.soal_id', '=', 'soals.id')
+                ->where('ia4b_answers.id_izin', $id)
+                ->where('ia4b_answers.is_rekomendasi', true);
+        })
+        ->where('soals.id_dokumen', $dokumen->id)
+        ->where('soals.tipe', 3)
+        ->first();
 
         return response()->json([
             'message' => 'Success',
             'data' => [
                 'dokumen' => $dokumen,
                 'soal' => $questions,
-                'rekomendasi' => $rekomendasi
+                'rekomendasi' => [
+                    'id' => $rekomendasi->id,
+                    'no' => $rekomendasi->no,
+                    'jenis' => $rekomendasi->jenis,
+                    'soal' => $rekomendasi->soal,
+                    'is_komentar' => $rekomendasi->is_komentar,
+                    'rekomendasi' => (bool) $rekomendasi->rekomendasi
+                ]
             ]
+        ]);
+    }
+
+    public function submitIa04b(Request $request, $idIzin)
+    {
+        $request->validate([
+            'dokumen_id' => 'required|integer',
+            'answers' => 'array',
+            'answers.*.soal_id' => 'required|integer',
+            'answers.*.jawaban' => 'nullable|string',
+        ]);
+
+        DB::transaction(function () use ($request, $idIzin) {
+
+            // --- Save normal answers ---
+            foreach ($request->answers as $answer) {
+                Ia4bAnswer::updateOrCreate(
+                    [
+                        'id_izin' => $idIzin,
+                        'soal_id' => $answer['soal_id'],
+                    ],
+                    [
+                        'dokumen_id' => $request->dokumen_id,
+                        'jawaban' => $answer['jawaban'],
+                        'is_rekomendasi' => false,
+                        'pencapaian' => null,
+                    ]
+                );
+            }
+        });
+
+        return response()->json([
+            'message' => 'IA04B answers saved successfully'
+        ]);
+    }
+
+    public function nilaiIa04b(Request $request, $idIzin)
+    {
+        $request->validate([
+            'dokumen_id' => 'required|integer',
+            'evaluations' => 'required|array',
+            'evaluations.*.soal_id' => 'required|integer',
+            'evaluations.*.pencapaian' => 'required|boolean',
+            'rekomendasi.soal_id' => 'required|integer',
+            'rekomendasi.value' => 'required|boolean',
+        ]);
+
+        foreach ($request->evaluations as $eval) {
+            Ia4bAnswer::where('id_izin', $idIzin)
+                ->where('soal_id', $eval['soal_id'])
+                ->where('is_rekomendasi', false)
+                ->update([
+                    'pencapaian' => $eval['pencapaian']
+                ]);
+        }
+
+        // Save rekomendasi
+        Ia4bAnswer::updateOrCreate(
+            [
+                'id_izin' => $idIzin,
+                'soal_id' => $request->rekomendasi['soal_id'],
+            ],
+            [
+                'dokumen_id' => $request->dokumen_id,
+                'is_rekomendasi' => true,
+                'rekomendasi' => $request->rekomendasi['value'],
+                'jawaban' => null,
+                'pencapaian' => null,
+            ]
+        );
+
+        return response()->json([
+            'message' => 'Rekomendasi IA04B disimpan'
         ]);
     }
 

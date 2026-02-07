@@ -204,6 +204,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{id}/ak03', [AsesmenController::class, 'getAk03']);
         Route::post('/{id}/ia04a', [AsesmenController::class, 'submitIa04a']);
         Route::post('/{id}/ia04b', [AsesmenController::class, 'submitIa04b']);
+        Route::post('/{id}/nilai-ia04b', [AsesmenController::class, 'nilaiIa04b']);
         Route::post('/{id}/ia05', [AsesmenController::class, 'submitIa05']);
         Route::post('/{id}/ak02', [AsesmenController::class, 'submitAk02']);
         Route::post('/{id}/ak03', [AsesmenController::class, 'submitAk03']);
