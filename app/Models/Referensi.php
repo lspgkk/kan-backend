@@ -59,4 +59,14 @@ class Referensi extends Model
             'id'
         );
     }
+
+    public function ak07Answer()
+    {
+        return $this->hasOne(Ak7Answer::class, 'referensi_id', 'id');
+    }
+
+    public function ak04Answer()
+    {
+        return $this->hasOne(Ak4Answer::class, 'referensi_id', 'id');
+    }
 }

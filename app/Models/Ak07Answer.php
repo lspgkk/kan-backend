@@ -4,9 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Ak07Answer extends Model
+class Ak7Answer extends Model
 {
-    protected $table = 'ak07_answers';
+    protected $table = 'ak7_answers';
 
     protected $fillable = [
         'id_izin',
@@ -27,6 +27,6 @@ class Ak07Answer extends Model
 
     public function kelompok()
     {
-        return $this->belongsTo(Kelompok::class);
+        return $this->belongsTo(ReferensiKelompok::class);
     }
 }

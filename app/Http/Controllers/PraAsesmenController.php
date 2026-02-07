@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Ak4Answer;
+use App\Models\Ak7Answer;
 use App\Models\Apl1Answer;
 use App\Models\Apl2Answer;
 use App\Models\Apl2Submission;
@@ -642,14 +644,15 @@ class PraAsesmenController extends Controller
     public function getAk07($id)
     {
         $referensis = Referensi::with([
-            'kategoriRel',
-            'kelompokRel'
-        ])
-        ->select(['id', 'nama', 'id_kelompok', 'id_kategori'])
-        ->where('kategori', 'AK07')
-        ->whereNotNull('id_kelompok')   // keep this
-        ->get()
-        ->filter(fn ($r) => $r->kelompokRel !== null);
+                'kategoriRel',
+                'kelompokRel',
+                'ak07Answer' => fn ($q) => $q->where('id_izin', $id)
+            ])
+            ->select(['id', 'nama', 'id_kelompok', 'id_kategori'])
+            ->where('kategori', 'AK07')
+            ->whereNotNull('id_kelompok')
+            ->get()
+            ->filter(fn ($r) => $r->kelompokRel !== null);
 
         $data = $referensis
             ->groupBy('id_kelompok')
@@ -665,23 +668,26 @@ class PraAsesmenController extends Controller
                         'urut' => $kelompok->urut,
 
                         'kategoris' => $kelompokItems
-                            ->groupBy(fn ($item) => $item->id_kategori ?? null)
+                            ->groupBy('id_kategori')
                             ->values()
                             ->map(function ($kategoriItems) {
 
-                                $first = $kategoriItems->first();
-                                $kategori = $first->kategoriRel;
+                                $kategori = $kategoriItems->first()->kategoriRel;
 
                                 return [
                                     'id'          => $kategori?->id,
                                     'kategori'    => $kategori?->kategori,
-                                    'nama'        => $kategori?->nama ?? null,
+                                    'nama'        => $kategori?->nama,
                                     'urut'        => $kategori?->urut,
                                     'id_kelompok' => $kategori?->id_kelompok,
 
                                     'referensis' => $kategoriItems->map(fn ($item) => [
                                         'id'   => $item->id,
                                         'nama' => $item->nama,
+                                        'jawaban' => $item->ak07Answer
+                                            ? ($item->ak07Answer->answer_text
+                                                ?? $item->ak07Answer->answer_bool)
+                                            : null,
                                     ])->values(),
                                 ];
                             })->values(),
@@ -697,12 +703,45 @@ class PraAsesmenController extends Controller
 
     public function submitAk07(Request $request, $id)
     {
-        
+        $request->validate([
+            'answers' => 'required|array',
+            'answers.*.referensi_id' => 'required|integer|exists:referensis,id',
+            'answers.*.kelompok_id' => 'required|integer|exists:referensi_kelompoks,id',
+            'answers.*.value' => 'required'
+        ]);
+
+        DB::transaction(function () use ($request, $id) {
+
+            foreach ($request->answers as $item) {
+
+                $isTextKelompok = in_array($item['kelompok_id'], [6, 7]);
+
+                Ak7Answer::updateOrCreate(
+                    [
+                        'id_izin' => $id,
+                        'referensi_id' => $item['referensi_id'],
+                    ],
+                    [
+                        'kelompok_id' => $item['kelompok_id'],
+                        'answer_bool' => $isTextKelompok ? null : (bool) $item['value'],
+                        'answer_text' => $isTextKelompok ? (string) $item['value'] : null,
+                    ]
+                );
+            }
+
+        });
+
+        return response()->json([
+            'message' => 'AK07 successfully submitted'
+        ]);
     }
 
     public function getAk04($id)
     {
-        $referensis = Referensi::with('kelompokRel')->select(['id', 'nama', 'id_kelompok'])
+        $referensis = Referensi::with([
+                'kelompokRel',
+                'ak07Answer' => fn ($q) => $q->where('id_izin', $id)
+            ])->select(['id', 'nama', 'id_kelompok'])
             ->where('kategori', 'AK04')
             ->whereNotNull('id_kelompok')
             ->get()
@@ -724,6 +763,7 @@ class PraAsesmenController extends Controller
                         'referensis' => $kelompokItems->map(fn ($item) => [
                             'id'   => $item->id,
                             'nama' => $item->nama,
+                            'jawaban' => $item->ak04Answer?->jawaban
                         ])->values(),
                     ]
                 ];
@@ -732,6 +772,36 @@ class PraAsesmenController extends Controller
         return response()->json([
             'message' => 'Success',
             'data'    => $data
+        ]);
+    }
+
+    public function submitAk04(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'answers' => 'required|array',
+            'answers.*.referensi_id' => 'required|integer|exists:referensis,id',
+            'answers.*.kelompok_id'  => 'required|integer',
+            'answers.*.jawaban'  => 'required|string',
+        ]);
+
+        DB::transaction(function () use ($validated, $id) {
+
+            foreach ($validated['answers'] as $answer) {
+                Ak4Answer::updateOrCreate(
+                    [
+                        'id_izin'       => $id,
+                        'referensi_id'  => $answer['referensi_id'],
+                    ],
+                    [
+                        'kelompok_id'  => $answer['kelompok_id'],
+                        'jawaban'  => $answer['jawaban'],
+                    ]
+                );
+            }
+        });
+
+        return response()->json([
+            'message' => 'AK04 successfully submitted'
         ]);
     }
 
