@@ -168,6 +168,7 @@ class PraAsesmenController extends Controller
                 $formattedAdministratif->push([
                     'no'    => (string) $no++,
                     'bukti' => $text,
+                    'checked' => true
                 ]);
             }
         }
@@ -781,7 +782,7 @@ class PraAsesmenController extends Controller
             'answers' => 'required|array',
             'answers.*.referensi_id' => 'required|integer|exists:referensis,id',
             'answers.*.kelompok_id'  => 'required|integer',
-            'answers.*.jawaban'  => 'required|string',
+            'answers.*.jawaban'  => 'required|boolean',
         ]);
 
         DB::transaction(function () use ($validated, $id) {

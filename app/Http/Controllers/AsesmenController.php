@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Ak3Answer;
 use App\Models\AsesiJadwal;
 use App\Models\BuktiAsesmen;
 use App\Models\Ia4aAnswer;
@@ -512,10 +513,8 @@ class AsesmenController extends Controller
             ], 404);
         }
 
-        $dokumen = JabatanDokumen::with([
-                'kelompoks.units.unit'
-            ])
-            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+        // Get active FR.AK.03 document for this jabatan
+        $dokumen = JabatanDokumen::where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->where('kode', 'FR.AK.03')
             ->where('is_active', true)
             ->first();
@@ -523,17 +522,79 @@ class AsesmenController extends Controller
         if (!$dokumen) {
             return response()->json([
                 'message' => 'Success',
-                'data' => []
+                'data' => [
+                    'soal' => []
+                ]
             ]);
         }
 
-        $questions = Soal::select(['id', 'no', 'jenis', 'soal'])->where('id_dokumen', $dokumen->id)->orderBy('no', 'asc')->get();
+        /**
+         * QUESTIONS + ANSWERS
+         * NOTE: dokumen_id is used ONLY for filtering questions
+         *       not stored in answers table
+         */
+        $questions = Soal::query()
+            ->where('soals.id_dokumen', $dokumen->id)
+            ->leftJoin('ak3_answers', function ($join) use ($id) {
+                $join->on('ak3_answers.soal_id', '=', 'soals.id')
+                    ->where('ak3_answers.id_izin', $id);
+            })
+            ->orderBy('soals.no', 'asc')
+            ->get([
+                'soals.id',
+                'soals.no',
+                'soals.jenis',
+                'soals.soal',
+                'ak3_answers.is_kompeten',
+                'ak3_answers.catatan',
+            ])
+            ->map(function ($row) {
+                return [
+                    'id'          => $row->id,
+                    'no'          => $row->no,
+                    'jenis'       => $row->jenis,
+                    'soal'        => $row->soal,
+                    'is_kompeten' => is_null($row->is_kompeten)
+                        ? null
+                        : (bool) $row->is_kompeten,
+                    'catatan'     => $row->catatan,
+                ];
+            });
 
         return response()->json([
             'message' => 'Success',
             'data' => [
                 'soal' => $questions
             ]
+        ]);
+    }
+
+    public function submitAk03(Request $request, $id)
+    {
+        $request->validate([
+            'answers' => 'required|array',
+            'answers.*.soal_id' => 'required|integer',
+            'answers.*.is_kompeten' => 'nullable|boolean',
+            'answers.*.catatan' => 'nullable|string',
+        ]);
+
+        DB::transaction(function () use ($request, $id) {
+            foreach ($request->answers as $answer) {
+                Ak3Answer::updateOrCreate(
+                    [
+                        'id_izin'    => $id,
+                        'soal_id'    => $answer['soal_id'],
+                    ],
+                    [
+                        'is_kompeten' => $answer['is_kompeten'] ?? null,
+                        'catatan'     => $answer['catatan'] ?? null,
+                    ]
+                );
+            }
+        });
+
+        return response()->json([
+            'message' => 'Success'
         ]);
     }
 }

@@ -21,4 +21,8 @@ class Ak4Answer extends Model
     {
         return $this->belongsTo(Referensi::class, 'referensi_id');
     }
+
+    protected $casts = [
+        'jawaban' => 'boolean',
+    ];
 }
