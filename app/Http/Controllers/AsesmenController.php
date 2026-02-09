@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ak3Answer;
+use App\Models\Ak6Answer;
 use App\Models\AsesiJadwal;
 use App\Models\BuktiAsesmen;
+use App\Models\DimensiKompetensi;
 use App\Models\Ia4aAnswer;
 use App\Models\Ia4bAnswer;
 use App\Models\Ia5Answer;
@@ -596,5 +598,103 @@ class AsesmenController extends Controller
         return response()->json([
             'message' => 'Success'
         ]);
+    }
+
+    public function getAk06($id)
+    {
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$klasifikasi) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null
+            ], 404);
+        }
+
+        $aspek = Referensi::from('referensis')
+            ->where('referensis.kategori', 'AK06')
+            ->where('referensis.id', '!=', 26)
+            ->leftJoin('ak6_answers as a', function ($join) use ($id) {
+                $join->on('a.id_aspek', '=', 'referensis.id')
+                    ->where('a.id_izin', '=', $id);
+            })
+            ->orderBy('referensis.id')
+            ->get([
+                'referensis.id as aspek_id',
+                'referensis.nama',
+
+                'a.validitas',
+                'a.reliabel',
+                'a.fleksibel',
+                'a.adil',
+            ]);
+
+        $aspek = $aspek->map(function ($item) {
+            return [
+                'aspek_id'  => $item->aspek_id,
+                'nama'      => $item->nama,
+                'validitas' => is_null($item->validitas) ? null : (bool) $item->validitas,
+                'reliabel'  => is_null($item->reliabel)  ? null : (bool) $item->reliabel,
+                'fleksibel' => is_null($item->fleksibel) ? null : (bool) $item->fleksibel,
+                'adil'      => is_null($item->adil)      ? null : (bool) $item->adil,
+            ];
+        });
+
+        $dimensiKompetensi = DimensiKompetensi::get();
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => [
+                'aspek' => $aspek,
+                'dimensi_kompetensi' => $dimensiKompetensi
+            ]
+        ]);
+    }
+
+    public function submitAk06(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'answers' => 'required|array',
+            'answers.*.aspek_id' => 'required|exists:referensis,id',
+
+            'answers.*.validitas' => 'nullable|boolean',
+            'answers.*.reliabel'  => 'nullable|boolean',
+            'answers.*.fleksibel' => 'nullable|boolean',
+            'answers.*.adil'      => 'nullable|boolean',
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($validated['answers'] as $answer) {
+                Ak6Answer::updateOrCreate(
+                    [
+                        'id_izin'      => $id,
+                        'id_aspek' => $answer['aspek_id'],
+                    ],
+                    [
+                        'validitas' => $answer['validitas'] ?? null,
+                        'reliabel'  => $answer['reliabel']  ?? null,
+                        'fleksibel' => $answer['fleksibel'] ?? null,
+                        'adil'      => $answer['adil']      ?? null,
+                    ]
+                );
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'AK06 berhasil disubmit'
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Failed to submit AK06',
+                'error'   => $e->getMessage()
+            ], 500);
+        }
     }
 }

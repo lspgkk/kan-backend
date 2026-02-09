@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ak4Answer;
+use App\Models\Ak4Reason;
 use App\Models\Ak7Answer;
 use App\Models\Apl1Answer;
 use App\Models\Apl2Answer;
@@ -739,16 +740,18 @@ class PraAsesmenController extends Controller
 
     public function getAk04($id)
     {
+        // --- Fetch referensi + answers ---
         $referensis = Referensi::with([
                 'kelompokRel',
-                'ak07Answer' => fn ($q) => $q->where('id_izin', $id)
-            ])->select(['id', 'nama', 'id_kelompok'])
+                'ak04Answer' => fn ($q) => $q->where('id_izin', $id)
+            ])
+            ->select(['id', 'nama', 'id_kelompok'])
             ->where('kategori', 'AK04')
             ->whereNotNull('id_kelompok')
             ->get()
             ->filter(fn ($r) => $r->kelompokRel !== null);
 
-        $data = $referensis
+        $kelompokData = $referensis
             ->groupBy('id_kelompok')
             ->values()
             ->map(function ($kelompokItems) {
@@ -756,23 +759,28 @@ class PraAsesmenController extends Controller
                 $kelompok = $kelompokItems->first()->kelompokRel;
 
                 return [
-                    'kelompok' => [
-                        'id'   => $kelompok->id,
-                        'nama' => $kelompok->nama,
-                        'urut' => $kelompok->urut,
-
-                        'referensis' => $kelompokItems->map(fn ($item) => [
-                            'id'   => $item->id,
-                            'nama' => $item->nama,
-                            'jawaban' => $item->ak04Answer?->jawaban
-                        ])->values(),
-                    ]
+                    'id'   => $kelompok->id,
+                    'nama' => $kelompok->nama,
+                    'urut' => $kelompok->urut,
+                    'referensis' => $kelompokItems->map(fn ($item) => [
+                        'id'      => $item->id,
+                        'nama'    => $item->nama,
+                        'jawaban' => is_null($item->ak04Answer?->jawaban)
+                            ? null
+                            : (bool) $item->ak04Answer->jawaban,
+                    ])->values(),
                 ];
             });
 
+        // --- Fetch AK04 reason ---
+        $reason = Ak4Reason::where('id_izin', $id)->value('alasan');
+
         return response()->json([
             'message' => 'Success',
-            'data'    => $data
+            'data'    => [
+                'kelompoks' => $kelompokData,
+                'alasan'    => $reason
+            ]
         ]);
     }
 
@@ -782,21 +790,30 @@ class PraAsesmenController extends Controller
             'answers' => 'required|array',
             'answers.*.referensi_id' => 'required|integer|exists:referensis,id',
             'answers.*.kelompok_id'  => 'required|integer',
-            'answers.*.jawaban'  => 'required|boolean',
+            'answers.*.jawaban'     => 'required|boolean',
+            'alasan'                => 'nullable|string'
         ]);
 
-        DB::transaction(function () use ($validated, $id) {
+        DB::transaction(function () use ($validated, $request, $id) {
 
             foreach ($validated['answers'] as $answer) {
                 Ak4Answer::updateOrCreate(
                     [
-                        'id_izin'       => $id,
-                        'referensi_id'  => $answer['referensi_id'],
+                        'id_izin'      => $id,
+                        'referensi_id' => $answer['referensi_id'],
                     ],
                     [
-                        'kelompok_id'  => $answer['kelompok_id'],
-                        'jawaban'  => $answer['jawaban'],
+                        'kelompok_id' => $answer['kelompok_id'],
+                        'jawaban'     => $answer['jawaban'],
                     ]
+                );
+            }
+
+            // Save alasan only if provided
+            if (!empty($validated['alasan'])) {
+                Ak4Reason::updateOrCreate(
+                    ['id_izin' => $id],
+                    ['alasan'  => $validated['alasan']]
                 );
             }
         });
