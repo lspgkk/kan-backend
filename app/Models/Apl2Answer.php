@@ -14,4 +14,14 @@ class Apl2Answer extends Model
         'subunit_id',
         'kompeten',
     ];
+
+    public function files()
+    {
+        return $this->belongsToMany(
+            Apl2File::class,
+            'apl2_answer_files',
+            'apl2_answer_id',
+            'apl2_file_id'
+        );
+    }
 }

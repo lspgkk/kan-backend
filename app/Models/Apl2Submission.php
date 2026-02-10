@@ -17,4 +17,11 @@ class Apl2Submission extends Model
     protected $casts = [
         'is_dilanjutkan' => 'boolean',
     ];
+
+    public $timestamps = true;
+
+    public function answers()
+    {
+        return $this->hasMany(Apl2Answer::class, 'id_izin', 'id_izin');
+    }
 }

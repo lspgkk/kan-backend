@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Ak2Answer;
+use App\Models\Ak2Feedback;
 use App\Models\Ak3Answer;
 use App\Models\Ak6Answer;
 use App\Models\AsesiJadwal;
@@ -492,13 +494,98 @@ class AsesmenController extends Controller
             ], 404);
         }
 
-        $unitKompetensi = UnitKompetensi::select(['kode', 'nama'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->get();
+        $unitKompetensi = UnitKompetensi::from('unit_kompetensis')
+            ->where('unit_kompetensis.id_jabatan', $klasifikasi->jabatan_kerja)
+            ->leftJoin('ak2_answers as a', function ($join) use ($id) {
+                $join->on('a.id_unit_kompetensi', '=', 'unit_kompetensis.id')
+                    ->where('a.id_izin', '=', $id);
+            })
+            ->orderBy('unit_kompetensis.id')
+            ->get([
+                'unit_kompetensis.id',
+                'unit_kompetensis.kode',
+                'unit_kompetensis.nama',
+                'a.observasi',
+                'a.portofolio',
+                'a.pertanyaan_wawancara',
+                'a.pertanyaan_lisan',
+                'a.pertanyaan_tertulis',
+                'a.proyek_kerja',
+            ])
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'kode' => $item->kode,
+                    'nama' => $item->nama,
+                    'observasi' => is_null($item->observasi) ? null : (bool) $item->observasi,
+                    'portofolio' => is_null($item->portofolio) ? null : (bool) $item->portofolio,
+                    'pertanyaan_wawancara' => is_null($item->pertanyaan_wawancara) ? null : (bool) $item->pertanyaan_wawancara,
+                    'pertanyaan_lisan' => is_null($item->pertanyaan_lisan) ? null : (bool) $item->pertanyaan_lisan,
+                    'pertanyaan_tertulis' => is_null($item->pertanyaan_tertulis) ? null : (bool) $item->pertanyaan_tertulis,
+                    'proyek_kerja' => is_null($item->proyek_kerja) ? null : (bool) $item->proyek_kerja,
+                ];
+            });
+
+        $feedback = Ak2Feedback::where('id_izin', $id)->first();
 
         return response()->json([
             'message' => 'Success',
             'data' => [
                 'data_unit_kompetensi' => $unitKompetensi,
+                'is_kompeten' => is_null($feedback?->is_kompeten) ? null : (bool) $feedback->is_kompeten,
+                'tindak_lanjut' => $feedback?->tindak_lanjut,
+                'komentar' => $feedback?->komentar,
             ]
+        ]);
+    }
+
+    public function submitAk02(Request $request, $id)
+    {
+        // Validate request
+        $validated = $request->validate([
+            'answers' => 'required|array|min:1',
+            'answers.*.id_unit_kompetensi' => 'required|exists:unit_kompetensis,id',
+            'answers.*.observasi' => 'required|boolean',
+            'answers.*.portofolio' => 'required|boolean',
+            'answers.*.pertanyaan_wawancara' => 'required|boolean',
+            'answers.*.pertanyaan_lisan' => 'required|boolean',
+            'answers.*.pertanyaan_tertulis' => 'required|boolean',
+            'answers.*.proyek_kerja' => 'required|boolean',
+            'is_kompeten' => 'required|boolean',
+            'tindak_lanjut' => 'nullable|string',
+            'komentar' => 'nullable|string'
+        ]);
+
+        foreach ($validated['answers'] as $answer) {
+            Ak2Answer::updateOrCreate(
+                [
+                    'id_izin' => $id,
+                    'id_unit_kompetensi' => $answer['id_unit_kompetensi'],
+                ],
+                [
+                    'observasi' => $answer['observasi'],
+                    'portofolio' => $answer['portofolio'],
+                    'pertanyaan_wawancara' => $answer['pertanyaan_wawancara'],
+                    'pertanyaan_lisan' => $answer['pertanyaan_lisan'],
+                    'pertanyaan_tertulis' => $answer['pertanyaan_tertulis'],
+                    'proyek_kerja' => $answer['proyek_kerja'],
+                ]
+            );
+        }
+
+        if (!empty($validated['tindak_lanjut']) && !empty($validated['komentar'])) {
+            Ak2Feedback::updateOrCreate(
+                ['id_izin' => $id],
+                [
+                    'is_kompeten' => $validated['is_kompeten'],
+                    'tindak_lanjut'  => $validated['tindak_lanjut'],
+                    'komentar' => $validated['komentar']
+                ]
+            );
+        }
+
+        return response()->json([
+            'message' => 'AK02 submitted successfully'
         ]);
     }
 

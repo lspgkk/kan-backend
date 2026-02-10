@@ -7,6 +7,7 @@ use App\Models\Ak4Reason;
 use App\Models\Ak7Answer;
 use App\Models\Apl1Answer;
 use App\Models\Apl2Answer;
+use App\Models\Apl2File;
 use App\Models\Apl2Submission;
 use App\Models\AsesiJadwal;
 use App\Models\BuktiAsesmen;
@@ -27,6 +28,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
 
 class PraAsesmenController extends Controller
@@ -232,11 +234,12 @@ class PraAsesmenController extends Controller
                         ['id' => '5', 'label' => 'Lainnya:', 'checked' => false]
                     ]
                 ],
-                'is_memenuhi_syarat' => true,
+                'is_diterima' => true,
                 'skkni' => $jabatanKerja->acuan,
                 'data_unit_kompetensi' => $unitKompetensi,
                 'bukti_persyaratan' => $persyaratan,
                 'bukti_administratif' => $formattedAdministratif->values(),
+                'catatan' => null
             ]
         ]);
     }
@@ -335,13 +338,15 @@ class PraAsesmenController extends Controller
             'metode' => 'required|string',
             'is_dilanjutkan' => 'required|boolean',
             'answers' => 'required|array',
+
             'answers.*.subunit_id' => 'required|integer',
             'answers.*.kompeten' => 'required|boolean',
+            'answers.*.file_ids' => 'nullable|array',
+            'answers.*.file_ids.*' => 'exists:apl2_files,id',
         ]);
 
         DB::transaction(function () use ($validated, $id) {
 
-            // 1️⃣ Save header (per id_izin)
             Apl2Submission::updateOrCreate(
                 ['id_izin' => $id],
                 [
@@ -351,9 +356,8 @@ class PraAsesmenController extends Controller
                 ]
             );
 
-            // 2️⃣ Save detail (per subunit)
             foreach ($validated['answers'] as $answer) {
-                Apl2Answer::updateOrCreate(
+                $aplAnswer = Apl2Answer::updateOrCreate(
                     [
                         'id_izin' => $id,
                         'subunit_id' => $answer['subunit_id'],
@@ -362,11 +366,53 @@ class PraAsesmenController extends Controller
                         'kompeten' => $answer['kompeten'],
                     ]
                 );
+
+                if (isset($answer['file_ids'])) {
+                    $aplAnswer->files()->sync($answer['file_ids']);
+                }
             }
         });
 
         return response()->json([
             'message' => 'APL-02 successfully submitted'
+        ]);
+    }
+
+    public function uploadApl02Files(Request $request, $id)
+    {
+        $request->validate([
+            'files.*' => 'required|file|max:20480'
+        ]);
+
+        $uploaded = [];
+
+        foreach ($request->file('files') as $file) {
+
+            // 🔐 Optional: avoid name collision on FTP
+            $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+
+            // 📁 FTP path
+            $path = "apl02/{$id}/{$filename}";
+
+            // 🚀 Upload to FTP
+            Storage::disk('str_moon')->put(
+                $path,
+                file_get_contents($file->getRealPath())
+            );
+
+            // 💾 Save DB record
+            $uploaded[] = Apl2File::create([
+                'id_izin'        => $id,
+                'original_name'  => $file->getClientOriginalName(),
+                'path'           => $path,          // FTP path
+                'mime'           => $file->getMimeType(),
+                'size'           => $file->getSize(),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Files uploaded',
+            'files'   => $uploaded
         ]);
     }
 
