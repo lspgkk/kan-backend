@@ -494,6 +494,8 @@ class PraAsesmenController extends Controller
             ], 404);
         }
 
+        $isPengalaman = Proyek::where('id_izin', $id)->exists();
+
         $dokumen = JabatanDokumen::with([
                 'kelompoks.units.unit'
             ])
@@ -544,7 +546,7 @@ class PraAsesmenController extends Controller
         $dataReferensi = $referensis
         ->groupBy('id_kelompok')
         ->values()
-        ->map(function ($kelompokItems) {
+        ->map(function ($kelompokItems) use ($isPengalaman) {
 
             $kelompok = $kelompokItems->first()->kelompokRel;
 
@@ -557,7 +559,8 @@ class PraAsesmenController extends Controller
                     'kategoris' => $kelompokItems
                         ->groupBy(fn ($item) => $item->id_kategori ?? 'tanpa_kategori')
                         ->values()
-                        ->map(function ($kategoriItems) {
+                        ->map(function ($kategoriItems) use ($isPengalaman, $kelompok) {
+                            // ✅ pass $kelompok
 
                             $firstKategori = $kategoriItems->first();
                             $kategori = $firstKategori->kategoriRel;
@@ -572,7 +575,8 @@ class PraAsesmenController extends Controller
                                 'subkategoris' => $kategoriItems
                                     ->groupBy(fn ($item) => $item->id_subkategori ?? 'tanpa_subkategori')
                                     ->values()
-                                    ->map(function ($subItems) {
+                                    ->map(function ($subItems) use ($isPengalaman, $kelompok, $kategori) {
+                                        // ✅ pass BOTH
 
                                         $firstSub = $subItems->first();
                                         $sub = $firstSub->subkategoriRel;
@@ -582,10 +586,56 @@ class PraAsesmenController extends Controller
                                             'nama' => $sub?->nama ?? 'Tanpa Subkategori',
                                             'urut' => $sub?->urut,
 
-                                            'referensis' => $subItems->map(fn ($item) => [
-                                                'id'   => $item->id,
-                                                'nama' => $item->nama,
-                                            ])->values(),
+                                            'referensis' => $subItems->map(function ($item) use ($isPengalaman, $kelompok, $kategori) {
+
+                                                $checked = false;
+
+                                                if ($kelompok->id == 1) {
+                                                    // (Asesi)
+                                                    if ($kategori?->id == 1) {
+                                                        if ($isPengalaman) {
+                                                            $checked = $item->id == 84;
+                                                        } else {
+                                                            $checked = $item->id == 82;
+                                                        }
+                                                    }
+
+                                                    // Tujuan Asesmen
+                                                    elseif ($kategori?->id == 2) {
+                                                        $checked = $item->id == 87;
+                                                    }
+                                                    
+                                                    // Konteks Asesmen
+                                                    elseif ($kategori?->id == 3) {
+                                                        $checked = in_array($item->id, [92, 94, 95, 98], true);
+                                                    }
+
+                                                    // Orang yang relevan
+                                                    elseif ($kategori?->id == 4) {
+                                                        $checked = $item->id == 101;
+                                                    }
+                                                }
+
+                                                if ($kelompok->id == 2) {
+                                                    // Tolak ukur asesmen
+                                                    if ($kategori?->id == 5) {
+                                                        $checked = $item->id == 105;
+                                                    }
+                                                }
+
+                                                if ($kelompok->id == 2) {
+                                                    // Tolak ukur asesmen
+                                                    if ($kategori?->id == 5) {
+                                                        $checked = $item->id == 105;
+                                                    }
+                                                }
+
+                                                return [
+                                                    'id'      => $item->id,
+                                                    'nama'    => $item->nama,
+                                                    'value' => $checked,
+                                                ];
+                                            })->values(),
                                         ];
                                     })->values(),
                             ];
