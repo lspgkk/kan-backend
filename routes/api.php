@@ -179,6 +179,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{id}/data-dokumen', [PraAsesmenController::class, 'getDokumenHeader']);
         Route::get('/{id}/apl01', [PraAsesmenController::class, 'getApl01']);
         Route::get('/{id}/apl02', [PraAsesmenController::class, 'getApl02']);
+        Route::get('{id}/apl02/files', [PraAsesmenController::class, 'getApl02Files']);
         Route::get('/{id}/mapa01', [PraAsesmenController::class, 'getMapa01']);
         Route::get('/{id}/mapa02', [PraAsesmenController::class, 'getMapa02']);
         Route::get('/{id}/ak07', [PraAsesmenController::class, 'getAk07']);
@@ -194,6 +195,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/ak04', [PraAsesmenController::class, 'submitAk04']);
         Route::post('/file-k3', [PraAsesmenController::class, 'submitK3Asesmen']);
         Route::post('/{id}/ak01', [PraAsesmenController::class, 'submitAk01']);
+        Route::delete('/apl02/files/{fileId}', [PraAsesmenController::class, 'deleteApl02File']);
     });
 
     Route::prefix('asesmen')->group(function () {

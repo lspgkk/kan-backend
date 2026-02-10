@@ -269,60 +269,67 @@ class PraAsesmenController extends Controller
 
     public function getApl02($id)
     {
+        $baseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+
         $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
             ->where('id_izin', $id)
             ->first();
 
-        // Load units → subunits → kuks
+        if (!$klasifikasi) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null
+            ], 404);
+        }
+
         $units = UnitKompetensi::with(['subunits.kuks'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->get();
 
-        if ($units->isEmpty()) {
-            return response()->json([
-                'message' => 'Success',
-                'data' => null
-            ]);
-        }
-
-        // 🔑 Load APL-02 header (per id_izin)
         $submission = Apl2Submission::where('id_izin', $id)->first();
 
-        // 🔑 Load saved answers (keyed by subunit_id)
-        $answers = Apl2Answer::where('id_izin', $id)
+        $answers = Apl2Answer::with('files')
+            ->where('id_izin', $id)
             ->get()
             ->keyBy('subunit_id');
 
         $data = [
-            // ✅ HEADER VALUES
             'metode' => $submission?->metode,
             'is_dilanjutkan' => $submission?->is_dilanjutkan,
 
-            // ✅ DETAIL VALUES
-            'units' => $units->map(function ($unit) use ($answers) {
+            'units' => $units->map(function ($unit) use ($answers, $baseUrl) {
 
                 return [
                     'id' => (string) $unit->id,
                     'kode' => $unit->kode,
                     'judul_kompetensi' => $unit->nama,
-                    'subunits' => $unit->subunits->map(function ($subunit) use ($answers) {
+
+                    'subunits' => $unit->subunits->map(function ($subunit) use ($answers, $baseUrl) {
+
+                        $answer = $answers->get($subunit->id);
 
                         return [
                             'id' => (string) $subunit->id,
                             'no_elemen' => $subunit->kode,
                             'judul_elemen' => $subunit->nama,
-                            'kompeten' => (bool) ($answers->get($subunit->id)->kompeten ?? false),
-                            'kuk_list' => $subunit->kuks->map(function ($kuk) {
-                                return [
-                                    'no_kuk' => $kuk->kode,
-                                    'judul_kuk' => $kuk->nama,
-                                ];
-                            })->values()
-                        ];
+                            'kompeten' => (bool) ($answer->kompeten ?? false),
 
+                            // 📎 SIMPLIFIED FILES
+                            'files' => $answer
+                                ? $answer->files->map(fn ($file) => [
+                                    'id'   => $file->id,
+                                    'name' => $file->original_name,
+                                    'path' => $baseUrl . ltrim($file->path, '/'),
+                                ])->values()
+                                : [],
+
+                            'kuk_list' => $subunit->kuks->map(fn ($kuk) => [
+                                'no_kuk' => $kuk->kode,
+                                'judul_kuk' => $kuk->nama,
+                            ])->values()
+                        ];
                     })->values()
                 ];
-
             })->values()
         ];
 
@@ -381,7 +388,25 @@ class PraAsesmenController extends Controller
     public function uploadApl02Files(Request $request, $id)
     {
         $request->validate([
-            'files.*' => 'required|file|max:20480'
+            'files'   => 'required|array',
+            'files.*' => [
+                'required',
+                'file',
+                'max:20480', // 20MB
+                'mimetypes:'
+                    . 'application/pdf,'
+                    . 'application/msword,'
+                    . 'application/vnd.openxmlformats-officedocument.wordprocessingml.document,'
+                    . 'application/vnd.ms-excel,'
+                    . 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,'
+                    . 'application/vnd.ms-powerpoint,'
+                    . 'application/vnd.openxmlformats-officedocument.presentationml.presentation,'
+                    . 'text/plain,'
+                    . 'image/jpeg,'
+                    . 'image/png,'
+                    . 'image/gif,'
+                    . 'image/webp',
+            ],
         ]);
 
         $uploaded = [];
@@ -413,6 +438,46 @@ class PraAsesmenController extends Controller
         return response()->json([
             'message' => 'Files uploaded',
             'files'   => $uploaded
+        ]);
+    }
+
+    public function getApl02Files($id)
+    {
+        $baseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+
+        $files = Apl2File::where('id_izin', $id)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn ($file) => [
+                'id'   => $file->id,
+                'name' => $file->original_name,
+                'path' => $baseUrl . ltrim($file->path, '/'),
+            ]);
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $files
+        ]);
+    }
+
+    public function deleteApl02File($fileId)
+    {
+        $file = Apl2File::findOrFail($fileId);
+
+        DB::transaction(function () use ($file) {
+
+            // 🧹 Remove pivot relations (apl2_answer_files)
+            $file->answers()->detach();
+
+            // 🗑 Delete file from FTP
+            Storage::disk('str_moon')->delete($file->path);
+
+            // 🗑 Delete DB record
+            $file->delete();
+        });
+
+        return response()->json([
+            'message' => 'File deleted successfully'
         ]);
     }
 

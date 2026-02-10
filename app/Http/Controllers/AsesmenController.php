@@ -194,7 +194,7 @@ class AsesmenController extends Controller
             $file_paparan_url_name = (string) Uuid::uuid4();
 
             // 2️⃣ Full FTP path
-            $ftpPath = "/dok_asesmen/paparan/{$file_paparan_url_name}.pdf";
+            $ftpPath = "/paparan/{$file_paparan_url_name}.pdf";
 
             // 3️⃣ Upload to FTP
             Storage::disk('str_moon')->put(

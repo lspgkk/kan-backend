@@ -65,6 +65,7 @@ return [
             'host' => "ftp.lspgatensi.id",
             'username' => "internalfile@lspgatensi.id",
             'password' => "dCs)G}oE&@Er",
+            'root'     => '/new_gatensi',
             'port' => 21,
             'passive' => true,
             'ssl' => false,
