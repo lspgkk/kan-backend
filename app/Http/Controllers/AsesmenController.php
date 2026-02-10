@@ -7,6 +7,7 @@ use App\Models\Ak2Feedback;
 use App\Models\Ak3Answer;
 use App\Models\Ak3Note;
 use App\Models\Ak6Answer;
+use App\Models\Ak6Feedback;
 use App\Models\AsesiJadwal;
 use App\Models\BuktiAsesmen;
 use App\Models\DimensiKompetensi;
@@ -709,10 +710,11 @@ class AsesmenController extends Controller
         if (!$klasifikasi) {
             return response()->json([
                 'message' => 'Data not found',
-                'data' => null
+                'data'    => null
             ], 404);
         }
 
+        /** 🔹 Aspek + Answers */
         $aspek = Referensi::from('referensis')
             ->where('referensis.kategori', 'AK06')
             ->where('referensis.id', '!=', 26)
@@ -724,30 +726,42 @@ class AsesmenController extends Controller
             ->get([
                 'referensis.id as aspek_id',
                 'referensis.nama',
-
                 'a.validitas',
                 'a.reliabel',
                 'a.fleksibel',
                 'a.adil',
+            ])
+            ->map(function ($item) {
+                return [
+                    'aspek_id'  => $item->aspek_id,
+                    'nama'      => $item->nama,
+                    'validitas' => is_null($item->validitas) ? null : (bool) $item->validitas,
+                    'reliabel'  => is_null($item->reliabel)  ? null : (bool) $item->reliabel,
+                    'fleksibel' => is_null($item->fleksibel) ? null : (bool) $item->fleksibel,
+                    'adil'      => is_null($item->adil)      ? null : (bool) $item->adil,
+                ];
+            });
+
+        /** 🔹 AK06 Feedback (single row per id_izin) */
+        $feedback = Ak6Feedback::where('id_izin', $id)
+            ->first([
+                'rekomendasi',
+                'catatan_asesor1',
+                'catatan_asesor2',
             ]);
 
-        $aspek = $aspek->map(function ($item) {
-            return [
-                'aspek_id'  => $item->aspek_id,
-                'nama'      => $item->nama,
-                'validitas' => is_null($item->validitas) ? null : (bool) $item->validitas,
-                'reliabel'  => is_null($item->reliabel)  ? null : (bool) $item->reliabel,
-                'fleksibel' => is_null($item->fleksibel) ? null : (bool) $item->fleksibel,
-                'adil'      => is_null($item->adil)      ? null : (bool) $item->adil,
-            ];
-        });
-
+        /** 🔹 Dimensi Kompetensi */
         $dimensiKompetensi = DimensiKompetensi::get();
 
         return response()->json([
             'message' => 'Success',
             'data' => [
                 'aspek' => $aspek,
+                'feedback' => [
+                    'rekomendasi'     => $feedback->rekomendasi     ?? null,
+                    'catatan_asesor1' => $feedback->catatan_asesor1 ?? null,
+                    'catatan_asesor2' => $feedback->catatan_asesor2 ?? null,
+                ],
                 'dimensi_kompetensi' => $dimensiKompetensi
             ]
         ]);
@@ -758,43 +772,50 @@ class AsesmenController extends Controller
         $validated = $request->validate([
             'answers' => 'required|array',
             'answers.*.aspek_id' => 'required|exists:referensis,id',
-
             'answers.*.validitas' => 'nullable|boolean',
             'answers.*.reliabel'  => 'nullable|boolean',
             'answers.*.fleksibel' => 'nullable|boolean',
             'answers.*.adil'      => 'nullable|boolean',
+            'rekomendasi' => 'nullable|string',
+            'catatan_asesor1' => 'nullable|string',
+            'catatan_asesor2' => 'nullable|string',
         ]);
 
-        DB::beginTransaction();
+        DB::transaction(function () use ($validated, $id) {
 
-        try {
+            /** 🔹 Save answers */
             foreach ($validated['answers'] as $answer) {
                 Ak6Answer::updateOrCreate(
                     [
-                        'id_izin'      => $id,
+                        'id_izin'  => $id,
                         'id_aspek' => $answer['aspek_id'],
                     ],
                     [
-                        'validitas' => $answer['validitas'] ?? null,
-                        'reliabel'  => $answer['reliabel']  ?? null,
-                        'fleksibel' => $answer['fleksibel'] ?? null,
-                        'adil'      => $answer['adil']      ?? null,
+                        'validitas' => isset($answer['validitas']) ? (bool) $answer['validitas'] : null,
+                        'reliabel'  => isset($answer['reliabel'])  ? (bool) $answer['reliabel']  : null,
+                        'fleksibel' => isset($answer['fleksibel']) ? (bool) $answer['fleksibel'] : null,
+                        'adil'      => isset($answer['adil'])      ? (bool) $answer['adil']      : null,
                     ]
                 );
             }
 
-            DB::commit();
+            /** 🔹 Save notes in ONE query */
+            $noteData = array_filter([
+                'rekomendasi'     => $validated['rekomendasi']     ?? null,
+                'catatan_asesor1' => $validated['catatan_asesor1'] ?? null,
+                'catatan_asesor2' => $validated['catatan_asesor2'] ?? null,
+            ], fn ($v) => !is_null($v));
 
-            return response()->json([
-                'message' => 'AK06 berhasil disubmit'
-            ]);
-        } catch (\Throwable $e) {
-            DB::rollBack();
+            if (!empty($noteData)) {
+                Ak6Feedback::updateOrCreate(
+                    ['id_izin' => $id],
+                    $noteData
+                );
+            }
+        });
 
-            return response()->json([
-                'message' => 'Failed to submit AK06',
-                'error'   => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'message' => 'AK06 berhasil disubmit'
+        ]);
     }
 }
