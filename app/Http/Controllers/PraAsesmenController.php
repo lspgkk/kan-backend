@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Ak1Answer;
 use App\Models\Ak4Answer;
 use App\Models\Ak4Reason;
 use App\Models\Ak7Answer;
@@ -655,40 +656,7 @@ class PraAsesmenController extends Controller
 
     public function submitMapa01(Request $request, $id)
     {
-        $request->validate([
-            'file' => 'required|file|mimes:pdf|max:20480' // max 20MB
-        ]);
-
-        DB::transaction(function () use ($request, $id) {
-
-            // 1️⃣ Generate unique filename (NO extension)
-            $file_mapa_01_url_name = (string) Uuid::uuid4();
-
-            // 2️⃣ Full FTP path
-            $ftpPath = "/dok_asesmen/mapa1/{$file_mapa_01_url_name}.pdf";
-
-            // 3️⃣ Upload to FTP
-            Storage::disk('str_moon')->put(
-                $ftpPath,
-                file_get_contents($request->file('file')->getRealPath())
-            );
-
-            // 4️⃣ Public URL
-            $fullUrlMapa01 = "https://moon.lspgatensi.id/files{$ftpPath}";
-
-            // 5️⃣ Save / update DB record
-            BuktiAsesmen::updateOrCreate(
-                ['id_izin' => $id],
-                [
-                    'url_mapa01'  => $fullUrlMapa01,
-                    'updated_at' => now(),
-                ]
-            );
-        });
-
-        return response()->json([
-            'message' => 'MAPA-01 successfully submitted'
-        ]);
+        
     }
 
     public function getMapa02($id)
@@ -768,40 +736,7 @@ class PraAsesmenController extends Controller
 
     public function submitMapa02(Request $request, $id)
     {
-        $request->validate([
-            'file' => 'required|file|mimes:pdf|max:20480' // max 20MB
-        ]);
 
-        DB::transaction(function () use ($request, $id) {
-
-            // 1️⃣ Generate unique filename (NO extension)
-            $file_mapa_02_url_name = (string) Uuid::uuid4();
-
-            // 2️⃣ Full FTP path
-            $ftpPath = "/dok_asesmen/mapa2/{$file_mapa_02_url_name}.pdf";
-
-            // 3️⃣ Upload to FTP
-            Storage::disk('str_moon')->put(
-                $ftpPath,
-                file_get_contents($request->file('file')->getRealPath())
-            );
-
-            // 4️⃣ Public URL
-            $fullUrlMapa02 = "https://moon.lspgatensi.id/files{$ftpPath}";
-
-            // 5️⃣ Save / update DB record
-            BuktiAsesmen::updateOrCreate(
-                ['id_izin' => $id],
-                [
-                    'url_mapa02'  => $fullUrlMapa02,
-                    'updated_at' => now(),
-                ]
-            );
-        });
-
-        return response()->json([
-            'message' => 'MAPA-02 successfully submitted'
-        ]);
     }
 
     public function getAk07($id)
@@ -996,10 +931,18 @@ class PraAsesmenController extends Controller
 
     public function getAk01($id)
     {
-        $ak01 = Referensi::select(['id', 'nama'])
-            ->where('kategori', 'AK01_1')
-            ->get();
-        
+        $ak01 = Referensi::where('kategori', 'AK01_1')
+            ->leftJoin('ak1_answers as a', function ($join) use ($id) {
+                $join->on('a.id_referensi', '=', 'referensis.id')
+                    ->where('a.id_izin', '=', $id);
+            })
+            ->orderBy('referensis.id')
+            ->get([
+                'referensis.id',
+                'referensis.nama',
+                DB::raw('COALESCE(a.jawaban, false) as jawaban')
+            ]);
+
         return response()->json([
             'message' => 'Success',
             'data'    => $ak01
@@ -1008,39 +951,29 @@ class PraAsesmenController extends Controller
 
     public function submitAk01(Request $request, $id)
     {
-        $request->validate([
-            'file' => 'required|file|mimes:pdf|max:20480' // max 20MB
+        $validated = $request->validate([
+            'answers' => 'required|array|min:1',
+            'answers.*.id_referensi' => 'required|exists:referensis,id',
+            'answers.*.jawaban' => 'required|boolean',
         ]);
 
-        DB::transaction(function () use ($request, $id) {
+        DB::transaction(function () use ($validated, $id) {
 
-            // 1️⃣ Generate unique filename (NO extension)
-            $file_ak_01_url_name = (string) Uuid::uuid4();
-
-            // 2️⃣ Full FTP path
-            $ftpPath = "/dok_asesmen/ak1/{$file_ak_01_url_name}.pdf";
-
-            // 3️⃣ Upload to FTP
-            Storage::disk('str_moon')->put(
-                $ftpPath,
-                file_get_contents($request->file('file')->getRealPath())
-            );
-
-            // 4️⃣ Public URL
-            $fullUrlAk01 = "https://moon.lspgatensi.id/files{$ftpPath}";
-
-            // 5️⃣ Save / update DB record
-            BuktiAsesmen::updateOrCreate(
-                ['id_izin' => $id],
-                [
-                    'url_ak01'  => $fullUrlAk01,
-                    'updated_at' => now(),
-                ]
-            );
+            foreach ($validated['answers'] as $answer) {
+                Ak1Answer::updateOrCreate(
+                    [
+                        'id_izin'      => $id,
+                        'id_referensi' => $answer['id_referensi'],
+                    ],
+                    [
+                        'jawaban' => $answer['jawaban'],
+                    ]
+                );
+            }
         });
 
         return response()->json([
-            'message' => 'AK-01 successfully submitted'
+            'message' => 'AK01 successfully submitted'
         ]);
     }
 }
