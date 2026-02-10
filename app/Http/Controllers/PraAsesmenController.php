@@ -940,8 +940,12 @@ class PraAsesmenController extends Controller
             ->get([
                 'referensis.id',
                 'referensis.nama',
-                DB::raw('COALESCE(a.jawaban, false) as jawaban')
-            ]);
+                DB::raw('IFNULL(a.jawaban, 0) as jawaban')
+            ])
+            ->map(function ($row) {
+                $row->jawaban = (bool) $row->jawaban;
+                return $row;
+            });
 
         return response()->json([
             'message' => 'Success',

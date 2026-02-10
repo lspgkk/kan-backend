@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Ak2Answer;
 use App\Models\Ak2Feedback;
 use App\Models\Ak3Answer;
+use App\Models\Ak3Note;
 use App\Models\Ak6Answer;
 use App\Models\AsesiJadwal;
 use App\Models\BuktiAsesmen;
@@ -612,16 +613,13 @@ class AsesmenController extends Controller
             return response()->json([
                 'message' => 'Success',
                 'data' => [
-                    'soal' => []
+                    'soal'     => [],
+                    'ak3_note' => null,
                 ]
             ]);
         }
 
-        /**
-         * QUESTIONS + ANSWERS
-         * NOTE: dokumen_id is used ONLY for filtering questions
-         *       not stored in answers table
-         */
+        // ===== QUESTIONS + ANSWERS =====
         $questions = Soal::query()
             ->where('soals.id_dokumen', $dokumen->id)
             ->leftJoin('ak3_answers', function ($join) use ($id) {
@@ -650,33 +648,48 @@ class AsesmenController extends Controller
                 ];
             });
 
+        // ===== AK3 NOTE (GLOBAL NOTE) =====
+        $ak3Note = Ak3Note::where('id_izin', $id)->value('catatan');
+
         return response()->json([
             'message' => 'Success',
             'data' => [
-                'soal' => $questions
+                'soal'     => $questions,
+                'catatan' => $ak3Note,
             ]
         ]);
     }
 
     public function submitAk03(Request $request, $id)
     {
-        $request->validate([
+        $validated = $request->validate([
             'answers' => 'required|array',
             'answers.*.soal_id' => 'required|integer',
             'answers.*.is_kompeten' => 'nullable|boolean',
             'answers.*.catatan' => 'nullable|string',
+            'catatan' => 'nullable|string'
         ]);
 
-        DB::transaction(function () use ($request, $id) {
-            foreach ($request->answers as $answer) {
+        DB::transaction(function () use ($validated, $id) {
+
+            foreach ($validated['answers'] as $answer) {
                 Ak3Answer::updateOrCreate(
                     [
-                        'id_izin'    => $id,
-                        'soal_id'    => $answer['soal_id'],
+                        'id_izin' => $id,
+                        'soal_id' => $answer['soal_id'],
                     ],
                     [
                         'is_kompeten' => $answer['is_kompeten'] ?? null,
                         'catatan'     => $answer['catatan'] ?? null,
+                    ]
+                );
+            }
+
+            if (!empty($validated['catatan'])) {
+                Ak3Note::updateOrCreate(
+                    ['id_izin' => $id],
+                    [
+                        'catatan' => $validated['catatan'],
                     ]
                 );
             }
