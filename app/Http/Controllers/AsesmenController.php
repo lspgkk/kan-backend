@@ -745,7 +745,8 @@ class AsesmenController extends Controller
         /** 🔹 AK06 Feedback (single row per id_izin) */
         $feedback = Ak6Feedback::where('id_izin', $id)
             ->first([
-                'rekomendasi',
+                'rekomendasi1',
+                'rekomendasi2',
                 'catatan_asesor1',
                 'catatan_asesor2',
             ]);
@@ -758,7 +759,8 @@ class AsesmenController extends Controller
             'data' => [
                 'aspek' => $aspek,
                 'feedback' => [
-                    'rekomendasi'     => $feedback->rekomendasi     ?? null,
+                    'rekomendasi1'     => $feedback->rekomendasi1 ?? null,
+                    'rekomendasi2'     => $feedback->rekomendasi2 ?? null,
                     'catatan_asesor1' => $feedback->catatan_asesor1 ?? null,
                     'catatan_asesor2' => $feedback->catatan_asesor2 ?? null,
                 ],
@@ -776,7 +778,8 @@ class AsesmenController extends Controller
             'answers.*.reliabel'  => 'nullable|boolean',
             'answers.*.fleksibel' => 'nullable|boolean',
             'answers.*.adil'      => 'nullable|boolean',
-            'rekomendasi' => 'nullable|string',
+            'rekomendasi1' => 'nullable|string',
+            'rekomendasi2' => 'nullable|string',
             'catatan_asesor1' => 'nullable|string',
             'catatan_asesor2' => 'nullable|string',
         ]);
@@ -801,7 +804,8 @@ class AsesmenController extends Controller
 
             /** 🔹 Save notes in ONE query */
             $noteData = array_filter([
-                'rekomendasi'     => $validated['rekomendasi']     ?? null,
+                'rekomendasi1'     => $validated['rekomendasi1']     ?? null,
+                'rekomendasi2'     => $validated['rekomendasi2']     ?? null,
                 'catatan_asesor1' => $validated['catatan_asesor1'] ?? null,
                 'catatan_asesor2' => $validated['catatan_asesor2'] ?? null,
             ], fn ($v) => !is_null($v));

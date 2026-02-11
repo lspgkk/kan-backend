@@ -10,7 +10,8 @@ class Ak6Feedback extends Model
     
     protected $fillable = [
         'id_izin',
-        'rekomendasi',
+        'rekomendasi1',
+        'rekomendasi2',
         'catatan_asesor1',
         'catatan_asesor2',
     ];
