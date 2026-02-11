@@ -173,6 +173,8 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/absen-praasesmen/mulai', [BuktiController::class, 'absensiPraAsesmen']);
         Route::post('/absen-praasesmen/akhir', [BuktiController::class, 'absensiPraAsesmen']);
     });
+
+    Route::get('/dokumen/asesi/{id}', [AsesmenController::class, 'dokumenAsesi']);
     
     Route::prefix('praasesmen')->group(function () {
         Route::get('/kebenaran-data', [KebenaranDataController::class, 'index']);
@@ -201,12 +203,14 @@ Route::middleware(['auth:api'])->group(function () {
     Route::prefix('asesmen')->group(function () {
         Route::get('/{id}/data-dokumen', [AsesmenController::class, 'getDokumenHeader']);
         Route::get('/{id}/ia04a', [AsesmenController::class, 'getIa04a']);
+        Route::get('/{id}/tugas', [AsesmenController::class, 'getTugas']);
         Route::get('/{id}/ia04b', [AsesmenController::class, 'getIa04b']);
         Route::get('/{id}/ia05', [AsesmenController::class, 'getIa05']);
         Route::get('/{id}/ak02', [AsesmenController::class, 'getAk02']);
         Route::get('/{id}/ak03', [AsesmenController::class, 'getAk03']);
         Route::get('/{id}/ak06', [AsesmenController::class, 'getAk06']);
         Route::post('/{id}/ia04a', [AsesmenController::class, 'submitIa04a']);
+        Route::post('/{id}/tugas', [AsesmenController::class, 'uploadTugas']);
         Route::post('/{id}/ia04b', [AsesmenController::class, 'submitIa04b']);
         Route::post('/{id}/nilai-ia04b', [AsesmenController::class, 'nilaiIa04b']);
         Route::post('/{id}/ia05', [AsesmenController::class, 'submitIa05']);

@@ -184,35 +184,70 @@ class AsesmenController extends Controller
         ]);
     }
 
+    public function getTugas($id)
+    {
+        $bukti = BuktiAsesmen::select('url_paparan')
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$bukti || !$bukti->url_paparan) {
+            return response()->json([
+                'message' => 'Tugas belum diupload',
+                'data'    => null,
+            ], 404);
+        }
+
+        // Extract file info
+        $url  = $bukti->url_paparan;
+        $path = parse_url($url, PHP_URL_PATH);
+        $ext  = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => [
+                'url'       => $url,
+                'extension' => $ext,
+            ],
+        ]);
+    }
+
     public function uploadTugas(Request $request, $id)
     {
         $request->validate([
-            'file' => 'required|file|mimes:pdf|max:20480' // max 20MB
+            'file' => [
+                'required',
+                'file',
+                'mimes:pdf,ppt,pptx',
+                'max:20480', // 20MB
+            ],
         ]);
 
         DB::transaction(function () use ($request, $id) {
 
-            // 1️⃣ Generate unique filename (NO extension)
-            $file_paparan_url_name = (string) Uuid::uuid4();
+            // 1️⃣ Generate unique filename
+            $uuid = (string) \Ramsey\Uuid\Uuid::uuid4();
 
-            // 2️⃣ Full FTP path
-            $ftpPath = "/paparan/{$file_paparan_url_name}.pdf";
+            // 2️⃣ Get original extension (pdf / ppt / pptx)
+            $extension = $request->file('file')->getClientOriginalExtension();
 
-            // 3️⃣ Upload to FTP
+            // 3️⃣ Full FTP path
+            $ftpPath = "/paparan/{$uuid}.{$extension}";
+
+            // 4️⃣ Upload to FTP
             Storage::disk('str_moon')->put(
                 $ftpPath,
                 file_get_contents($request->file('file')->getRealPath())
             );
 
-            // 4️⃣ Public URL
-            $fullUrlPaparan = "https://moon.lspgatensi.id/files{$ftpPath}";
+            // 5️⃣ Public URL
+            $fullUrlPaparan = "https://moon.lspgatensi.id/files/new_gatensi{$ftpPath}";
 
-            // 5️⃣ Save / update DB record
+            // 6️⃣ Save / update DB record
             BuktiAsesmen::updateOrCreate(
                 ['id_izin' => $id],
                 [
-                    'url_paparan'  => $fullUrlPaparan,
-                    'updated_at' => now(),
+                    'url_paparan' => $fullUrlPaparan,
+                    'updated_at'  => now(),
                 ]
             );
         });
@@ -820,6 +855,54 @@ class AsesmenController extends Controller
 
         return response()->json([
             'message' => 'AK06 berhasil disubmit'
+        ]);
+    }
+
+    public function dokumenAsesi($id)
+    {
+        $fields = [
+            'url_apl_01',
+            'url_apl_02',
+            'url_mapa01',
+            'url_mapa02',
+            'url_ak07',
+            'url_ak04',
+            'url_ak01',
+            'url_ia_04a',
+            'url_ia_04b',
+            'url_ia_05',
+            'url_ak02',
+            'url_ak03',
+            'url_ak05',
+            'url_ak06',
+            'url_paparan',
+            'url_docs_asesmen',
+        ];
+
+        $dokumen = BuktiAsesmen::select($fields)
+            ->where('id_izin', $id)
+            ->firstOrFail();
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => [
+                'apl01' => $dokumen->url_apl_01,
+                'apl02' => $dokumen->url_apl_02,
+                'mapa01' => $dokumen->url_mapa01,
+                'mapa02' => $dokumen->url_mapa02,
+                'ak07' => $dokumen->url_ak07,
+                'ak04' => $dokumen->url_ak04,
+                'ak01' => $dokumen->url_ak01,
+                'ia04a' => $dokumen->url_ia_04a,
+                'ia04b' => $dokumen->url_ia_04b,
+                'ia05' => $dokumen->url_ia_05,
+                'ak02' => $dokumen->url_ak02,
+                'ak03' => $dokumen->url_ak03,
+                'ak05' => $dokumen->url_ak05,
+                'ak06' => $dokumen->url_ak06,
+                'tugas' => $dokumen->url_paparan,
+                'foto_kegiatan' => $dokumen->url_docs_asesmen,
+            ]
         ]);
     }
 }
