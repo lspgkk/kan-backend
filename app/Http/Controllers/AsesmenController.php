@@ -186,7 +186,7 @@ class AsesmenController extends Controller
 
     public function getTugas($id)
     {
-        $bukti = BuktiAsesmen::select('url_paparan')
+        $bukti = BuktiAsesmen::select(['url_paparan', 'filename_paparan'])
             ->where('id_izin', $id)
             ->first();
 
@@ -198,14 +198,15 @@ class AsesmenController extends Controller
         }
 
         // Extract file info
-        $url  = $bukti->url_paparan;
-        $path = parse_url($url, PHP_URL_PATH);
-        $ext  = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $url      = $bukti->url_paparan;
+        $path     = parse_url($url, PHP_URL_PATH);
+        $ext      = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
         return response()->json([
             'message' => 'Success',
             'data' => [
                 'url'       => $url,
+                'filename'  => $bukti->filename_paparan,
                 'extension' => $ext,
             ],
         ]);
@@ -224,30 +225,34 @@ class AsesmenController extends Controller
 
         DB::transaction(function () use ($request, $id) {
 
-            // 1️⃣ Generate unique filename
-            $uuid = (string) \Ramsey\Uuid\Uuid::uuid4();
+            // 1️⃣ Original filename from user
+            $originalFilename = $request->file('file')->getClientOriginalName();
 
-            // 2️⃣ Get original extension (pdf / ppt / pptx)
+            // 2️⃣ Generate unique filename for storage
+            $uuid = (string) Uuid::uuid4();
+
+            // 3️⃣ Extension
             $extension = $request->file('file')->getClientOriginalExtension();
 
-            // 3️⃣ Full FTP path
+            // 4️⃣ FTP path (stored file name)
             $ftpPath = "/paparan/{$uuid}.{$extension}";
 
-            // 4️⃣ Upload to FTP
+            // 5️⃣ Upload to FTP
             Storage::disk('str_moon')->put(
                 $ftpPath,
                 file_get_contents($request->file('file')->getRealPath())
             );
 
-            // 5️⃣ Public URL
+            // 6️⃣ Public URL
             $fullUrlPaparan = "https://moon.lspgatensi.id/files/new_gatensi{$ftpPath}";
 
-            // 6️⃣ Save / update DB record
+            // 7️⃣ Save DB
             BuktiAsesmen::updateOrCreate(
                 ['id_izin' => $id],
                 [
-                    'url_paparan' => $fullUrlPaparan,
-                    'updated_at'  => now(),
+                    'url_paparan'      => $fullUrlPaparan,
+                    'filename_paparan' => $originalFilename, // ✅ real filename
+                    'updated_at'       => now(),
                 ]
             );
         });

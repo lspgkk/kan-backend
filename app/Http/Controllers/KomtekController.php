@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AsesiJadwal;
 use App\Models\User;
 use Illuminate\Http\Request;
 
@@ -33,5 +34,10 @@ class KomtekController extends Controller
             'status' => 'success',
             'data' => $komteks,
         ]);
+    }
+
+    public function rekomendasi(Request $request, $id)
+    {
+        $asesi = AsesiJadwal::where('id_izin', $id)->first()
     }
 }

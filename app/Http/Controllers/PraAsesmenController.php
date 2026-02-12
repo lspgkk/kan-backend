@@ -11,6 +11,8 @@ use App\Models\Apl2Answer;
 use App\Models\Apl2File;
 use App\Models\Apl2Submission;
 use App\Models\AsesiJadwal;
+use App\Models\AsesorBnsp;
+use App\Models\Barcode;
 use App\Models\BuktiAsesmen;
 use App\Models\ImpBukti;
 use App\Models\JabatanConfigA;
@@ -31,6 +33,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class PraAsesmenController extends Controller
 {
@@ -265,6 +268,111 @@ class PraAsesmenController extends Controller
         return response()->json([
             'message' => 'APL-01 successfully submitted',
             'data' => $apl01
+        ]);
+    }
+
+    public function getTtdApl01($id)
+    {
+        $barcodes = Barcode::where('id_izin', $id)
+            ->where('jenis_dokumen', 'APL01')
+            ->get()
+            ->keyBy('id_user'); // 🔑 important
+
+        if ($barcodes->isEmpty()) {
+            return response()->json([
+                'message' => 'Barcode belum tersedia',
+                'data' => null
+            ], 404);
+        }
+
+        // Get jadwal
+        $jadwal = Jadwal::select(['asesor_id', 'asesor2_id'])
+            ->where('jadwal_id', $barcodes->first()->id_jadwal)
+            ->first();
+
+        // Resolve asesor → user
+        $asesors = AsesorBnsp::select(['id', 'noreg'])
+            ->whereIn('id', [$jadwal->asesor_id, $jadwal->asesor2_id])
+            ->get()
+            ->keyBy('id');
+
+        $asesorUsers = User::whereIn('noreg', $asesors->pluck('noreg'))
+            ->get()
+            ->keyBy('noreg');
+
+        // 4️⃣ Map results
+        $asesor1User = $asesorUsers[$asesors[$jadwal->asesor_id]->noreg] ?? null;
+        $asesor2User = $asesorUsers[$asesors[$jadwal->asesor2_id]->noreg] ?? null;
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => [
+                'url_barcode_asesi' =>
+                    $barcodes->firstWhere('id_role', 8)?->url_image,
+
+                'url_barcode_asesor1' =>
+                    $asesor1User
+                        ? ($barcodes[$asesor1User->id]->url_image ?? null)
+                        : null,
+
+                'url_barcode_asesor2' =>
+                    $asesor2User
+                        ? ($barcodes[$asesor2User->id]->url_image ?? null)
+                        : null,
+            ]
+        ]);
+    }
+
+    public function ttdApl01(Request $request, $id)
+    {
+        $request->validate([
+            'id_jadwal' => 'required'
+        ]);
+
+        $uuid = (string) Uuid::uuid4();
+
+        // 1️⃣ Generate URL TTD (QR destination)
+        $urlTtd = "https://barcode.lspgatensi.id/ttd/$uuid";
+
+        // 2️⃣ Generate filename
+        $filename = 'ttd_apl01_' . Str::uuid() . '.png';
+
+        // 3️⃣ Generate QR image (PNG binary)
+        $qrImage = QrCode::format('png')
+            ->size(300)
+            ->margin(1)
+            ->generate($urlTtd);
+
+        // 4️⃣ FTP path
+        $path = "barcodes/{$filename}";
+
+        // 5️⃣ Upload QR image to FTP
+        Storage::disk('str_moon')->put($path, $qrImage);
+
+        // 6️⃣ Public image URL
+        $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        // 7️⃣ Save to DB
+        Barcode::updateOrCreate(
+            [
+                'id_izin'   => $id,
+                'id_jadwal' => $request->id_jadwal,
+            ],
+            [
+                'id_user'   => auth()->user()->id,
+                'url_image' => $urlImage,
+                'url_ttd'   => $urlTtd,
+                'id_role'   => auth()->user()->role_id,
+                'jenis_dokumen' => 'APL01'
+            ]
+        );
+
+        return response()->json([
+            'message'   => 'Success',
+            'data' => [
+                'url_ttd'   => $urlTtd,
+                'url_image' => $urlImage
+            ]
         ]);
     }
 
