@@ -15,4 +15,9 @@ class Barcode extends Model
         'id_role',
         'jenis_dokumen'
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'id_user');
+    }
 }

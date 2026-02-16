@@ -9,6 +9,8 @@ use App\Models\Ak3Note;
 use App\Models\Ak6Answer;
 use App\Models\Ak6Feedback;
 use App\Models\AsesiJadwal;
+use App\Models\AsesorBnsp;
+use App\Models\Barcode;
 use App\Models\BuktiAsesmen;
 use App\Models\DimensiKompetensi;
 use App\Models\Ia4aAnswer;
@@ -90,6 +92,9 @@ class AsesmenController extends Controller
             ], 404);
         }
 
+        /** ✅ Shared barcode resolver */
+        $barcodes = $this->resolveDocumentBarcodes($id, 'IA04A');
+
         $referensis = Referensi::select(['id', 'nama'])
             ->where('kategori', 'IA04')
             ->get();
@@ -103,16 +108,21 @@ class AsesmenController extends Controller
         if (!$dokumen) {
             return response()->json([
                 'message' => 'Success',
-                'data' => []
+                'data' => [
+                    'barcodes' => $barcodes,
+                    'kelompok_kerja' => [],
+                    'referensi_form' => $referensis,
+                    'soal' => [],
+                ]
             ]);
         }
 
-        // 🔹 Load saved feedback answers
+        /** 🔹 Load saved feedback answers */
         $ia04aAnswers = Ia4aAnswer::where('id_izin', $id)
             ->get()
             ->keyBy('soal_id');
 
-        // 🔹 Load questions + inject feedback answer
+        /** 🔹 Load questions + inject feedback answer */
         $questions = Soal::where('id_dokumen', $dokumen->id)
             ->orderBy('urut', 'asc')
             ->get()
@@ -155,9 +165,10 @@ class AsesmenController extends Controller
         return response()->json([
             'message' => 'Success',
             'data' => [
-                'kelompok_kerja' => $kelompokKerja,
-                'referensi_form' => $referensis,
-                'soal' => $questions
+                'barcodes'        => $barcodes,
+                'kelompok_kerja'  => $kelompokKerja,
+                'referensi_form'  => $referensis,
+                'soal'            => $questions,
             ]
         ]);
     }
@@ -275,6 +286,9 @@ class AsesmenController extends Controller
             ], 404);
         }
 
+        /** ✅ Shared barcode resolver */
+        $barcodes = $this->resolveDocumentBarcodes($id, 'IA04B');
+
         $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->where('kode', 'FR.IA.04.B')
@@ -284,7 +298,12 @@ class AsesmenController extends Controller
         if (!$dokumen) {
             return response()->json([
                 'message' => 'Success',
-                'data' => []
+                'data' => [
+                    'barcodes' => $barcodes,
+                    'dokumen' => null,
+                    'soal' => [],
+                    'rekomendasi' => null,
+                ]
             ]);
         }
 
@@ -309,49 +328,51 @@ class AsesmenController extends Controller
             ->where('soals.id_dokumen', $dokumen->id)
             ->where('soals.tipe', 8)
             ->orderBy('soals.no', 'asc')
-            ->get();
+            ->get()
+            ->map(function ($q) {
+                $q->pencapaian = $q->pencapaian !== null
+                    ? (bool) $q->pencapaian
+                    : null;
 
-        $questions = $questions->map(function ($q) {
-            $q->pencapaian = $q->pencapaian !== null
-                ? (bool) $q->pencapaian
-                : null;
-
-            return $q;
-        });
+                return $q;
+            });
 
         /**
          * REKOMENDASI + VALUE
          */
         $rekomendasi = Soal::select([
-            'soals.id',
-            'soals.no',
-            'soals.jenis',
-            'soals.soal',
-            'soals.is_komentar',
-            'ia4b_answers.rekomendasi'
-        ])
-        ->leftJoin('ia4b_answers', function ($join) use ($id) {
-            $join->on('ia4b_answers.soal_id', '=', 'soals.id')
-                ->where('ia4b_answers.id_izin', $id)
-                ->where('ia4b_answers.is_rekomendasi', true);
-        })
-        ->where('soals.id_dokumen', $dokumen->id)
-        ->where('soals.tipe', 3)
-        ->first();
+                'soals.id',
+                'soals.no',
+                'soals.jenis',
+                'soals.soal',
+                'soals.is_komentar',
+                'ia4b_answers.rekomendasi'
+            ])
+            ->leftJoin('ia4b_answers', function ($join) use ($id) {
+                $join->on('ia4b_answers.soal_id', '=', 'soals.id')
+                    ->where('ia4b_answers.id_izin', $id)
+                    ->where('ia4b_answers.is_rekomendasi', true);
+            })
+            ->where('soals.id_dokumen', $dokumen->id)
+            ->where('soals.tipe', 3)
+            ->first();
 
         return response()->json([
             'message' => 'Success',
             'data' => [
+                'barcodes' => $barcodes,
                 'dokumen' => $dokumen,
                 'soal' => $questions,
-                'rekomendasi' => [
-                    'id' => $rekomendasi->id,
-                    'no' => $rekomendasi->no,
-                    'jenis' => $rekomendasi->jenis,
-                    'soal' => $rekomendasi->soal,
-                    'is_komentar' => $rekomendasi->is_komentar,
-                    'rekomendasi' => (bool) $rekomendasi->rekomendasi
-                ]
+                'rekomendasi' => $rekomendasi
+                    ? [
+                        'id' => $rekomendasi->id,
+                        'no' => $rekomendasi->no,
+                        'jenis' => $rekomendasi->jenis,
+                        'soal' => $rekomendasi->soal,
+                        'is_komentar' => $rekomendasi->is_komentar,
+                        'rekomendasi' => (bool) $rekomendasi->rekomendasi
+                    ]
+                    : null
             ]
         ]);
     }
@@ -442,6 +463,9 @@ class AsesmenController extends Controller
             ], 404);
         }
 
+        /** ✅ Shared barcode resolver */
+        $barcodes = $this->resolveDocumentBarcodes($id, 'IA05');
+
         $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->where('kode', 'FR.IA.05')
@@ -451,7 +475,11 @@ class AsesmenController extends Controller
         if (!$dokumen) {
             return response()->json([
                 'message' => 'Success',
-                'data' => []
+                'data' => [
+                    'barcodes' => $barcodes,
+                    'dokumen' => null,
+                    'soal' => [],
+                ]
             ]);
         }
 
@@ -488,8 +516,9 @@ class AsesmenController extends Controller
         return response()->json([
             'message' => 'Success',
             'data' => [
+                'barcodes' => $barcodes,
                 'dokumen' => $dokumen,
-                'soal' => $questions
+                'soal' => $questions,
             ]
         ]);
     }
@@ -536,6 +565,8 @@ class AsesmenController extends Controller
             ], 404);
         }
 
+        $barcodes = $this->resolveDocumentBarcodes($id, 'AK02');
+
         $unitKompetensi = UnitKompetensi::from('unit_kompetensis')
             ->where('unit_kompetensis.id_jabatan', $klasifikasi->jabatan_kerja)
             ->leftJoin('ak2_answers as a', function ($join) use ($id) {
@@ -573,6 +604,7 @@ class AsesmenController extends Controller
         return response()->json([
             'message' => 'Success',
             'data' => [
+                'barcodes' => $barcodes,
                 'data_unit_kompetensi' => $unitKompetensi,
                 'is_kompeten' => is_null($feedback?->is_kompeten) ? null : (bool) $feedback->is_kompeten,
                 'tindak_lanjut' => $feedback?->tindak_lanjut,
@@ -909,5 +941,87 @@ class AsesmenController extends Controller
                 'foto_kegiatan' => $dokumen->url_docs_asesmen,
             ]
         ]);
+    }
+
+    private function mapBarcode(?Barcode $barcode): ?array
+    {
+        if (!$barcode) {
+            return null;
+        }
+
+        return [
+            'url' => $barcode->url_image,
+            'tanggal' => $barcode->created_at,
+            'nama' => $barcode->user?->name,
+        ];
+    }
+
+    private function resolveDocumentBarcodes(int|string $idIzin, string $jenisDokumen): array
+    {
+        /** 📌 Load barcodes & key by user */
+        $barcodes = Barcode::with('user')
+            ->where('id_izin', $idIzin)
+            ->where('jenis_dokumen', $jenisDokumen)
+            ->get()
+            ->keyBy('id_user');
+
+        if ($barcodes->isEmpty()) {
+            return [
+                'asesi' => null,
+                'asesor1' => null,
+                'asesor2' => null,
+            ];
+        }
+
+        /** 📌 Resolve jadwal */
+        $jadwal = Jadwal::select(['asesor_id', 'asesor2_id'])
+            ->where('jadwal_id', $barcodes->first()->id_jadwal)
+            ->first();
+
+        if (!$jadwal) {
+            return [
+                'asesi' => $this->mapBarcode($barcodes->firstWhere('id_role', 8)),
+                'asesor1' => null,
+                'asesor2' => null,
+            ];
+        }
+
+        /** 📌 Resolve asesor → user */
+        $asesors = AsesorBnsp::select(['id', 'noreg'])
+            ->whereIn('id', array_filter([
+                $jadwal->asesor_id,
+                $jadwal->asesor2_id
+            ]))
+            ->get()
+            ->keyBy('id');
+
+        $asesorUsers = User::whereIn('noreg', $asesors->pluck('noreg'))
+            ->get()
+            ->keyBy('noreg');
+
+        $asesor1User = isset($asesors[$jadwal->asesor_id])
+            ? ($asesorUsers[$asesors[$jadwal->asesor_id]->noreg] ?? null)
+            : null;
+
+        $asesor2User = isset($asesors[$jadwal->asesor2_id])
+            ? ($asesorUsers[$asesors[$jadwal->asesor2_id]->noreg] ?? null)
+            : null;
+
+        return [
+            'asesi' =>
+                $this->mapBarcode(
+                    $barcodes->firstWhere('id_role', 8)
+                ),
+
+            'asesor1' =>
+                $asesor1User
+                    ? $this->mapBarcode($barcodes[$asesor1User->id] ?? null)
+                    : null,
+
+            'asesor2' =>
+                $asesor2User
+                    ? $this->mapBarcode($barcodes[$asesor2User->id] ?? null)
+                    : null,
+        ];
     }
 }

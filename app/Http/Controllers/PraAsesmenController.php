@@ -32,8 +32,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Ramsey\Uuid\Uuid;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class PraAsesmenController extends Controller
 {
@@ -117,6 +116,12 @@ class PraAsesmenController extends Controller
     {
         $personal = Personal::select(['nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kodepos', 'telepon', 'email'])->where('id_izin', $id)->first();
         $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])->where('id_izin', $id)->first();
+        if (!$klasifikasi) {
+            return response()->json([
+                'message' => 'Klasifikasi tidak ditemukan',
+                'data' => null
+            ], 404);
+        }
         $jabatanKerja = JabatanKerja::select(['jabatan_kerja', 'acuan'])->where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->first();
         $pekerjaan = Proyek::where('id_izin', $id)->latest('created_at')->first();
         $apl1Answer = Apl1Answer::where('id_izin', $id)->first();
@@ -137,6 +142,11 @@ class PraAsesmenController extends Controller
             })
             ->orderBy('no', 'asc')
             ->get();
+        $barcodeByRole = Barcode::with('user:id,name')
+            ->where('id_izin', $id)
+            ->where('jenis_dokumen', 'APL01')
+            ->get()
+            ->keyBy('id_role');
 
         $formattedAdministratif = collect();
         $no = 1;
@@ -243,7 +253,19 @@ class PraAsesmenController extends Controller
                 'data_unit_kompetensi' => $unitKompetensi,
                 'bukti_persyaratan' => $persyaratan,
                 'bukti_administratif' => $formattedAdministratif->values(),
-                'catatan' => null
+                'catatan' => null,
+                'barcodes' => [
+                    'asesi' => [
+                        'url' => optional($barcodeByRole->get(8))->url_image,
+                        'tanggal' => optional($barcodeByRole->get(8))->created_at,
+                        'nama' => optional(optional($barcodeByRole->get(8))->user)->name,
+                    ],
+                    'admin' => [
+                        'url' => optional($barcodeByRole->get(2))->url_image,
+                        'tanggal' => optional($barcodeByRole->get(2))->created_at,
+                        'nama' => optional(optional($barcodeByRole->get(2))->user)->name,
+                    ],
+                ]
             ]
         ]);
     }
@@ -271,109 +293,172 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    public function getTtdApl01($id)
+    public function generateApl01(Request $request, $id)
     {
-        $barcodes = Barcode::where('id_izin', $id)
-            ->where('jenis_dokumen', 'APL01')
-            ->get()
-            ->keyBy('id_user'); // 🔑 important
+        /* =========================
+        * FETCH DATA
+        * ========================= */
 
-        if ($barcodes->isEmpty()) {
-            return response()->json([
-                'message' => 'Barcode belum tersedia',
-                'data' => null
-            ], 404);
-        }
+        $personal = Personal::select([
+            'nama', 'nik', 'tempat_lahir', 'tanggal_lahir',
+            'jenis_kelamin', 'alamat', 'kodepos', 'telepon', 'email'
+        ])->where('id_izin', $id)->firstOrFail();
 
-        // Get jadwal
-        $jadwal = Jadwal::select(['asesor_id', 'asesor2_id'])
-            ->where('jadwal_id', $barcodes->first()->id_jadwal)
+        $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
+            ->where('id_izin', $id)
             ->first();
 
-        // Resolve asesor → user
-        $asesors = AsesorBnsp::select(['id', 'noreg'])
-            ->whereIn('id', [$jadwal->asesor_id, $jadwal->asesor2_id])
+        if (!$klasifikasi) {
+            abort(404, 'Klasifikasi tidak ditemukan');
+        }
+
+        $jabatanKerja = JabatanKerja::select(['jabatan_kerja', 'acuan'])
+            ->where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)
+            ->firstOrFail();
+
+        $pekerjaan   = Proyek::where('id_izin', $id)->latest('created_at')->first();
+        $apl1Answer  = Apl1Answer::where('id_izin', $id)->first();
+        $kualifikasi = JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)
+            ->value('jabatan_kerja');
+
+        $unitKompetensi = UnitKompetensi::select(['kode', 'nama'])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->get();
+
+        $jenjang = Pendidikan::where('id_izin', $id)
+            ->latest('created_at')
+            ->value('jenjang');
+
+        /* =========================
+        * BUKTI
+        * ========================= */
+
+        $persyaratan = ImpBukti::select(['no', 'bukti'])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->whereNotLike('bukti', 'Syarat Administrasi%')
+            ->whereNotLike('bukti', 'Bukti Keanggotaan%')
+            ->orderBy('no')
+            ->get();
+
+        $administratif = ImpBukti::select(['no', 'bukti'])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where(function ($q) {
+                $q->whereLike('bukti', 'Syarat Administrasi%')
+                ->orWhereLike('bukti', 'Bukti Keanggotaan%');
+            })
+            ->orderBy('no')
+            ->get();
+
+        /* =========================
+        * FORMAT ADMINISTRATIF
+        * ========================= */
+
+        $formattedAdministratif = collect();
+        $no = 1;
+
+        foreach ($administratif as $item) {
+
+            $clean = preg_replace(
+                '/^(Syarat Administrasi|Bukti Keanggotaan)\s*:\s*/i',
+                '',
+                $item->bukti
+            );
+
+            $parts = array_map('trim', explode(',', $clean));
+
+            $foto = $ktp = $other = [];
+
+            foreach ($parts as $text) {
+                if ($text === '' || strtolower($text) === 'dan lain-lain.') {
+                    continue;
+                }
+
+                if (stripos($text, 'pas foto') !== false) {
+                    $foto[] = $text;
+                } elseif (stripos($text, 'ktp') !== false) {
+                    $ktp[] = $text;
+                } else {
+                    $other[] = $text;
+                }
+            }
+
+            foreach (array_merge($foto, $ktp, $other) as $text) {
+                $formattedAdministratif->push([
+                    'no'      => $no++,
+                    'bukti'   => $text,
+                    'checked' => true
+                ]);
+            }
+        }
+
+        /* =========================
+        * BARCODE
+        * ========================= */
+
+        $barcodeByRole = Barcode::with('user:id,name')
+            ->where('id_izin', $id)
+            ->where('jenis_dokumen', 'APL01')
             ->get()
-            ->keyBy('id');
+            ->keyBy('id_role');
 
-        $asesorUsers = User::whereIn('noreg', $asesors->pluck('noreg'))
-            ->get()
-            ->keyBy('noreg');
+        $nomorSkema = JabatanConfigA::where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->value('no_skema');
 
-        // 4️⃣ Map results
-        $asesor1User = $asesorUsers[$asesors[$jadwal->asesor_id]->noreg] ?? null;
-        $asesor2User = $asesorUsers[$asesors[$jadwal->asesor2_id]->noreg] ?? null;
+        /* =========================
+        * DATA FOR BLADE
+        * ========================= */
 
-        return response()->json([
-            'message' => 'Success',
-            'data' => [
-                'url_barcode_asesi' =>
-                    $barcodes->firstWhere('id_role', 8)?->url_image,
-
-                'url_barcode_asesor1' =>
-                    $asesor1User
-                        ? ($barcodes[$asesor1User->id]->url_image ?? null)
-                        : null,
-
-                'url_barcode_asesor2' =>
-                    $asesor2User
-                        ? ($barcodes[$asesor2User->id]->url_image ?? null)
-                        : null,
-            ]
-        ]);
-    }
-
-    public function ttdApl01(Request $request, $id)
-    {
-        $request->validate([
-            'id_jadwal' => 'required'
-        ]);
-
-        $uuid = (string) Uuid::uuid4();
-
-        // 1️⃣ Generate URL TTD (QR destination)
-        $urlTtd = "https://barcode.lspgatensi.id/ttd/$uuid";
-
-        // 2️⃣ Generate filename
-        $filename = 'ttd_apl01_' . Str::uuid() . '.png';
-
-        // 3️⃣ Generate QR image (PNG binary)
-        $qrImage = QrCode::format('png')
-            ->size(300)
-            ->margin(1)
-            ->generate($urlTtd);
-
-        // 4️⃣ FTP path
-        $path = "barcodes/{$filename}";
-
-        // 5️⃣ Upload QR image to FTP
-        Storage::disk('str_moon')->put($path, $qrImage);
-
-        // 6️⃣ Public image URL
-        $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
-
-        // 7️⃣ Save to DB
-        Barcode::updateOrCreate(
-            [
-                'id_izin'   => $id,
-                'id_jadwal' => $request->id_jadwal,
+        $data = [
+            'data_pribadi' => [
+                'nama'           => $personal->nama,
+                'nik'            => $personal->nik,
+                'tempat_lahir'   => $personal->tempat_lahir,
+                'tanggal_lahir'  => $personal->tanggal_lahir,
+                'jenis_kelamin'  => $personal->jenis_kelamin,
+                'kebangsaan'     => 'ID',
+                'alamat'         => $personal->alamat,
+                'telepon_hp'     => $personal->telepon,
+                'kode_pos'       => $personal->kodepos,
+                'email'          => $personal->email,
+                'kualifikasi'    => $kualifikasi,
             ],
-            [
-                'id_user'   => auth()->user()->id,
-                'url_image' => $urlImage,
-                'url_ttd'   => $urlTtd,
-                'id_role'   => auth()->user()->role_id,
-                'jenis_dokumen' => 'APL01'
-            ]
-        );
 
-        return response()->json([
-            'message'   => 'Success',
-            'data' => [
-                'url_ttd'   => $urlTtd,
-                'url_image' => $urlImage
-            ]
-        ]);
+            'data_pekerjaan' => [
+                'perusahaan' => $apl1Answer?->perusahaan ?? $pekerjaan?->pemberi_kerja,
+                'jabatan'    => $apl1Answer?->jabatan ?? $pekerjaan?->jabatan,
+                'alamat'     => $apl1Answer?->alamat_kantor ?? $pekerjaan?->alamat,
+                'kode_pos'   => $apl1Answer?->kode_pos ?? $pekerjaan?->kode_pos,
+                'telepon'    => $apl1Answer?->telepon_kantor ?? $pekerjaan?->telepon,
+                'fax'        => $apl1Answer?->fax ?? $pekerjaan?->fax,
+                'email'      => $apl1Answer?->email_kantor ?? $pekerjaan?->email,
+            ],
+
+            'sertifikasi' => [
+                'judul' => $jabatanKerja->jabatan_kerja,
+                'nomor' => $nomorSkema,
+                'skkni' => $jabatanKerja->acuan,
+            ],
+
+            'unit_kompetensi'     => $unitKompetensi,
+            'bukti_persyaratan'   => $persyaratan,
+            'bukti_administratif' => $formattedAdministratif,
+
+            'barcodes' => [
+                'asesi' => $barcodeByRole->get(8),
+                'admin' => $barcodeByRole->get(2),
+            ],
+        ];
+
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.apl01', $data)
+            ->setPaper('A4', 'portrait');
+
+        $filename = 'FR-APL-01-' . Str::slug($personal->nama) . '.pdf';
+
+        return $pdf->download($filename);
     }
 
     public function getApl02($id)
@@ -402,19 +487,28 @@ class PraAsesmenController extends Controller
             ->get()
             ->keyBy('subunit_id');
 
+        /** ✅ Shared barcode resolver */
+        $barcodes = $this->resolveDocumentBarcodes($id, 'APL02');
+
         $data = [
             'metode' => $submission?->metode,
             'is_dilanjutkan' => $submission?->is_dilanjutkan,
 
-            'units' => $units->map(function ($unit) use ($answers, $baseUrl) {
-
+            'units' => $units->map(function ($unit) use (
+                $answers,
+                $baseUrl,
+                $barcodes
+            ) {
                 return [
                     'id' => (string) $unit->id,
                     'kode' => $unit->kode,
                     'judul_kompetensi' => $unit->nama,
 
-                    'subunits' => $unit->subunits->map(function ($subunit) use ($answers, $baseUrl) {
-
+                    'subunits' => $unit->subunits->map(function ($subunit) use (
+                        $answers,
+                        $baseUrl,
+                        $barcodes
+                    ) {
                         $answer = $answers->get($subunit->id);
 
                         return [
@@ -423,7 +517,6 @@ class PraAsesmenController extends Controller
                             'judul_elemen' => $subunit->nama,
                             'kompeten' => (bool) ($answer->kompeten ?? false),
 
-                            // 📎 SIMPLIFIED FILES
                             'files' => $answer
                                 ? $answer->files->map(fn ($file) => [
                                     'id'   => $file->id,
@@ -435,11 +528,14 @@ class PraAsesmenController extends Controller
                             'kuk_list' => $subunit->kuks->map(fn ($kuk) => [
                                 'no_kuk' => $kuk->kode,
                                 'judul_kuk' => $kuk->nama,
-                            ])->values()
+                            ])->values(),
+
+                            /** ✅ Barcodes */
+                            'barcodes' => $barcodes,
                         ];
-                    })->values()
+                    })->values(),
                 ];
-            })->values()
+            })->values(),
         ];
 
         return response()->json([
@@ -849,6 +945,9 @@ class PraAsesmenController extends Controller
 
     public function getAk07($id)
     {
+        /** ✅ Shared barcode resolver */
+        $barcodes = $this->resolveDocumentBarcodes($id, 'AK07');
+
         $referensis = Referensi::with([
                 'kategoriRel',
                 'kelompokRel',
@@ -860,15 +959,18 @@ class PraAsesmenController extends Controller
             ->get()
             ->filter(fn ($r) => $r->kelompokRel !== null);
 
-        $data = $referensis
-            ->groupBy('id_kelompok')
-            ->values()
-            ->map(function ($kelompokItems) {
+        $data = [
+            /** ✅ Barcodes at root */
+            'barcodes' => $barcodes,
 
-                $kelompok = $kelompokItems->first()->kelompokRel;
+            'kelompoks' => $referensis
+                ->groupBy('id_kelompok')
+                ->values()
+                ->map(function ($kelompokItems) {
 
-                return [
-                    'kelompok' => [
+                    $kelompok = $kelompokItems->first()->kelompokRel;
+
+                    return [
                         'id'   => $kelompok->id,
                         'nama' => $kelompok->nama,
                         'urut' => $kelompok->urut,
@@ -897,9 +999,9 @@ class PraAsesmenController extends Controller
                                     ])->values(),
                                 ];
                             })->values(),
-                    ]
-                ];
-            });
+                    ];
+                })->values(),
+        ];
 
         return response()->json([
             'message' => 'Success',
@@ -955,6 +1057,12 @@ class PraAsesmenController extends Controller
             ->get()
             ->filter(fn ($r) => $r->kelompokRel !== null);
 
+        $barcodeByRole = Barcode::with('user:id,name')
+            ->where('id_izin', $id)
+            ->where('jenis_dokumen', 'AK04')
+            ->get()
+            ->keyBy('id_role');
+
         $kelompokData = $referensis
             ->groupBy('id_kelompok')
             ->values()
@@ -973,6 +1081,7 @@ class PraAsesmenController extends Controller
                             ? null
                             : (bool) $item->ak04Answer->jawaban,
                     ])->values(),
+                    
                 ];
             });
 
@@ -983,7 +1092,14 @@ class PraAsesmenController extends Controller
             'message' => 'Success',
             'data'    => [
                 'kelompoks' => $kelompokData,
-                'alasan'    => $reason
+                'alasan'    => $reason,
+                'barcodes' => [
+                    'asesi' => [
+                        'url' => optional($barcodeByRole->get(8))->url_image,
+                        'tanggal' => optional($barcodeByRole->get(8))->created_at,
+                        'nama' => optional(optional($barcodeByRole->get(8))->user)->name,
+                    ]
+                ]
             ]
         ]);
     }
@@ -1039,6 +1155,9 @@ class PraAsesmenController extends Controller
 
     public function getAk01($id)
     {
+        /** ✅ Shared barcode resolver */
+        $barcodes = $this->resolveDocumentBarcodes($id, 'AK01');
+
         $ak01 = Referensi::where('kategori', 'AK01_1')
             ->leftJoin('ak1_answers as a', function ($join) use ($id) {
                 $join->on('a.id_referensi', '=', 'referensis.id')
@@ -1057,7 +1176,10 @@ class PraAsesmenController extends Controller
 
         return response()->json([
             'message' => 'Success',
-            'data'    => $ak01
+            'data'    => [
+                'barcodes' => $barcodes,
+                'items'    => $ak01,
+            ]
         ]);
     }
 
@@ -1087,5 +1209,87 @@ class PraAsesmenController extends Controller
         return response()->json([
             'message' => 'AK01 successfully submitted'
         ]);
+    }
+
+    private function mapBarcode(?Barcode $barcode): ?array
+    {
+        if (!$barcode) {
+            return null;
+        }
+
+        return [
+            'url' => $barcode->url_image,
+            'tanggal' => $barcode->created_at,
+            'nama' => $barcode->user?->name,
+        ];
+    }
+
+    private function resolveDocumentBarcodes(int|string $idIzin, string $jenisDokumen): array
+    {
+        /** 📌 Load barcodes & key by user */
+        $barcodes = Barcode::with('user')
+            ->where('id_izin', $idIzin)
+            ->where('jenis_dokumen', $jenisDokumen)
+            ->get()
+            ->keyBy('id_user');
+
+        if ($barcodes->isEmpty()) {
+            return [
+                'asesi' => null,
+                'asesor1' => null,
+                'asesor2' => null,
+            ];
+        }
+
+        /** 📌 Resolve jadwal */
+        $jadwal = Jadwal::select(['asesor_id', 'asesor2_id'])
+            ->where('jadwal_id', $barcodes->first()->id_jadwal)
+            ->first();
+
+        if (!$jadwal) {
+            return [
+                'asesi' => $this->mapBarcode($barcodes->firstWhere('id_role', 8)),
+                'asesor1' => null,
+                'asesor2' => null,
+            ];
+        }
+
+        /** 📌 Resolve asesor → user */
+        $asesors = AsesorBnsp::select(['id', 'noreg'])
+            ->whereIn('id', array_filter([
+                $jadwal->asesor_id,
+                $jadwal->asesor2_id
+            ]))
+            ->get()
+            ->keyBy('id');
+
+        $asesorUsers = User::whereIn('noreg', $asesors->pluck('noreg'))
+            ->get()
+            ->keyBy('noreg');
+
+        $asesor1User = isset($asesors[$jadwal->asesor_id])
+            ? ($asesorUsers[$asesors[$jadwal->asesor_id]->noreg] ?? null)
+            : null;
+
+        $asesor2User = isset($asesors[$jadwal->asesor2_id])
+            ? ($asesorUsers[$asesors[$jadwal->asesor2_id]->noreg] ?? null)
+            : null;
+
+        return [
+            'asesi' =>
+                $this->mapBarcode(
+                    $barcodes->firstWhere('id_role', 8)
+                ),
+
+            'asesor1' =>
+                $asesor1User
+                    ? $this->mapBarcode($barcodes[$asesor1User->id] ?? null)
+                    : null,
+
+            'asesor2' =>
+                $asesor2User
+                    ? $this->mapBarcode($barcodes[$asesor2User->id] ?? null)
+                    : null,
+        ];
     }
 }

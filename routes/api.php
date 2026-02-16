@@ -4,6 +4,7 @@ use App\Http\Controllers\AsesmenController;
 use App\Http\Controllers\AsesorController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BarcodeController;
 use App\Http\Controllers\BuktiController;
 use App\Http\Controllers\CityController;
 use App\Http\Controllers\UserController;
@@ -175,6 +176,7 @@ Route::middleware(['auth:api'])->group(function () {
     });
 
     Route::get('/dokumen/asesi/{id}', [AsesmenController::class, 'dokumenAsesi']);
+    Route::get('/dokumen/apl01/{id}', [PraAsesmenController::class, 'generateApl01']);
     
     Route::prefix('praasesmen')->group(function () {
         Route::get('/kebenaran-data', [KebenaranDataController::class, 'index']);
@@ -198,6 +200,20 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/file-k3', [PraAsesmenController::class, 'submitK3Asesmen']);
         Route::post('/{id}/ak01', [PraAsesmenController::class, 'submitAk01']);
         Route::delete('/apl02/files/{fileId}', [PraAsesmenController::class, 'deleteApl02File']);
+    });
+
+    Route::prefix('qr')->group(function () {
+        Route::post('/{id}/apl01', [BarcodeController::class, 'ttdApl01']);
+        Route::post('/{id}/apl02', [BarcodeController::class, 'ttdApl02']);
+        Route::post('/{id}/ak07', [BarcodeController::class, 'ttdAk07']);
+        Route::post('/{id}/ak04', [BarcodeController::class, 'ttdAk04']);
+        Route::post('/{id}/ak01', [BarcodeController::class, 'ttdAk01']);
+        Route::post('/{id}/ia04a', [BarcodeController::class, 'ttdIa04a']);
+        Route::post('/{id}/ia04b', [BarcodeController::class, 'ttdIa04b']);
+        Route::post('/{id}/ia05', [BarcodeController::class, 'ttdIa05']);
+        Route::post('/{id}/ak02', [BarcodeController::class, 'ttdAk02']);
+        Route::post('/{id}/ak05', [BarcodeController::class, 'ttdAk05']);
+        Route::post('/{id}/ak06', [BarcodeController::class, 'ttdAk06']);
     });
 
     Route::prefix('asesmen')->group(function () {
