@@ -112,6 +112,77 @@ class PraAsesmenController extends Controller
         ]);
     }
 
+    private function buildDokumenHeader($id): ?array
+    {
+        $namaAsesi = Personal::where('id_izin', $id)->value('nama');
+        $jadwalId  = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
+
+        if (!$jadwalId) {
+            return null;
+        }
+
+        $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$klasifikasi) {
+            return null;
+        }
+
+        $jabatanKerja = JabatanKerja::where(
+            'id_jabatan_kerja',
+            $klasifikasi->jabatan_kerja
+        )->value('jabatan_kerja');
+
+        $jabatanConfig = JabatanConfigA::select('no_skema')
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->first();
+
+        $jadwal = Jadwal::select([
+                'jadwal_id',
+                'tuk_id',
+                'asesor_id',
+                'asesor2_id',
+                'tanggal_uji',
+                'tanggal_selesai',
+                'jenis_kelas',
+            ])
+            ->with([
+                'tuk:id,nama',
+                'asesor:id,nama,noreg',
+                'asesor2:id,nama,noreg',
+            ])
+            ->where('jadwal_id', $jadwalId)
+            ->first();
+
+        if (!$jadwal) {
+            return null;
+        }
+
+        $idAsesor1 = User::where('noreg', $jadwal->asesor?->noreg)->value('id');
+        $idAsesor2 = User::where('noreg', $jadwal->asesor2?->noreg)->value('id');
+
+        return [
+            'jabatan_kerja'   => $jabatanKerja,
+            'nomor_skema'     => $jabatanConfig?->no_skema,
+            'tuk'             => $jadwal->tuk?->nama,
+
+            'id_asesor_1'     => $idAsesor1,
+            'id_asesor_2'     => $idAsesor2,
+
+            'nama_asesi'      => $namaAsesi,
+            'asesor_1'        => $jadwal->asesor?->nama,
+            'asesor_2'        => $jadwal->asesor2?->nama,
+
+            'noreg_asesor_1'  => $jadwal->asesor?->noreg,
+            'noreg_asesor_2'  => $jadwal->asesor2?->noreg,
+
+            'tanggal_uji'     => $jadwal->tanggal_uji,
+            'tanggal_selesai' => $jadwal->tanggal_selesai,
+            'jenis_kelas'     => $jadwal->jenis_kelas,
+        ];
+    }
+
     public function getApl01($id)
     {
         $personal = Personal::select(['nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kodepos', 'telepon', 'email'])->where('id_izin', $id)->first();
@@ -293,7 +364,7 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    public function generateApl01(Request $request, $id)
+    public function generateApl01($id)
     {
         /* =========================
         * FETCH DATA
@@ -456,12 +527,12 @@ class PraAsesmenController extends Controller
         $pdf = Pdf::loadView('pdf.apl01', $data)
             ->setPaper('A4', 'portrait');
 
-        $filename = 'FR-APL-01-' . Str::slug($personal->nama) . '.pdf';
+        $filename = 'FR-APL-01-' . Str::slug($id) . '.pdf';
 
         return $pdf->download($filename);
     }
 
-    public function getApl02($id)
+    private function buildApl02Data($id): ?array
     {
         $baseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
 
@@ -470,10 +541,7 @@ class PraAsesmenController extends Controller
             ->first();
 
         if (!$klasifikasi) {
-            return response()->json([
-                'message' => 'Data not found',
-                'data' => null
-            ], 404);
+            return null;
         }
 
         $units = UnitKompetensi::with(['subunits.kuks'])
@@ -490,15 +558,15 @@ class PraAsesmenController extends Controller
         /** ✅ Shared barcode resolver */
         $barcodes = $this->resolveDocumentBarcodes($id, 'APL02');
 
-        $data = [
+        return [
+            'id_izin' => $id,
+            'jabatan_kerja' => $klasifikasi->jabatan_kerja,
+            'jenjang' => $klasifikasi->jenjang,
+
             'metode' => $submission?->metode,
             'is_dilanjutkan' => $submission?->is_dilanjutkan,
 
-            'units' => $units->map(function ($unit) use (
-                $answers,
-                $baseUrl,
-                $barcodes
-            ) {
+            'units' => $units->map(function ($unit) use ($answers, $baseUrl, $barcodes) {
                 return [
                     'id' => (string) $unit->id,
                     'kode' => $unit->kode,
@@ -529,14 +597,24 @@ class PraAsesmenController extends Controller
                                 'no_kuk' => $kuk->kode,
                                 'judul_kuk' => $kuk->nama,
                             ])->values(),
-
-                            /** ✅ Barcodes */
-                            'barcodes' => $barcodes,
                         ];
                     })->values(),
                 ];
             })->values(),
+            'barcodes' => $barcodes,
         ];
+    }
+
+    public function getApl02($id)
+    {
+        $data = $this->buildApl02Data($id);
+
+        if (!$data) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null
+            ], 404);
+        }
 
         return response()->json([
             'message' => 'Success',
@@ -686,24 +764,40 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    public function getMapa01($id)
+    public function generateApl02($id)
+    {
+        $data = $this->buildApl02Data($id);
+        if (!$data) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($data, [
+            'dokumenHeader' => $dokumenHeader
+        ]);
+
+        return Pdf::loadView('pdf.apl02', $viewData)
+            ->setPaper('A4', 'portrait')
+            ->download('FR-APL-02-' . Str::slug($id) . '.pdf');
+    }
+
+    private function buildMapa01Data($id): ?array
     {
         $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
             ->where('id_izin', $id)
             ->first();
 
         if (!$klasifikasi) {
-            return response()->json([
-                'message' => 'Data not found',
-                'data' => null
-            ], 404);
+            return null;
         }
 
         $isPengalaman = Proyek::where('id_izin', $id)->exists();
 
-        $dokumen = JabatanDokumen::with([
-                'kelompoks.units.unit'
-            ])
+        $dokumen = JabatanDokumen::with(['kelompoks.units.unit'])
             ->select(['id', 'kode', 'nama_dokumen'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->where('kode', 'MAPA01')
@@ -711,12 +805,15 @@ class PraAsesmenController extends Controller
             ->first();
 
         if (!$dokumen) {
-            return response()->json([
-                'message' => 'Success',
-                'data' => []
-            ]);
+            return [
+                'kelompok_kerja' => [],
+                'referensi_form' => [],
+            ];
         }
 
+        /* =========================
+        * KELOMPOK KERJA
+        * ========================= */
         $kelompokKerja = [
             'id' => $dokumen->id,
             'kode' => $dokumen->kode,
@@ -732,148 +829,152 @@ class PraAsesmenController extends Controller
                             'nama_unit' => $unit->unit?->nama,
                             'kode_unit' => $unit->unit?->kode,
                         ];
-                    })->values()
+                    })->values(),
                 ];
-            })->values()
+            })->values(),
         ];
 
+        /* =========================
+        * REFERENSI
+        * ========================= */
         $referensis = Referensi::with([
-            'kategoriRel',
-            'kelompokRel',
-            'subkategoriRel'
-        ])
-        ->select(['id', 'nama', 'id_kelompok', 'id_kategori', 'id_subkategori'])
-        ->where('kategori', 'MAPA01')
-        ->whereNotNull('id_kelompok')
-        ->get()
-        ->filter(fn ($r) => $r->kelompokRel !== null);
+                'kategoriRel',
+                'kelompokRel',
+                'subkategoriRel',
+            ])
+            ->select(['id', 'nama', 'id_kelompok', 'id_kategori', 'id_subkategori'])
+            ->where('kategori', 'MAPA01')
+            ->whereNotNull('id_kelompok')
+            ->get()
+            ->filter(fn ($r) => $r->kelompokRel !== null);
 
         $dataReferensi = $referensis
-        ->groupBy('id_kelompok')
-        ->values()
-        ->map(function ($kelompokItems) use ($isPengalaman) {
+            ->groupBy('id_kelompok')
+            ->values()
+            ->map(function ($kelompokItems) use ($isPengalaman) {
 
-            $kelompok = $kelompokItems->first()->kelompokRel;
+                $kelompok = $kelompokItems->first()->kelompokRel;
 
-            return [
-                'kelompok' => [
-                    'id'   => $kelompok->id,
-                    'nama' => $kelompok->nama,
-                    'urut' => $kelompok->urut,
+                return [
+                    'kelompok' => [
+                        'id' => $kelompok->id,
+                        'nama' => $kelompok->nama,
+                        'urut' => $kelompok->urut,
 
-                    'kategoris' => $kelompokItems
-                        ->groupBy(fn ($item) => $item->id_kategori ?? 'tanpa_kategori')
-                        ->values()
-                        ->map(function ($kategoriItems) use ($isPengalaman, $kelompok) {
-                            // ✅ pass $kelompok
+                        'kategoris' => $kelompokItems
+                            ->groupBy(fn ($i) => $i->id_kategori ?? 'tanpa_kategori')
+                            ->values()
+                            ->map(function ($kategoriItems) use ($isPengalaman, $kelompok) {
 
-                            $firstKategori = $kategoriItems->first();
-                            $kategori = $firstKategori->kategoriRel;
+                                $kategori = $kategoriItems->first()->kategoriRel;
 
-                            return [
-                                'id'          => $kategori?->id,
-                                'kategori'    => $kategori?->kategori,
-                                'nama'        => $kategori?->nama,
-                                'urut'        => $kategori?->urut,
-                                'id_kelompok' => $kategori?->id_kelompok,
+                                return [
+                                    'id' => $kategori?->id,
+                                    'kategori' => $kategori?->kategori,
+                                    'nama' => $kategori?->nama,
+                                    'urut' => $kategori?->urut,
+                                    'id_kelompok' => $kategori?->id_kelompok,
 
-                                'subkategoris' => $kategoriItems
-                                    ->groupBy(fn ($item) => $item->id_subkategori ?? 'tanpa_subkategori')
-                                    ->values()
-                                    ->map(function ($subItems) use ($isPengalaman, $kelompok, $kategori) {
-                                        // ✅ pass BOTH
+                                    'subkategoris' => $kategoriItems
+                                        ->groupBy(fn ($i) => $i->id_subkategori ?? 'tanpa_subkategori')
+                                        ->values()
+                                        ->map(function ($subItems) use ($isPengalaman, $kelompok, $kategori) {
 
-                                        $firstSub = $subItems->first();
-                                        $sub = $firstSub->subkategoriRel;
+                                            $sub = $subItems->first()->subkategoriRel;
 
-                                        return [
-                                            'id'   => $sub?->id,
-                                            'nama' => $sub?->nama ?? 'Tanpa Subkategori',
-                                            'urut' => $sub?->urut,
+                                            return [
+                                                'id' => $sub?->id,
+                                                'nama' => $sub?->nama ?? 'Tanpa Subkategori',
+                                                'urut' => $sub?->urut,
 
-                                            'referensis' => $subItems->map(function ($item) use ($isPengalaman, $kelompok, $kategori) {
+                                                'referensis' => $subItems->map(function ($item) use ($isPengalaman, $kelompok, $kategori) {
 
-                                                $checked = false;
+                                                    $checked = false;
 
-                                                if ($kelompok->id == 1) {
-                                                    // (Asesi)
-                                                    if ($kategori?->id == 1) {
-                                                        if ($isPengalaman) {
-                                                            $checked = $item->id == 84;
-                                                        } else {
-                                                            $checked = $item->id == 82;
+                                                    if ($kelompok->id == 1) {
+                                                        if ($kategori?->id == 1) {
+                                                            $checked = $isPengalaman
+                                                                ? $item->id == 84
+                                                                : $item->id == 82;
+                                                        } elseif ($kategori?->id == 2) {
+                                                            $checked = $item->id == 87;
+                                                        } elseif ($kategori?->id == 3) {
+                                                            $checked = in_array($item->id, [92, 94, 95, 98], true);
+                                                        } elseif ($kategori?->id == 4) {
+                                                            $checked = $item->id == 101;
                                                         }
                                                     }
 
-                                                    // Tujuan Asesmen
-                                                    elseif ($kategori?->id == 2) {
-                                                        $checked = $item->id == 87;
-                                                    }
-                                                    
-                                                    // Konteks Asesmen
-                                                    elseif ($kategori?->id == 3) {
-                                                        $checked = in_array($item->id, [92, 94, 95, 98], true);
-                                                    }
-
-                                                    // Orang yang relevan
-                                                    elseif ($kategori?->id == 4) {
-                                                        $checked = $item->id == 101;
-                                                    }
-                                                }
-
-                                                if ($kelompok->id == 2) {
-                                                    // Tolak ukur asesmen
-                                                    if ($kategori?->id == 5) {
+                                                    if ($kelompok->id == 2 && $kategori?->id == 5) {
                                                         $checked = $item->id == 105;
                                                     }
-                                                }
 
-                                                if ($kelompok->id == 2) {
-                                                    // Tolak ukur asesmen
-                                                    if ($kategori?->id == 5) {
-                                                        $checked = $item->id == 105;
-                                                    }
-                                                }
+                                                    return [
+                                                        'id' => $item->id,
+                                                        'nama' => $item->nama,
+                                                        'value' => $checked,
+                                                    ];
+                                                })->values(),
+                                            ];
+                                        })->values(),
+                                ];
+                            })->values(),
+                    ],
+                ];
+            });
 
-                                                return [
-                                                    'id'      => $item->id,
-                                                    'nama'    => $item->nama,
-                                                    'value' => $checked,
-                                                ];
-                                            })->values(),
-                                        ];
-                                    })->values(),
-                            ];
-                        })->values(),
-                ]
-            ];
-        });
+        return [
+            'kelompok_kerja' => $kelompokKerja,
+            'referensi_form' => $dataReferensi,
+        ];
+    }
+
+    public function getMapa01($id)
+    {
+        $data = $this->buildMapa01Data($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
 
         return response()->json([
             'message' => 'Success',
-            'data' => [
-                'kelompok_kerja' => $kelompokKerja,
-                'referensi_form' => $dataReferensi,
-            ]
+            'data' => $data,
         ]);
     }
 
-    public function submitMapa01(Request $request, $id)
+    public function generateMapa01($id)
     {
-        
+        $data = $this->buildMapa01Data($id);
+        if (!$data) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($data, [
+            'dokumenHeader' => $dokumenHeader
+        ]);
+
+        return Pdf::loadView('pdf.mapa01', $viewData)
+            ->setPaper('A4', 'portrait')
+            ->download('MAPA-01-' . Str::slug($id) . '.pdf');
     }
 
-    public function getMapa02($id)
+    private function buildMapa02Data($id): ?array
     {
         $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
             ->where('id_izin', $id)
             ->first();
 
         if (!$klasifikasi) {
-            return response()->json([
-                'message' => 'Data not found',
-                'data' => null
-            ], 404);
+            return null;
         }
 
         $dokumen = JabatanDokumen::with([
@@ -885,10 +986,10 @@ class PraAsesmenController extends Controller
             ->first();
 
         if (!$dokumen) {
-            return response()->json([
-                'message' => 'Success',
-                'data' => []
-            ]);
+            return [
+                'kelompok_kerja' => [],
+                'referensi_form' => [],
+            ];
         }
 
         $kelompokKerja = [
@@ -929,21 +1030,51 @@ class PraAsesmenController extends Controller
             })
             ->values();
 
+        return [
+            'kelompok_kerja' => $kelompokKerja,
+            'referensi_form' => $dataReferensi,
+        ];
+    }
+
+    public function getMapa02($id)
+    {
+        $data = $this->buildMapa02Data($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
+
         return response()->json([
             'message' => 'Success',
-            'data' => [
-                'kelompok_kerja' => $kelompokKerja,
-                'referensi_form' => $dataReferensi,
-            ]
+            'data' => $data,
         ]);
     }
 
-    public function submitMapa02(Request $request, $id)
+    public function generateMapa02($id)
     {
+        $data = $this->buildMapa02Data($id);
+        if (!$data) {
+            abort(404, 'Data not found');
+        }
 
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($data, [
+            'dokumenHeader' => $dokumenHeader
+        ]);
+
+        return Pdf::loadView('pdf.mapa02', $viewData)
+            ->setPaper('A4', 'portrait')
+            ->download('MAPA-02-' . Str::slug($id) . '.pdf');
     }
 
-    public function getAk07($id)
+    private function buildAk07Data($id): ?array
     {
         /** ✅ Shared barcode resolver */
         $barcodes = $this->resolveDocumentBarcodes($id, 'AK07');
@@ -1003,10 +1134,47 @@ class PraAsesmenController extends Controller
                 })->values(),
         ];
 
+        return [
+            'data'    => $data
+        ];
+    }
+
+    public function getAk07($id)
+    {
+        $data = $this->buildAk07Data($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
+
         return response()->json([
             'message' => 'Success',
-            'data'    => $data
+            'data' => $data,
         ]);
+    }
+
+    public function generateAk07($id)
+    {
+        $data = $this->buildAk07Data($id);
+        if (!$data) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($data, [
+            'dokumenHeader' => $dokumenHeader
+        ]);
+
+        return Pdf::loadView('pdf.ak07', $viewData)
+            ->setPaper('A4', 'portrait')
+            ->download('AK-07-' . Str::slug($id) . '.pdf');
     }
 
     public function submitAk07(Request $request, $id)
@@ -1044,7 +1212,7 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    public function getAk04($id)
+    private function buildAk04Data($id): ?array
     {
         // --- Fetch referensi + answers ---
         $referensis = Referensi::with([
@@ -1088,8 +1256,7 @@ class PraAsesmenController extends Controller
         // --- Fetch AK04 reason ---
         $reason = Ak4Reason::where('id_izin', $id)->value('alasan');
 
-        return response()->json([
-            'message' => 'Success',
+        return [
             'data'    => [
                 'kelompoks' => $kelompokData,
                 'alasan'    => $reason,
@@ -1101,6 +1268,23 @@ class PraAsesmenController extends Controller
                     ]
                 ]
             ]
+        ];
+    }
+
+    public function getAk04($id)
+    {
+        $data = $this->buildAk04Data($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => $data,
         ]);
     }
 
@@ -1143,6 +1327,27 @@ class PraAsesmenController extends Controller
         ]);
     }
 
+    public function generateAk04($id)
+    {
+        $data = $this->buildAk04Data($id);
+        if (!$data) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($data, [
+            'dokumenHeader' => $dokumenHeader
+        ]);
+
+        return Pdf::loadView('pdf.ak04', $viewData)
+            ->setPaper('A4', 'portrait')
+            ->download('AK-04-' . Str::slug($id) . '.pdf');
+    }
+
     public function getK3Asesmen()
     {
         return response()->json([
@@ -1153,7 +1358,7 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    public function getAk01($id)
+    private function buildAk01Data($id): ?array
     {
         /** ✅ Shared barcode resolver */
         $barcodes = $this->resolveDocumentBarcodes($id, 'AK01');
@@ -1174,12 +1379,26 @@ class PraAsesmenController extends Controller
                 return $row;
             });
 
+        return [
+            'barcodes' => $barcodes,
+            'items'    => $ak01,
+        ];
+    }
+
+    public function getAk01($id)
+    {
+        $data = $this->buildAk01Data($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 41);
+        }
+
         return response()->json([
             'message' => 'Success',
-            'data'    => [
-                'barcodes' => $barcodes,
-                'items'    => $ak01,
-            ]
+            'data' => $data,
         ]);
     }
 
@@ -1209,6 +1428,27 @@ class PraAsesmenController extends Controller
         return response()->json([
             'message' => 'AK01 successfully submitted'
         ]);
+    }
+
+    public function generateAk01($id)
+    {
+        $data = $this->buildAk01Data($id);
+        if (!$data) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($data, [
+            'dokumenHeader' => $dokumenHeader
+        ]);
+
+        return Pdf::loadView('pdf.ak01', $viewData)
+            ->setPaper('A4', 'portrait')
+            ->download('AK-01-' . Str::slug($id) . '.pdf');
     }
 
     private function mapBarcode(?Barcode $barcode): ?array

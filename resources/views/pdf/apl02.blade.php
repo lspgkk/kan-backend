@@ -8,7 +8,7 @@
         font-family: "Open Sans";
         font-style: normal;
         font-weight: normal;
-        src: url('.media_url().'fonts/cJZKeOuBrn4kERxqtaUH3aCWcynf_cDxXwCLxiixG1c) format("truetype");
+        src: url('.media_url().' fonts/cJZKeOuBrn4kERxqtaUH3aCWcynf_cDxXwCLxiixG1c) format("truetype");
     }   
         body{
             font-family: "Open Sans", Calibri,Candara,Segoe,Segoe UI,Optima,Arial,sans-serif;
@@ -96,259 +96,150 @@
 
 <table width=100% cellspacing=0 cellpadding=5 bgcolor="#fff" align=center>
     <tr>
-        <td class="judul noborder">FR.APL-01. PERMOHONAN SERTIFIKASI KOMPETENSI<br></td>
+        <td class="judul noborder">APL-02. ASESMEN MANDIRI<br></td>
     </tr>
 </table><br>
-<table width=100% cellpadding=5 cellspacing=0 align=center class="noborder">
+<table width=100% cellpadding=5 cellspacing=0 align=center border=0 bgcolor="#fff">
     <tr>
-        <td class="noborder"><strong>Bagian 1: Rincian Data Pemohon Sertifikasi</strong><br></td>
+        <td width=24% rowspan=2>Skema Sertifikasi<br>(<s>KKNI</s>/Okupasi/<s>Klaster</s></td>
+        <td width=10%>Judul</td>
+        <td width=66%>{{ $dokumenHeader['jabatan_kerja'] }}</td>
     </tr>
     <tr>
-        <td class="noborder">Pada bagian ini, cantumkan data pribadi, data pendidikan formal serta data pekerjaan anda pada saat ini.<br></td>
-    </tr>
-</table>
-<table width=100% cellpadding=5 cellspacing=0 align=center class="noborder">
-    <tr>
-        <td class="noborder"><strong>a. Data Pribadi</strong><br></td>
-    </tr>
-</table>
-<table width=100% cellpadding=5 bgcolor="#fff" cellspacing=0 align=center>
-    <tr>
-        <td>Nama</td>
-        <td colspan=4>{{ $data_pribadi['nama'] }}</td>
-    </tr>
-    <tr>
-        <td>No. NIK</td>
-        <td colspan=4>{{ $data_pribadi['nik'] }}</td>
-    </tr>
-    <tr>
-        <td>Tempat/tgl. Lahir</td>
-        <td colspan=4>
-            {{ $data_pribadi['tempat_lahir'] }},
-            {{ \Carbon\Carbon::parse($data_pribadi['tanggal_lahir'])->translatedFormat('d F Y') }}
-        </td>
-    </tr>
-    <tr>
-        <td>Jenis kelamin</td>
-        <td colspan=4>{{ $data_pribadi['jenis_kelamin'] }}</td>
-    </tr>
-    <tr>
-        <td>Kebangsaan</td>
-        <td colspan=4>{{ $data_pribadi['kebangsaan'] }}</td>
-    </tr>
-    <tr>
-        <td>Alamat rumah</td>
-        <td colspan=4>{{ $data_pribadi['alamat'] }}</td>
-    </tr>
-    <tr>
-        <td></td>
-        <td colspan=2></td>
-        <td>Kodepos :</td>
-        <td>{{ $data_pribadi['kode_pos'] }}</td>
-    </tr>
-    <tr>
-        <td>No. Telp/E-mail</td>
-        <td>Rumah</td>
-        <td></td>
-        <td>Kantor</td>
-        <td></td>
-    </tr>
-    <tr>
-        <td width=20%></td>
-        <td width=15%>HP</td>
-        <td width=25%>{{ $data_pribadi['telepon_hp'] }}</td>
-        <td width=15%>Email</td>
-        <td width=25%>{{ $data_pribadi['email'] }}</td>
-    </tr>
-    <tr>
-        <td>Kualifikasi/Pendidikan</td>
-        <td colspan=4>{{ $data_pribadi['kualifikasi'] }}</td>
-    </tr>
-</table><br>
-<table width=100% cellpadding=5 cellspacing=0 align=center class="noborder">
-    <tr>
-        <td class="noborder"><strong>b. Data Pekerjaan Sekarang</strong><br></td>
-    </tr>
-</table>
-<table width=100% cellpadding=5 bgcolor="#fff" cellspacing=0 align=center>
-    <tr>
-        <td>Perusahaan/Lembaga</td>
-        <td colspan=4>{{ $data_pekerjaan['perusahaan'] }}</td>
-    </tr>
-    <tr>
-        <td>Jabatan</td>
-        <td colspan=4>{{ $data_pekerjaan['jabatan'] }}</td>
-    </tr>
-    <tr>
-        <td>Alamat</td>
-        <td colspan=4>{{ $data_pekerjaan['alamat'] }}</td>
-    </tr>
-    <tr>
-        <td></td>
-        <td colspan=2></td>
-        <td>Kodepos :</td>
-        <td>{{ $data_pekerjaan['kode_pos'] }}</td>
-    </tr>
-    <tr>
-        <td width=20%></td>
-        <td width=15%>Telp</td>
-        <td width=25%>{{ $data_pekerjaan['telepon'] }}</td>
-        <td width=15%>Fax</td>
-        <td width=25%>{{ $data_pekerjaan['fax'] }}</td>
-    </tr>
-    <tr>
-        <td></td>
-        <td>Email</td>
-        <td>{{ $data_pekerjaan['email'] }}</td>
-        <td></td>
-        <td></td>
-    </tr>
-</table><br>
-<table width=100% cellpadding=5 cellspacing=0 align=center class="noborder">
-    <tr>
-        <td class="noborder"><strong>Bagian 2 : Data Sertifikasi</strong><br></td>
-    </tr>
-    <tr>
-        <td class="noborder">Tuliskan Judul dan Nomor Skema Sertifikasi serta Daftar Unit Kompetensi sesuai
-        kemasan pada skema sertifikasi yang anda ajukan untuk mendapatkan pengakuan
-        sesuai dengan latar belakang pendidikan, pelatihan serta pengalaman kerja yang
-        anda miliki.<br>
-        </td>
-    </tr>
-</table>
-<table width=100% cellpadding=5  bgcolor="#fff" cellspacing=0 align=center class="no-break">
-    <tr>
-        <td class="no-bottom" width=30%>Skema Sertifikasi Okupasi Nasional </td>
-        <td width=8%>Judul</td>
-        <td width=2%>:</td>
-        <td width=60%>{{ $sertifikasi['judul'] }}</td>
-    </tr>
-    <tr>
-        <td class="no-top"></td>
         <td>Nomor</td>
-        <td>:</td>
-        <td>{{ $sertifikasi['nomor'] }}</td>
+        <td>{{ $dokumenHeader['nomor_skema'] }}</td>
     </tr>
     <tr>
-        <td class="no-bottom">Tujuan Asesmen</td>
-        <td colspan=2 align=center><span class="checkbox checked"></span></td>
-        <td>Sertifikasi</td>
+        <td colspan=2>TUK</td>
+        <td>{{ $dokumenHeader['tuk'] }}</td>
     </tr>
     <tr>
-        <td class="no-top-bottom"></td>
-        <td colspan=2 align=center><span class="checkbox"></span></td>
-        <td>Sertifikasi Ulang</td>
+        <td colspan=2>Nama Asesor</td>
+        <td>{{ $dokumenHeader['asesor_1'] }}</td>
     </tr>
     <tr>
-        <td class="no-top-bottom"></td>
-        <td colspan=2 align=center><span class="checkbox"></span></td><td>Pengakuan Kompetensi Terkini (PKT)</td>
+        <td colspan=2>Nama Asesi</td>
+        <td>{{ $dokumenHeader['nama_asesi'] }}</td>
     </tr>
     <tr>
-        <td class="no-top-bottom"></td>
-        <td colspan=2 align=center><span class="checkbox"></span></td><td>Rekognisi pembelajaran lampau</td>
+        <td colspan=2>Tanggal</td>
+        <td>{{ $dokumenHeader['tanggal_uji'] }}</td>
+    </tr>
+</table><br>
+<table width=100% cellpadding=5 cellspacing=0 align=center border=0 bgcolor="#fff">
+    <tr>
+        <td class=hd-dok>PANDUAN ASESMEN MANDIRI</td>
     </tr>
     <tr>
-        <td class="no-top"></td>
-        <td colspan=2 align=center><span class="checkbox"></span></td><td>Lainnya</td>
-    </tr>
-</table>
-<table width=100% cellpadding=5 cellspacing=0 align=center class="noborder">
-    <tr>
-        <td class="noborder"><br><strong>Daftar Unit Kompetensi Sesuai Kemasan:</strong><br></td>
-    </tr>
-</table>
-<table width=100% cellpadding=5 border=1 bgcolor="#fff" cellspacing=0 align=center>
-    <tr>
-        <td class=hd-dok width=5% align=center >No</td>
-        <td class=hd-dok width=30% align=center >Kode Unit</td>
-        <td class=hd-dok width=50% align=center >Judul Unit</td>
-        <td class=hd-dok width=15% align=center >Jenis Standar (SKKNI/Standar Internasional/ Standar Khusus )</td>
-    </tr>
-    @foreach ($unit_kompetensi as $i => $unit)
-    @php
-        $jml=count($unit_kompetensi);
-    @endphp
-    <tr>
-        <td valign=top>{{ $i + 1 }}</td>
-        <td>{{ $unit->kode }}</td>
-        <td>{{ $unit->nama }}</td>';
-        @if ($i == 1)
-            <td class="no-bottom" align="center">{{ $sertifikasi['skkni'] }}</td>
-        @elseif ($i == $jml)
-            <td class="no-top" align="center"></td>
-        @else
-            <td class="no-top-bottom" align="center"></td>
-        @endif
-    </tr>
-    @endforeach
-</table>
-<table width=100% cellpadding=5 cellspacing=0 align=center class="noborder">
-    <tr>
-        <td class="noborder" height=20>
-            <strong>Bagian 3 : Bukti Kelengkapan Pemohon</strong>
+        <td>
+            Instruksi:
+            <ol>
+                <li>Baca setiap pertanyaan di kolom sebelah kir</li>
+                <li>Beri tanda centang ?) pada kotak jika Anda yakin dapat melakukan tugas yang dijelaskan</li>
+                <li>Isi kolom di sebelah kanan dengan mendaftar bukti yang Anda miliki untuk menunjukkan bahwa Anda melakukan tugas-tugas ini.</li>
+            </ol>
         </td>
     </tr>
+</table><br>
+<table width=100% cellpadding=5 cellspacing=0 align=center>
     <tr>
-        <td class="noborder" height=20>
-            Bukti Persyaratan Dasar Pemohon
-        </td>
+        <td class="no-top-left-right" width=14%></td>
+        <td class="no-top-left-right" width=14%></td>
+        <td class="no-top-left-right" width=14%></td>
+        <td class="no-top-left-right" width=3%></td>
+        <td class="no-top-left-right" width=14%></td>
+        <td class="no-top-left-right" width=14%></td>
+        <td class="no-top-left-right" width=14%></td>
+        <td class="no-top-left-right" width=14%></td>
     </tr>
-</table>
-<table width=100% cellpadding=5 bgcolor="#fff" cellspacing=0 align=center>
-    <tr>
-        <td class=hd-dok width=5% class="hd-dok no-bottom-a" align=center>No</td>
-        <td class=hd-dok width=56% class="hd-dok no-bottom-a" align=center>Bukti Persyaratan Dasar</td>
-        <td class=hd-dok colspan=2 align=center>Ada</td>
-        <td class=hd-dok width=13% class="hd-dok no-bottom-a" align=center>Tidak Ada</td>
-    </tr>
-    <tr>
-        <td class="hd-dok no-top-a"></td>
-        <td class="hd-dok no-top-a"></td>
-        <td class=hd-dok width=13% align=center>Memenuhi syarat</td>
-        <td class=hd-dok width=13% align=center>Tidak Memenuhi syarat</td>
-        <td class="hd-dok no-top-a"></td>
-    </tr>
-    @foreach ($bukti_persyaratan as $b)
-    <tr>
-        <td valign=top>{{ $b->no }}</td>
-        <td>{{ $b->bukti }}</td>
-        <td align=center><span class="checkbox checked"></span></td>
-        <td align=center></td>
-        <td align=center></td>
-    </tr>
+    @foreach($units as $i => $row)
+        <tr>
+            <td colspan=3 class="no-bottom">Kode & Judul Kompetensi {{ $i + 1 }} :</td>
+            <td align=center>:</td>
+            <td colspan=4>{{ $row['kode'] }}</td>
+        </tr>
+        <tr>
+            <td class="no-top" colspan=3></td>
+            <td align=center>:</td>
+            <td colspan=4>{{ $row['judul_kompetensi'] }}</td>
+        </tr>
+        <tr>
+            <td colspan=5>Dapatkah saya ?</td>
+            <td align=center>K</td>
+            <td align=center>BK</td>
+            <td align=center>Bukti</td>
+        </tr>
+        @foreach ($row['subunits'] as $no_subuk => $rowsubuk)
+            <tr>
+                <td colspan=2>Elemen {{ $no_subuk + 1 }} :</td>
+                <td colspan=6>{{ $rowsubuk['judul_elemen'] }}</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td colspan=4>Kriteria Unjuk Kerja:</td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            @foreach ($rowsubuk['kuk_list'] as $no_kuk => $row_kuk)
+            <tr>
+                <td></td>
+                <td colspan=4>{{ $row_kuk['no_kuk'] }} {{ $row_kuk['judul_kuk'] }}</td>
+                @if ($no_kuk === 0)
+                    @if (count($rowsubuk['kuk_list']) === 1)
+                        <td valign=top align=center></td>
+                        <td valign=top align=center></td>
+                        <td valign=top align=center></td>
+                    @else
+                    <td class="no-bottom" valign=top align=center></td>
+                    <td class="no-bottom" valign=top align=center></td>
+                    <td class="no-bottom" valign=top align=center></td>
+                    @endif
+                @else
+                    @if ($no_kuk + 1 < count($rowsubuk['kuk_list']))
+                    <td class="no-top-bottom"></td>
+                    <td class="no-top-bottom"></td>
+                    <td class="no-top-bottom"></td>
+                    @else
+                    <td class="no-top"></td>
+                    <td class="no-top"></td>
+                    <td class="no-top"></td>
+                    @endif
+                @endif
+            </tr>
+            @endforeach
+        @endforeach
     @endforeach
 </table><br>
 <table width=100% cellpadding=5 bgcolor="#fff" cellspacing=0 align=center class="no-break">
     <tr>
-        <td rowspan=3 width=40% valign=top>
-            <strong>Rekomendasi (diisi oleh LSP GKK)</strong><br>
-            Berdasarkan ketentuan persyaratan dasar, maka pemohon :<br>
-            Diterima / <s>Tidak diterima</s> *) sebagai peserta sertifikasi<br>
-            *Coret yang tidak sesuai
+        <td rowspan=3 width=40% valign=top class="no-bottom">
+            <strong>Rekomendasi untuk Asesi</strong><br>
+            Proses asesment dapat dilanjutkan / <s>tidak dapat</s> *) dilanjutkan
         </td>
-        <td colspan=2>Pemohon</td>
+        <td colspan=2><strong>Asesi</strong></td>
     </tr>
     <tr>
         <td>Nama</td>
-        <td>{{ $data_pribadi['nama'] }}</td>
+        <td>{{ $barcodes['asesi']['nama'] }}</td>
     </tr>
     <tr>
         <td height=60 valign=top>Tanda tangan/ Tanggal</td>
         <td>
             @if($barcodes['asesi'])
-            <img src="{{ $barcodes['asesi']->path }}"><br>{{ now()->translatedFormat('d F Y') }}
+            <img src="{{ $barcodes['asesi']['url'] }}"><br>{{ now()->translatedFormat('d F Y') }}
             @else
                 <div></div>
             @endif
         </td>
     </tr>
     <tr>
-        <td rowspan=4 valign=top><strong>Catatan :</strong><br></td>
-        <td colspan=2>Admin LSP GKK:</td>
+        <td rowspan=4 valign=top><br></td>
+        <td colspan=2><strong>Asesor 1:</strong></td>
     </tr>
     <tr>
         <td>Nama</td>
-        <td>{{ $barcodes['admin']?->user?->name }}</td>
+        <td>{{ $barcodes['asesor1']['nama'] }}</td>
     </tr>
     <tr>
         <td>No Reg</td>
@@ -357,8 +248,8 @@
     <tr>
         <td height=60 valign=top>Tanda tangan/ Tanggal</td>
         <td>
-            @if($barcodes['admin'])
-            <img src="{{ $barcodes['admin']->path }}"><br>{{ now()->translatedFormat('d F Y') }}
+            @if($barcodes['asesor1'])
+            <img src="{{ $barcodes['asesor1']['url'] }}"><br>{{ now()->translatedFormat('d F Y') }}
             @else
                 <div></div>
             @endif

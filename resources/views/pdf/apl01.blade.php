@@ -318,53 +318,6 @@
     </tr>
     @endforeach
 </table><br>
-<table width=100% cellpadding=5 bgcolor="#fff" cellspacing=0 align=center class="no-break">
-    <tr>
-        <td rowspan=3 width=40% valign=top>
-            <strong>Rekomendasi (diisi oleh LSP GKK)</strong><br>
-            Berdasarkan ketentuan persyaratan dasar, maka pemohon :<br>
-            Diterima / <s>Tidak diterima</s> *) sebagai peserta sertifikasi<br>
-            *Coret yang tidak sesuai
-        </td>
-        <td colspan=2>Pemohon</td>
-    </tr>
-    <tr>
-        <td>Nama</td>
-        <td>{{ $data_pribadi['nama'] }}</td>
-    </tr>
-    <tr>
-        <td height=60 valign=top>Tanda tangan/ Tanggal</td>
-        <td>
-            @if($barcodes['asesi'])
-            <img src="{{ $barcodes['asesi']->path }}"><br>{{ now()->translatedFormat('d F Y') }}
-            @else
-                <div></div>
-            @endif
-        </td>
-    </tr>
-    <tr>
-        <td rowspan=4 valign=top><strong>Catatan :</strong><br></td>
-        <td colspan=2>Admin LSP GKK:</td>
-    </tr>
-    <tr>
-        <td>Nama</td>
-        <td>{{ $barcodes['admin']?->user?->name }}</td>
-    </tr>
-    <tr>
-        <td>No Reg</td>
-        <td></td>
-    </tr>
-    <tr>
-        <td height=60 valign=top>Tanda tangan/ Tanggal</td>
-        <td>
-            @if($barcodes['admin'])
-            <img src="{{ $barcodes['admin']->path }}"><br>{{ now()->translatedFormat('d F Y') }}
-            @else
-                <div></div>
-            @endif
-        </td>
-    </tr>
-</table>
 
 </body>
 </html>

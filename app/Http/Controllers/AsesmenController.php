@@ -79,17 +79,85 @@ class AsesmenController extends Controller
         ]);
     }
 
-    public function getIa04a($id)
+    private function buildDokumenHeader($id): ?array
+    {
+        $namaAsesi = Personal::where('id_izin', $id)->value('nama');
+        $jadwalId  = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
+
+        if (!$jadwalId) {
+            return null;
+        }
+
+        $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$klasifikasi) {
+            return null;
+        }
+
+        $jabatanKerja = JabatanKerja::where(
+            'id_jabatan_kerja',
+            $klasifikasi->jabatan_kerja
+        )->value('jabatan_kerja');
+
+        $jabatanConfig = JabatanConfigA::select('no_skema')
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->first();
+
+        $jadwal = Jadwal::select([
+                'jadwal_id',
+                'tuk_id',
+                'asesor_id',
+                'asesor2_id',
+                'tanggal_uji',
+                'tanggal_selesai',
+                'jenis_kelas',
+            ])
+            ->with([
+                'tuk:id,nama',
+                'asesor:id,nama,noreg',
+                'asesor2:id,nama,noreg',
+            ])
+            ->where('jadwal_id', $jadwalId)
+            ->first();
+
+        if (!$jadwal) {
+            return null;
+        }
+
+        $idAsesor1 = User::where('noreg', $jadwal->asesor?->noreg)->value('id');
+        $idAsesor2 = User::where('noreg', $jadwal->asesor2?->noreg)->value('id');
+
+        return [
+            'jabatan_kerja'   => $jabatanKerja,
+            'nomor_skema'     => $jabatanConfig?->no_skema,
+            'tuk'             => $jadwal->tuk?->nama,
+
+            'id_asesor_1'     => $idAsesor1,
+            'id_asesor_2'     => $idAsesor2,
+
+            'nama_asesi'      => $namaAsesi,
+            'asesor_1'        => $jadwal->asesor?->nama,
+            'asesor_2'        => $jadwal->asesor2?->nama,
+
+            'noreg_asesor_1'  => $jadwal->asesor?->noreg,
+            'noreg_asesor_2'  => $jadwal->asesor2?->noreg,
+
+            'tanggal_uji'     => $jadwal->tanggal_uji,
+            'tanggal_selesai' => $jadwal->tanggal_selesai,
+            'jenis_kelas'     => $jadwal->jenis_kelas,
+        ];
+    }
+
+    private function buildIa04aData($id): ?array
     {
         $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
             ->where('id_izin', $id)
             ->first();
 
         if (!$klasifikasi) {
-            return response()->json([
-                'message' => 'Data not found',
-                'data' => null
-            ], 404);
+            return null;
         }
 
         /** ✅ Shared barcode resolver */
@@ -106,15 +174,12 @@ class AsesmenController extends Controller
             ->first();
 
         if (!$dokumen) {
-            return response()->json([
-                'message' => 'Success',
-                'data' => [
-                    'barcodes' => $barcodes,
-                    'kelompok_kerja' => [],
-                    'referensi_form' => $referensis,
-                    'soal' => [],
-                ]
-            ]);
+            return [
+                'barcodes' => $barcodes,
+                'kelompok_kerja' => [],
+                'referensi_form' => $referensis,
+                'soal' => [],
+            ];
         }
 
         /** 🔹 Load saved feedback answers */
@@ -162,15 +227,17 @@ class AsesmenController extends Controller
             })->values()
         ];
 
-        return response()->json([
-            'message' => 'Success',
-            'data' => [
-                'barcodes'        => $barcodes,
-                'kelompok_kerja'  => $kelompokKerja,
-                'referensi_form'  => $referensis,
-                'soal'            => $questions,
-            ]
-        ]);
+        return [
+            'barcodes'        => $barcodes,
+            'kelompok_kerja'  => $kelompokKerja,
+            'referensi_form'  => $referensis,
+            'soal'            => $questions,
+        ];
+    }
+
+    public function getIa04a($id)
+    {
+        
     }
 
     public function submitIa04a(Request $request, $id)

@@ -177,6 +177,7 @@ Route::middleware(['auth:api'])->group(function () {
 
     Route::get('/dokumen/asesi/{id}', [AsesmenController::class, 'dokumenAsesi']);
     Route::get('/dokumen/apl01/{id}', [PraAsesmenController::class, 'generateApl01']);
+    Route::get('/dokumen/apl02/{id}', [PraAsesmenController::class, 'generateApl02']);
     
     Route::prefix('praasesmen')->group(function () {
         Route::get('/kebenaran-data', [KebenaranDataController::class, 'index']);
