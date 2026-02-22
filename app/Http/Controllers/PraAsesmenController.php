@@ -467,10 +467,17 @@ class PraAsesmenController extends Controller
         * ========================= */
 
         $barcodeByRole = Barcode::with('user:id,name')
-            ->where('id_izin', $id)
-            ->where('jenis_dokumen', 'APL01')
-            ->get()
-            ->keyBy('id_role');
+        ->where('id_izin', $id)
+        ->where('jenis_dokumen', 'APL01')
+        ->get()
+        ->keyBy('id_role')   // 👈 key FIRST
+        ->map(function ($barcode) {
+            return [
+                'user'    => $barcode->user,
+                'tanggal' => $barcode->created_at,
+                'url'  => $this->imageUrlToBase64($barcode->url_image), // URL → Base64
+            ];
+        });
 
         $nomorSkema = JabatanConfigA::where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->value('no_skema');
@@ -515,8 +522,8 @@ class PraAsesmenController extends Controller
             'bukti_administratif' => $formattedAdministratif,
 
             'barcodes' => [
-                'asesi' => $barcodeByRole->get(8),
-                'admin' => $barcodeByRole->get(2),
+                'asesi' => $barcodeByRole[8] ?? null,
+                'admin' => $barcodeByRole[2] ?? null,
             ],
         ];
 
@@ -532,7 +539,10 @@ class PraAsesmenController extends Controller
         return $pdf->download($filename);
     }
 
-    private function buildApl02Data($id): ?array
+    private function buildApl02Data(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
     {
         $baseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
 
@@ -556,7 +566,7 @@ class PraAsesmenController extends Controller
             ->keyBy('subunit_id');
 
         /** ✅ Shared barcode resolver */
-        $barcodes = $this->resolveDocumentBarcodes($id, 'APL02');
+        $barcodes = $this->resolveDocumentBarcodes($id, 'APL02', $forPdf);
 
         return [
             'id_izin' => $id,
@@ -766,7 +776,7 @@ class PraAsesmenController extends Controller
 
     public function generateApl02($id)
     {
-        $data = $this->buildApl02Data($id);
+        $data = $this->buildApl02Data($id, true);
         if (!$data) {
             abort(404, 'Data not found');
         }
@@ -785,7 +795,10 @@ class PraAsesmenController extends Controller
             ->download('FR-APL-02-' . Str::slug($id) . '.pdf');
     }
 
-    private function buildMapa01Data($id): ?array
+    private function buildMapa01Data(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
     {
         $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
             ->where('id_izin', $id)
@@ -967,7 +980,10 @@ class PraAsesmenController extends Controller
             ->download('MAPA-01-' . Str::slug($id) . '.pdf');
     }
 
-    private function buildMapa02Data($id): ?array
+    private function buildMapa02Data(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
     {
         $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
             ->where('id_izin', $id)
@@ -1074,10 +1090,14 @@ class PraAsesmenController extends Controller
             ->download('MAPA-02-' . Str::slug($id) . '.pdf');
     }
 
-    private function buildAk07Data($id): ?array
+    private function buildAk07Data(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
     {
-        /** ✅ Shared barcode resolver */
-        $barcodes = $this->resolveDocumentBarcodes($id, 'AK07');
+        $barcodes = $this->resolveDocumentBarcodes($id, 'AK07', $forPdf);
+
+        $isPengalaman = Proyek::where('id_izin', $id)->exists();
 
         $referensis = Referensi::with([
                 'kategoriRel',
@@ -1090,14 +1110,13 @@ class PraAsesmenController extends Controller
             ->get()
             ->filter(fn ($r) => $r->kelompokRel !== null);
 
-        $data = [
-            /** ✅ Barcodes at root */
+        return [
             'barcodes' => $barcodes,
 
             'kelompoks' => $referensis
                 ->groupBy('id_kelompok')
                 ->values()
-                ->map(function ($kelompokItems) {
+                ->map(function ($kelompokItems) use ($isPengalaman) {
 
                     $kelompok = $kelompokItems->first()->kelompokRel;
 
@@ -1109,7 +1128,7 @@ class PraAsesmenController extends Controller
                         'kategoris' => $kelompokItems
                             ->groupBy('id_kategori')
                             ->values()
-                            ->map(function ($kategoriItems) {
+                            ->map(function ($kategoriItems) use ($isPengalaman, $kelompok) {
 
                                 $kategori = $kategoriItems->first()->kategoriRel;
 
@@ -1120,22 +1139,66 @@ class PraAsesmenController extends Controller
                                     'urut'        => $kategori?->urut,
                                     'id_kelompok' => $kategori?->id_kelompok,
 
-                                    'referensis' => $kategoriItems->map(fn ($item) => [
-                                        'id'   => $item->id,
-                                        'nama' => $item->nama,
-                                        'jawaban' => $item->ak07Answer
-                                            ? ($item->ak07Answer->answer_text
-                                                ?? $item->ak07Answer->answer_bool)
-                                            : null,
-                                    ])->values(),
+                                    'referensis' => $kategoriItems->map(function ($item) use ($isPengalaman, $kelompok) {
+
+                                        $answer = $item->ak07Answer;
+
+                                        /** =========================
+                                         * KELOMPOK 4 STRICT LOGIC
+                                         * ========================= */
+                                        if ($kelompok->id == 4) {
+
+                                            // Default rules
+                                            if (!$isPengalaman && $item->id == 115) {
+                                                return [
+                                                    'id' => $item->id,
+                                                    'nama' => $item->nama,
+                                                    'jawaban' => true,
+                                                ];
+                                            }
+
+                                            if ($isPengalaman && $item->id == 117) {
+                                                return [
+                                                    'id' => $item->id,
+                                                    'nama' => $item->nama,
+                                                    'jawaban' => true,
+                                                ];
+                                            }
+
+                                            // Everything else in kelompok 4 → FALSE
+                                            return [
+                                                'id' => $item->id,
+                                                'nama' => $item->nama,
+                                                'jawaban' => false,
+                                            ];
+                                        }
+
+                                        /** =========================
+                                         * OTHER KELOMPOK (DB wins)
+                                         * ========================= */
+                                        if ($answer) {
+                                            return [
+                                                'id' => $item->id,
+                                                'nama' => $item->nama,
+                                                'jawaban' => $item->id_kelompok === 6
+                                                    ? [
+                                                        'bool' => $answer->answer_bool,
+                                                        'text' => $answer->answer_text,
+                                                    ]
+                                                    : ($answer->answer_text ?? $answer->answer_bool),
+                                            ];
+                                        }
+
+                                        return [
+                                            'id' => $item->id,
+                                            'nama' => $item->nama,
+                                            'jawaban' => false,
+                                        ];
+                                    })->values(),
                                 ];
                             })->values(),
                     ];
                 })->values(),
-        ];
-
-        return [
-            'data'    => $data
         ];
     }
 
@@ -1158,7 +1221,7 @@ class PraAsesmenController extends Controller
 
     public function generateAk07($id)
     {
-        $data = $this->buildAk07Data($id);
+        $data = $this->buildAk07Data($id, true);
         if (!$data) {
             abort(404, 'Data not found');
         }
@@ -1190,21 +1253,45 @@ class PraAsesmenController extends Controller
 
             foreach ($request->answers as $item) {
 
-                $isTextKelompok = in_array($item['kelompok_id'], [6, 7]);
+                $kelompokId = (int) $item['kelompok_id'];
+
+                $answerBool = null;
+                $answerText = null;
+
+                /* =========================
+                KELOMPOK 6 (BOOLEAN + TEXT)
+                ========================= */
+                if ($kelompokId === 6) {
+                    $answerBool = $item['value']['bool'] ?? null;
+                    $answerText = $item['value']['text'] ?? null;
+                }
+
+                /* =========================
+                KELOMPOK 7 (TEXT ONLY)
+                ========================= */
+                elseif ($kelompokId === 7) {
+                    $answerText = (string) $item['value'];
+                }
+
+                /* =========================
+                OTHER KELOMPOK (BOOLEAN ONLY)
+                ========================= */
+                else {
+                    $answerBool = (bool) $item['value'];
+                }
 
                 Ak7Answer::updateOrCreate(
                     [
-                        'id_izin' => $id,
+                        'id_izin'      => $id,
                         'referensi_id' => $item['referensi_id'],
                     ],
                     [
-                        'kelompok_id' => $item['kelompok_id'],
-                        'answer_bool' => $isTextKelompok ? null : (bool) $item['value'],
-                        'answer_text' => $isTextKelompok ? (string) $item['value'] : null,
+                        'kelompok_id' => $kelompokId,
+                        'answer_bool' => $answerBool,
+                        'answer_text' => $answerText,
                     ]
                 );
             }
-
         });
 
         return response()->json([
@@ -1212,7 +1299,10 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    private function buildAk04Data($id): ?array
+    private function buildAk04Data(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
     {
         // --- Fetch referensi + answers ---
         $referensis = Referensi::with([
@@ -1224,12 +1314,6 @@ class PraAsesmenController extends Controller
             ->whereNotNull('id_kelompok')
             ->get()
             ->filter(fn ($r) => $r->kelompokRel !== null);
-
-        $barcodeByRole = Barcode::with('user:id,name')
-            ->where('id_izin', $id)
-            ->where('jenis_dokumen', 'AK04')
-            ->get()
-            ->keyBy('id_role');
 
         $kelompokData = $referensis
             ->groupBy('id_kelompok')
@@ -1256,8 +1340,36 @@ class PraAsesmenController extends Controller
         // --- Fetch AK04 reason ---
         $reason = Ak4Reason::where('id_izin', $id)->value('alasan');
 
+        if ($forPdf) {
+            $barcodeByRole = Barcode::with('user:id,name')
+            ->where('id_izin', $id)
+            ->where('jenis_dokumen', 'AK04')
+            ->get()
+            ->keyBy('id_role')   // 👈 key FIRST
+            ->map(function ($barcode) {
+                return [
+                    'user'    => $barcode->user,
+                    'tanggal' => $barcode->created_at,
+                    'url'  => $this->imageUrlToBase64($barcode->url_image), // URL → Base64
+                ];
+            });
+
+            return [
+                'kelompoks' => $kelompokData,
+                'alasan'    => $reason,
+                'barcodes' => [
+                    'asesi' => $barcodeByRole[8] ?? null,
+                ]
+            ];
+        }
+        
+        $barcodeByRole = Barcode::with('user:id,name')
+        ->where('id_izin', $id)
+        ->where('jenis_dokumen', 'AK04')
+        ->get()
+        ->keyBy('id_role');
+
         return [
-            'data'    => [
                 'kelompoks' => $kelompokData,
                 'alasan'    => $reason,
                 'barcodes' => [
@@ -1267,8 +1379,7 @@ class PraAsesmenController extends Controller
                         'nama' => optional(optional($barcodeByRole->get(8))->user)->name,
                     ]
                 ]
-            ]
-        ];
+            ];
     }
 
     public function getAk04($id)
@@ -1358,10 +1469,13 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    private function buildAk01Data($id): ?array
+    private function buildAk01Data(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
     {
         /** ✅ Shared barcode resolver */
-        $barcodes = $this->resolveDocumentBarcodes($id, 'AK01');
+        $barcodes = $this->resolveDocumentBarcodes($id, 'AK01', $forPdf);
 
         $ak01 = Referensi::where('kategori', 'AK01_1')
             ->leftJoin('ak1_answers as a', function ($join) use ($id) {
@@ -1432,7 +1546,7 @@ class PraAsesmenController extends Controller
 
     public function generateAk01($id)
     {
-        $data = $this->buildAk01Data($id);
+        $data = $this->buildAk01Data($id, true);
         if (!$data) {
             abort(404, 'Data not found');
         }
@@ -1464,8 +1578,28 @@ class PraAsesmenController extends Controller
         ];
     }
 
-    private function resolveDocumentBarcodes(int|string $idIzin, string $jenisDokumen): array
+    private function mapBarcodeForPdf(?Barcode $barcode): ?array
     {
+        if (!$barcode) {
+            return null;
+        }
+
+        return [
+            'url'     => $this->imageUrlToBase64($barcode->url_image),
+            'tanggal' => $barcode->created_at,
+            'nama'    => $barcode->user?->name,
+        ];
+    }
+
+    private function resolveDocumentBarcodes(
+        int|string $idIzin,
+        string $jenisDokumen,
+        bool $forPdf = false
+    ): array
+    {
+        $map = $forPdf
+            ? fn (?Barcode $b) => $this->mapBarcodeForPdf($b)
+            : fn (?Barcode $b) => $this->mapBarcode($b);
         /** 📌 Load barcodes & key by user */
         $barcodes = Barcode::with('user')
             ->where('id_izin', $idIzin)
@@ -1488,7 +1622,7 @@ class PraAsesmenController extends Controller
 
         if (!$jadwal) {
             return [
-                'asesi' => $this->mapBarcode($barcodes->firstWhere('id_role', 8)),
+                'asesi' => $map($barcodes->firstWhere('id_role', 8)),
                 'asesor1' => null,
                 'asesor2' => null,
             ];
@@ -1517,19 +1651,43 @@ class PraAsesmenController extends Controller
 
         return [
             'asesi' =>
-                $this->mapBarcode(
-                    $barcodes->firstWhere('id_role', 8)
-                ),
-
+                $map($barcodes->firstWhere('id_role', 8)),
             'asesor1' =>
                 $asesor1User
-                    ? $this->mapBarcode($barcodes[$asesor1User->id] ?? null)
+                    ? $map($barcodes[$asesor1User->id] ?? null)
                     : null,
 
             'asesor2' =>
                 $asesor2User
-                    ? $this->mapBarcode($barcodes[$asesor2User->id] ?? null)
+                    ? $map($barcodes[$asesor2User->id] ?? null)
                     : null,
         ];
+    }
+
+    private function imageUrlToBase64(?string $url): ?string
+    {
+        if (!$url) {
+            return null;
+        }
+
+        try {
+            $contents = file_get_contents($url);
+
+            if ($contents === false) {
+                return null;
+            }
+
+            $extension = pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'png';
+            $mime = match (strtolower($extension)) {
+                'jpg', 'jpeg' => 'image/jpeg',
+                'gif'         => 'image/gif',
+                'svg'         => 'image/svg+xml',
+                default       => 'image/png',
+            };
+
+            return 'data:' . $mime . ';base64,' . base64_encode($contents);
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 }

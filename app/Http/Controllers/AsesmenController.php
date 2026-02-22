@@ -16,6 +16,7 @@ use App\Models\DimensiKompetensi;
 use App\Models\Ia4aAnswer;
 use App\Models\Ia4bAnswer;
 use App\Models\Ia5Answer;
+use App\Models\Ia5Feedback;
 use App\Models\JabatanConfigA;
 use App\Models\JabatanDokumen;
 use App\Models\JabatanKerja;
@@ -26,9 +27,11 @@ use App\Models\Referensi;
 use App\Models\Soal;
 use App\Models\UnitKompetensi;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
 
 class AsesmenController extends Controller
@@ -150,7 +153,10 @@ class AsesmenController extends Controller
         ];
     }
 
-    private function buildIa04aData($id): ?array
+    private function buildIa04aData(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
     {
         $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
             ->where('id_izin', $id)
@@ -161,7 +167,7 @@ class AsesmenController extends Controller
         }
 
         /** ✅ Shared barcode resolver */
-        $barcodes = $this->resolveDocumentBarcodes($id, 'IA04A');
+        $barcodes = $this->resolveDocumentBarcodes($id, 'IA04A', $forPdf);
 
         $referensis = Referensi::select(['id', 'nama'])
             ->where('kategori', 'IA04')
@@ -237,7 +243,19 @@ class AsesmenController extends Controller
 
     public function getIa04a($id)
     {
-        
+        $data = $this->buildIa04aData($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => $data,
+        ]);
     }
 
     public function submitIa04a(Request $request, $id)
@@ -260,6 +278,27 @@ class AsesmenController extends Controller
         return response()->json([
             'message' => 'IA04A berhasil disimpan'
         ]);
+    }
+
+    public function generateIa04a($id)
+    {
+        $data = $this->buildIa04aData($id, true);
+        if (!$data) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($data, [
+            'dokumenHeader' => $dokumenHeader
+        ]);
+
+        return Pdf::loadView('pdf.ia04a', $viewData)
+            ->setPaper('A4', 'portrait')
+            ->download('IA-04A-' . Str::slug($id) . '.pdf');
     }
 
     public function getTugas($id)
@@ -340,21 +379,21 @@ class AsesmenController extends Controller
         ]);
     }
 
-    public function getIa04b($id)
+    private function buildIa04bData(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
     {
         $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
             ->where('id_izin', $id)
             ->first();
 
         if (!$klasifikasi) {
-            return response()->json([
-                'message' => 'Data not found',
-                'data' => null
-            ], 404);
+            return null;
         }
 
         /** ✅ Shared barcode resolver */
-        $barcodes = $this->resolveDocumentBarcodes($id, 'IA04B');
+        $barcodes = $this->resolveDocumentBarcodes($id, 'IA04B', $forPdf);
 
         $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
@@ -363,15 +402,12 @@ class AsesmenController extends Controller
             ->first();
 
         if (!$dokumen) {
-            return response()->json([
-                'message' => 'Success',
-                'data' => [
-                    'barcodes' => $barcodes,
-                    'dokumen' => null,
-                    'soal' => [],
-                    'rekomendasi' => null,
-                ]
-            ]);
+            return [
+                'barcodes' => $barcodes,
+                'dokumen' => null,
+                'soal' => [],
+                'rekomendasi' => null,
+            ];
         }
 
         /**
@@ -424,23 +460,37 @@ class AsesmenController extends Controller
             ->where('soals.tipe', 3)
             ->first();
 
+        return [
+            'barcodes' => $barcodes,
+            'dokumen' => $dokumen,
+            'soal' => $questions,
+            'rekomendasi' => $rekomendasi
+                ? [
+                    'id' => $rekomendasi->id,
+                    'no' => $rekomendasi->no,
+                    'jenis' => $rekomendasi->jenis,
+                    'soal' => $rekomendasi->soal,
+                    'is_komentar' => $rekomendasi->is_komentar,
+                    'rekomendasi' => (bool) $rekomendasi->rekomendasi
+                ]
+                : null
+        ];
+    }
+
+    public function getIa04b($id)
+    {
+        $data = $this->buildIa04bData($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
+
         return response()->json([
             'message' => 'Success',
-            'data' => [
-                'barcodes' => $barcodes,
-                'dokumen' => $dokumen,
-                'soal' => $questions,
-                'rekomendasi' => $rekomendasi
-                    ? [
-                        'id' => $rekomendasi->id,
-                        'no' => $rekomendasi->no,
-                        'jenis' => $rekomendasi->jenis,
-                        'soal' => $rekomendasi->soal,
-                        'is_komentar' => $rekomendasi->is_komentar,
-                        'rekomendasi' => (bool) $rekomendasi->rekomendasi
-                    ]
-                    : null
-            ]
+            'data' => $data,
         ]);
     }
 
@@ -517,21 +567,42 @@ class AsesmenController extends Controller
         ]);
     }
 
-    public function getIa05($id)
+    public function generateIa04b($id)
+    {
+        $data = $this->buildIa04bData($id, true);
+        if (!$data) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($data, [
+            'dokumenHeader' => $dokumenHeader
+        ]);
+
+        return Pdf::loadView('pdf.ia04b', $viewData)
+            ->setPaper('A4', 'portrait')
+            ->download('IA-04B-' . Str::slug($id) . '.pdf');
+    }
+
+    private function buildIa05Data(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
     {
         $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
             ->where('id_izin', $id)
             ->first();
 
         if (!$klasifikasi) {
-            return response()->json([
-                'message' => 'Data not found',
-                'data' => null
-            ], 404);
+            return null;
         }
 
         /** ✅ Shared barcode resolver */
-        $barcodes = $this->resolveDocumentBarcodes($id, 'IA05');
+        $barcodes = $this->resolveDocumentBarcodes($id, 'IA05', $forPdf);
 
         $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
@@ -540,14 +611,11 @@ class AsesmenController extends Controller
             ->first();
 
         if (!$dokumen) {
-            return response()->json([
-                'message' => 'Success',
-                'data' => [
-                    'barcodes' => $barcodes,
-                    'dokumen' => null,
-                    'soal' => [],
-                ]
-            ]);
+            return [
+                'barcodes' => $barcodes,
+                'dokumen' => null,
+                'soal' => [],
+            ];
         }
 
         $questions = Soal::query()
@@ -580,23 +648,41 @@ class AsesmenController extends Controller
             ])
             ->get();
 
+        $feedback = Ia5Feedback::where('id_izin', $id)->value('umpan_balik');
+
+        return [
+            'barcodes' => $barcodes,
+            'dokumen' => $dokumen,
+            'soal' => $questions,
+            'umpan_balik' => $feedback
+        ];
+    }
+
+    public function getIa05($id)
+    {
+        $data = $this->buildIa05Data($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
+
         return response()->json([
             'message' => 'Success',
-            'data' => [
-                'barcodes' => $barcodes,
-                'dokumen' => $dokumen,
-                'soal' => $questions,
-            ]
+            'data' => $data,
         ]);
     }
 
     public function submitIa05(Request $request, $idIzin)
     {
-        $request->validate([
+        $validated = $request->validate([
             'dokumen_id' => 'required|integer',
             'answers' => 'required|array',
             'answers.*.soal_id' => 'required|integer',
             'answers.*.jawaban' => 'required|in:A,B,C,D',
+            'umpan_balik' => 'nullable'
         ]);
 
         DB::transaction(function () use ($request, $idIzin) {
@@ -614,25 +700,57 @@ class AsesmenController extends Controller
             }
         });
 
+        if (!empty($validated['umpan_balik'])) {
+            Ia5Feedback::updateOrCreate(
+                ['id_izin' => $idIzin],
+                [
+                    'umpan_balik' => $validated['umpan_balik'],
+                ]
+            );
+        }
+
         return response()->json([
             'message' => 'IA05 answers saved successfully'
         ]);
     }
 
-    public function getAk02($id)
+    public function generateIa05($id)
+    {
+        $data = $this->buildIa05Data($id, true);
+        if (!$data) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($data, [
+            'dokumenHeader' => $dokumenHeader,
+            'imga_checked' => '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAGvSURBVHjaYvz//z8DNQAjI6M5kCoFCCAYfxoQfwfi/yRgkHobqH4NIH4AxCkAAcQIJDqAuByq6AUQ/yHCQcxA/ByIPYCYB4j3AfEFoG+DAAIIJPkNaogrGT6VAuJLQPwaiBVBwQcQQAxQl90gwzBRID4G1Z8IMgyEAQIIZuBFEg0ThHoTpHctzDAQBgggmIGXSTCMF4i3IYW5OrKBAAGEbGAOEGsRMIwTiNcjxXQm2AAkAwECCNnALmjkzAZiXRyGrUQybCsQM6EbCBBA6F7uh/J/APEKILaEirMC8TIkw94iW4psIEAAoRsISpdzkDSCXLwGiFehJepiJJfrIRsIEEDYIoUNiFfjySF7oWpAoBCIfyEbCBBAuGIZFJO7sBj2CYhNkNRdgPgYYSBAAOFLNqCEexzNwCo0NWfRDQQIIJiBl3AkE3kgvoLFqzBwGt1AgACCGXgNT9rTB+ITQGyBRe4SuoEAAcQATSKg2LQiMfuByr/fIP3IBgIEEAtQYAYQ5wPxYSB+BMR/iSy+ZKH0TGQJgACCoQVQl5JSwP4E4kXoCRsggBipVQXAAECAAQAl4g0mXRSaqQAAAABJRU5ErkJggg==" align=abmiddle>',
+		    'imga_nochecked' => '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAEGSURBVHjaYvz//z8DNQFAAMHQNCD+DsT/ScB/gbgCpBnkKBgGCCAQvwOq4B8QPwPiRzjwFyD+BsRfoZb/heoJRDYQIIAYoIr+ALErib4yB+IfQHwK2UCAAGKAuu4GmUG1CYh/IRsIEEBMUImfZBoI8jozsgBAADGh0RQDgABionZyAQggqhsIEEBUNxAggKhuIEAAUWqgGroZAAFEqYEK6AIAAUSpgRglC0AAMeGSINdAgACCGchCpoEY+gACiAGawUGFgxWJhsXCSinkvAwQQCAbZgBxPhAfhhZTf3EYIArEjEg+44aydyErAgggGFoAdSkpBSyoLDyIXsACBBAjtasAgAADADiOfQARGEFnAAAAAElFTkSuQmCC" align=abmiddle>',
+        ]);
+
+        return Pdf::loadView('pdf.ia05', $viewData)
+            ->setPaper('A4', 'portrait')
+            ->download('IA-05-' . Str::slug($id) . '.pdf');
+    }
+
+    private function buildAk02Data(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
     {
         $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
             ->where('id_izin', $id)
             ->first();
 
         if (!$klasifikasi) {
-            return response()->json([
-                'message' => 'Data not found',
-                'data' => null
-            ], 404);
+            return null;
         }
 
-        $barcodes = $this->resolveDocumentBarcodes($id, 'AK02');
+        $barcodes = $this->resolveDocumentBarcodes($id, 'AK02', $forPdf);
 
         $unitKompetensi = UnitKompetensi::from('unit_kompetensis')
             ->where('unit_kompetensis.id_jabatan', $klasifikasi->jabatan_kerja)
@@ -668,15 +786,29 @@ class AsesmenController extends Controller
 
         $feedback = Ak2Feedback::where('id_izin', $id)->first();
 
+        return [
+            'barcodes' => $barcodes,
+            'data_unit_kompetensi' => $unitKompetensi,
+            'is_kompeten' => is_null($feedback?->is_kompeten) ? null : (bool) $feedback->is_kompeten,
+            'tindak_lanjut' => $feedback?->tindak_lanjut,
+            'komentar' => $feedback?->komentar,
+        ];
+    }
+
+    public function getAk02($id)
+    {
+        $data = $this->buildAk02Data($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
+
         return response()->json([
             'message' => 'Success',
-            'data' => [
-                'barcodes' => $barcodes,
-                'data_unit_kompetensi' => $unitKompetensi,
-                'is_kompeten' => is_null($feedback?->is_kompeten) ? null : (bool) $feedback->is_kompeten,
-                'tindak_lanjut' => $feedback?->tindak_lanjut,
-                'komentar' => $feedback?->komentar,
-            ]
+            'data' => $data,
         ]);
     }
 
@@ -730,17 +862,35 @@ class AsesmenController extends Controller
         ]);
     }
 
-    public function getAk03($id)
+    public function generateAk02($id)
+    {
+        $data = $this->buildAk02Data($id, true);
+        if (!$data) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($data, [
+            'dokumenHeader' => $dokumenHeader
+        ]);
+
+        return Pdf::loadView('pdf.ak02', $viewData)
+            ->setPaper('A4', 'portrait')
+            ->download('AK-02-' . Str::slug($id) . '.pdf');
+    }
+
+    private function buildAk03Data($id): ?array
     {
         $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
             ->where('id_izin', $id)
             ->first();
 
         if (!$klasifikasi) {
-            return response()->json([
-                'message' => 'Data not found',
-                'data' => null
-            ], 404);
+            return null;
         }
 
         // Get active FR.AK.03 document for this jabatan
@@ -750,13 +900,10 @@ class AsesmenController extends Controller
             ->first();
 
         if (!$dokumen) {
-            return response()->json([
-                'message' => 'Success',
-                'data' => [
-                    'soal'     => [],
-                    'ak3_note' => null,
-                ]
-            ]);
+            return [
+                'soal'     => [],
+                'ak3_note' => null,
+            ];
         }
 
         // ===== QUESTIONS + ANSWERS =====
@@ -791,12 +938,26 @@ class AsesmenController extends Controller
         // ===== AK3 NOTE (GLOBAL NOTE) =====
         $ak3Note = Ak3Note::where('id_izin', $id)->value('catatan');
 
+        return [
+            'soal'     => $questions,
+            'catatan' => $ak3Note,
+        ];
+    }
+
+    public function getAk03($id)
+    {
+        $data = $this->buildAk03Data($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
+
         return response()->json([
             'message' => 'Success',
-            'data' => [
-                'soal'     => $questions,
-                'catatan' => $ak3Note,
-            ]
+            'data' => $data,
         ]);
     }
 
@@ -840,17 +1001,38 @@ class AsesmenController extends Controller
         ]);
     }
 
-    public function getAk06($id)
+    public function generateAk03($id)
+    {
+        $data = $this->buildAk03Data($id);
+        if (!$data) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id, true);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($data, [
+            'dokumenHeader' => $dokumenHeader
+        ]);
+
+        return Pdf::loadView('pdf.ak03', $viewData)
+            ->setPaper('A4', 'portrait')
+            ->download('AK-03-' . Str::slug($id) . '.pdf');
+    }
+
+    private function buildAk06Data(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
     {
         $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
             ->where('id_izin', $id)
             ->first();
 
         if (!$klasifikasi) {
-            return response()->json([
-                'message' => 'Data not found',
-                'data'    => null
-            ], 404);
+            return null;
         }
 
         /** 🔹 Aspek + Answers */
@@ -893,18 +1075,35 @@ class AsesmenController extends Controller
         /** 🔹 Dimensi Kompetensi */
         $dimensiKompetensi = DimensiKompetensi::get();
 
+        $barcodes = $this->resolveDocumentBarcodes($id, 'AK06', $forPdf);
+
+        return [
+            'aspek' => $aspek,
+            'feedback' => [
+                'rekomendasi1'     => $feedback->rekomendasi1 ?? null,
+                'rekomendasi2'     => $feedback->rekomendasi2 ?? null,
+                'catatan_asesor1' => $feedback->catatan_asesor1 ?? null,
+                'catatan_asesor2' => $feedback->catatan_asesor2 ?? null,
+            ],
+            'dimensi_kompetensi' => $dimensiKompetensi,
+            'barcodes' => $barcodes
+        ];
+    }
+
+    public function getAk06($id)
+    {
+        $data = $this->buildAk06Data($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
+
         return response()->json([
             'message' => 'Success',
-            'data' => [
-                'aspek' => $aspek,
-                'feedback' => [
-                    'rekomendasi1'     => $feedback->rekomendasi1 ?? null,
-                    'rekomendasi2'     => $feedback->rekomendasi2 ?? null,
-                    'catatan_asesor1' => $feedback->catatan_asesor1 ?? null,
-                    'catatan_asesor2' => $feedback->catatan_asesor2 ?? null,
-                ],
-                'dimensi_kompetensi' => $dimensiKompetensi
-            ]
+            'data' => $data,
         ]);
     }
 
@@ -960,6 +1159,27 @@ class AsesmenController extends Controller
         return response()->json([
             'message' => 'AK06 berhasil disubmit'
         ]);
+    }
+
+    public function generateAk06($id)
+    {
+        $data = $this->buildAk06Data($id, true);
+        if (!$data) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($data, [
+            'dokumenHeader' => $dokumenHeader
+        ]);
+
+        return Pdf::loadView('pdf.ak06', $viewData)
+            ->setPaper('A4', 'portrait')
+            ->download('AK-06-' . Str::slug($id) . '.pdf');
     }
 
     public function dokumenAsesi($id)
@@ -1023,8 +1243,28 @@ class AsesmenController extends Controller
         ];
     }
 
-    private function resolveDocumentBarcodes(int|string $idIzin, string $jenisDokumen): array
+    private function mapBarcodeForPdf(?Barcode $barcode): ?array
     {
+        if (!$barcode) {
+            return null;
+        }
+
+        return [
+            'url'     => $this->imageUrlToBase64($barcode->url_image),
+            'tanggal' => $barcode->created_at,
+            'nama'    => $barcode->user?->name,
+        ];
+    }
+
+    private function resolveDocumentBarcodes(
+        int|string $idIzin,
+        string $jenisDokumen,
+        bool $forPdf = false
+    ): array
+    {
+        $map = $forPdf
+            ? fn (?Barcode $b) => $this->mapBarcodeForPdf($b)
+            : fn (?Barcode $b) => $this->mapBarcode($b);
         /** 📌 Load barcodes & key by user */
         $barcodes = Barcode::with('user')
             ->where('id_izin', $idIzin)
@@ -1047,7 +1287,7 @@ class AsesmenController extends Controller
 
         if (!$jadwal) {
             return [
-                'asesi' => $this->mapBarcode($barcodes->firstWhere('id_role', 8)),
+                'asesi' => $map($barcodes->firstWhere('id_role', 8)),
                 'asesor1' => null,
                 'asesor2' => null,
             ];
@@ -1076,19 +1316,43 @@ class AsesmenController extends Controller
 
         return [
             'asesi' =>
-                $this->mapBarcode(
-                    $barcodes->firstWhere('id_role', 8)
-                ),
-
+                $map($barcodes->firstWhere('id_role', 8)),
             'asesor1' =>
                 $asesor1User
-                    ? $this->mapBarcode($barcodes[$asesor1User->id] ?? null)
+                    ? $map($barcodes[$asesor1User->id] ?? null)
                     : null,
 
             'asesor2' =>
                 $asesor2User
-                    ? $this->mapBarcode($barcodes[$asesor2User->id] ?? null)
+                    ? $map($barcodes[$asesor2User->id] ?? null)
                     : null,
         ];
+    }
+
+    private function imageUrlToBase64(?string $url): ?string
+    {
+        if (!$url) {
+            return null;
+        }
+
+        try {
+            $contents = file_get_contents($url);
+
+            if ($contents === false) {
+                return null;
+            }
+
+            $extension = pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'png';
+            $mime = match (strtolower($extension)) {
+                'jpg', 'jpeg' => 'image/jpeg',
+                'gif'         => 'image/gif',
+                'svg'         => 'image/svg+xml',
+                default       => 'image/png',
+            };
+
+            return 'data:' . $mime . ';base64,' . base64_encode($contents);
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 }
