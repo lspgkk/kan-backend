@@ -572,7 +572,7 @@ class InvoiceController extends Controller
                     $pdf_filename = 'inv_' . now()->format('Ymd_His') . '.pdf';
                     Storage::disk("str_moon")->put("/invoice-tuk/" . $pdf_filename, $pdf->output());
 
-                    $invoice_pdf = "https://moon.lspgatensi.id/files/invoice-tuk/" . $pdf_filename;
+                    $invoice_pdf = "https://moon.lspgatensi.id/files/new_gatensi/invoice-tuk/" . $pdf_filename;
                 }
 
                 foreach ($data_asesi_beserta_harga as $asesi) {
@@ -610,7 +610,7 @@ class InvoiceController extends Controller
                     'tgl_uji'        => $validatedData['tanggal_uji'],
                     'input_by'       => Auth::user()->email,
                     'inv_link'       => $invoice_pdf,
-                    'inv_excel'      => "https://moon.lspgatensi.id/files/baru/invoice/" . $filename_invoice,
+                    'inv_excel'      => "https://moon.lspgatensi.id/files/new_gatensi/baru/invoice/" . $filename_invoice,
                 ]);
 
                 foreach ($data_asesi_beserta_harga as $asesi) {

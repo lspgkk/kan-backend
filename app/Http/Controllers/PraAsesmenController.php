@@ -13,7 +13,6 @@ use App\Models\Apl2Submission;
 use App\Models\AsesiJadwal;
 use App\Models\AsesorBnsp;
 use App\Models\Barcode;
-use App\Models\BuktiAsesmen;
 use App\Models\ImpBukti;
 use App\Models\JabatanConfigA;
 use App\Models\JabatanDokumen;
@@ -25,7 +24,6 @@ use App\Models\Pendidikan;
 use App\Models\Personal;
 use App\Models\Proyek;
 use App\Models\Referensi;
-use App\Models\Role;
 use App\Models\UnitKompetensi;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -36,36 +34,6 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class PraAsesmenController extends Controller
 {
-    public function absenAwal(Request $request, $id)
-    {
-        $user = auth()->user();
-
-        $role = Role::findOrFail($user->role_id);
-
-        if ($role->name === 'Asesi') {
-            $bukti = BuktiAsesmen::updateOrCreate(['id_izin' => $id],[
-                'id_izin'    => $id,
-                'url_absen_asesi_awal' => $request->url_absen,
-            ]);
-        }
-        
-        if ($role->name === 'Asesor') {
-            $roleAsesor = null;
-            $jadwal = Jadwal::where('jadwal_id', AsesiJadwal::where('id_izin', $id)->value('jadwal_id'))->with(['asesor:id,noreg'])->first();
-            if ($user->noreg === $jadwal->asesor->noreg) {
-                $roleAsesor = 'asesor1';
-            } elseif ($user->noreg === $jadwal->asesor2->noreg) {
-                $roleAsesor = 'asesor2';
-            }
-            if ($roleAsesor) {
-                $bukti = BuktiAsesmen::updateOrCreate(['id_izin' => $id],[
-                    'id_izin'    => $id,
-                    "url_absen_{$roleAsesor}_awal" => $request->url_absen,
-                ]);
-            }
-        }
-    }
-
     public function getDokumenHeader($id)
     {
         $namaAsesi = Personal::where('id_izin', $id)->value('nama');
@@ -92,6 +60,11 @@ class PraAsesmenController extends Controller
         $idAsesor1 = User::where('noreg', $jadwal->asesor ? $jadwal->asesor->noreg : null)->value('id');
         $idAsesor2 = User::where('noreg', $jadwal->asesor2 ? $jadwal->asesor2->noreg : null)->value('id');
 
+        $penyusun_validator = JabatanConfigA::with([
+            'penyusun:id,name',
+            'validator:id,name',
+        ])->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'validator_id', 'validator_tgl', 'validator_img'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
+
         return response()->json([
             'message' => 'Success',
             'data' => [
@@ -108,6 +81,12 @@ class PraAsesmenController extends Controller
                 'tanggal_uji' => $jadwal->tanggal_uji,
                 'tanggal_selesai' => $jadwal->tanggal_selesai,
                 'jenis_kelas' => $jadwal->jenis_kelas,
+                'nama_penyusun' => $penyusun_validator->penyusun?->name,
+                'nama_validator' => $penyusun_validator->validator?->name,
+                'tanggal_penyusun' => $penyusun_validator->penyusun_tgl,
+                'tanggal_validator' => $penyusun_validator->validator_tgl,
+                'barcode_penyusun' => $penyusun_validator->penyusun_img,
+                'barcode_validator' => $penyusun_validator->validator_img,
             ]
         ]);
     }

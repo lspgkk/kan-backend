@@ -4,16 +4,60 @@ namespace App\Http\Controllers;
 
 use App\Models\AsesorBnsp;
 use App\Models\Barcode;
+use App\Models\JabatanConfigA;
 use App\Models\Jadwal;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
+ini_set('max_execution_time', 3800);
+
+
 class BarcodeController extends Controller
 {
+    public function generateBarcodePenyusun()
+    {
+        $list_jabker = JabatanConfigA::where('penyusun_img', 'NOT LIKE', '%https://barcode.lspgatensi.id%')->get();
+
+        foreach ($list_jabker as $jabker) {
+            // DB::transaction(function () use ($jabker) {
+
+                $uuidPenyusun  = (string) Str::uuid();
+                $uuidValidator = (string) Str::uuid();
+
+                $urlTtdPenyusun  = "https://barcode.lspgatensi.id/penyusun-validator/{$uuidPenyusun}";
+                $urlTtdValidator = "https://barcode.lspgatensi.id/penyusun-validator/{$uuidValidator}";
+
+                $filenamePenyusun  = "{$uuidPenyusun}.png";
+                $filenameValidator = "{$uuidValidator}.png";
+
+                $qrPenyusun = QrCode::format('png')->size(300)->margin(1)->generate($urlTtdPenyusun);
+                $qrValidator = QrCode::format('png')->size(300)->margin(1)->generate($urlTtdValidator);
+
+                $pathPenyusun  = "barcodes/{$filenamePenyusun}";
+                $pathValidator = "barcodes/{$filenameValidator}";
+
+                Storage::disk('str_moon')->put($pathPenyusun, $qrPenyusun);
+                Storage::disk('str_moon')->put($pathValidator, $qrValidator);
+
+                JabatanConfigA::where('id_jabatan', $jabker->id_jabatan)->update([
+                    'penyusun_img'  => "https://moon.lspgatensi.id/files/new_gatensi/{$pathPenyusun}",
+                    'penyusun_url'  => $urlTtdPenyusun,
+                    'validator_img' => "https://moon.lspgatensi.id/files/new_gatensi/{$pathValidator}",
+                    'validator_url' => $urlTtdValidator,
+                ]);
+            // });
+        }
+
+        return response()->json([
+            'message' => 'success'
+        ]);
+    }
+    
     public function getTtdApl01($id)
     {
         $barcodes = Barcode::where('id_izin', $id)

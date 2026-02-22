@@ -169,26 +169,25 @@ Route::middleware(['auth:api'])->group(function () {
     });
 
     Route::prefix('bukti')->group(function () {
-        Route::post('/absen-asesmen/mulai', [BuktiController::class, 'absensiAsesmen']);
-        Route::post('/absen-asesmen/akhir', [BuktiController::class, 'absensiAsesmen']);
-        Route::post('/absen-praasesmen/mulai', [BuktiController::class, 'absensiPraAsesmen']);
-        Route::post('/absen-praasesmen/akhir', [BuktiController::class, 'absensiPraAsesmen']);
+        Route::post('/{id}/absen-awal', [AsesmenController::class, 'absenAwal']);
+        Route::post('/{id}/absen-akhir', [AsesmenController::class, 'absenAkhir']);
     });
 
     Route::get('/dokumen/asesi/{id}', [AsesmenController::class, 'dokumenAsesi']);
     Route::get('/dokumen/ak01/{id}', [PraAsesmenController::class, 'generateAk01']);
-    Route::get('/dokumen/ak02/{id}', [PraAsesmenController::class, 'generateAk02']);
-    Route::get('/dokumen/ak03/{id}', [PraAsesmenController::class, 'generateAk03']);
+    Route::get('/dokumen/ak02/{id}', [AsesmenController::class, 'generateAk02']);
+    Route::get('/dokumen/ak03/{id}', [AsesmenController::class, 'generateAk03']);
     Route::get('/dokumen/ak04/{id}', [PraAsesmenController::class, 'generateAk04']);
-    Route::get('/dokumen/ak06/{id}', [PraAsesmenController::class, 'generateAk06']);
+    Route::get('/dokumen/ak06/{id}', [AsesmenController::class, 'generateAk06']);
     Route::get('/dokumen/ak07/{id}', [PraAsesmenController::class, 'generateAk07']);
     Route::get('/dokumen/apl01/{id}', [PraAsesmenController::class, 'generateApl01']);
     Route::get('/dokumen/apl02/{id}', [PraAsesmenController::class, 'generateApl02']);
-    Route::get('/dokumen/ia04a/{id}', [PraAsesmenController::class, 'generateIa04a']);
-    Route::get('/dokumen/ia04b/{id}', [PraAsesmenController::class, 'generateIa04b']);
-    Route::get('/dokumen/ia05/{id}', [PraAsesmenController::class, 'generateIa05']);
+    Route::get('/dokumen/ia04a/{id}', [AsesmenController::class, 'generateIa04a']);
+    Route::get('/dokumen/ia04b/{id}', [AsesmenController::class, 'generateIa04b']);
+    Route::get('/dokumen/ia05/{id}', [AsesmenController::class, 'generateIa05']);
     Route::get('/dokumen/mapa01/{id}', [PraAsesmenController::class, 'generateMapa01']);
     Route::get('/dokumen/mapa02/{id}', [PraAsesmenController::class, 'generateMapa02']);
+    Route::get('/generate-penyusun', [BarcodeController::class, 'generateBarcodePenyusun']);
     
     Route::prefix('praasesmen')->group(function () {
         Route::get('/kebenaran-data', [KebenaranDataController::class, 'index']);

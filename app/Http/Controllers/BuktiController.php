@@ -3,10 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\AsesiJadwal;
+use App\Models\BuktiAsesmen;
 use App\Models\Pendidikan;
 use App\Models\Personal;
 use App\Models\Proyek;
 use App\Models\SPTAsesor;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Ramsey\Uuid\Uuid;
 
 class BuktiController extends Controller
 {
@@ -43,6 +48,47 @@ class BuktiController extends Controller
         return response()->json([
             'message' => 'Success',
             'data' => $kebenaranData
+        ]);
+    }
+
+    public function uploadKegiatan(Request $request, $id)
+    {
+        $request->validate([
+            'image' => [
+                'required',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:2048', // KB
+            ],
+        ]);
+
+        $image = $request->file('image');
+
+        $filename = (string) Str::uuid() . '.' . $image->getClientOriginalExtension();
+        $path = "dok_asesmen/foto/{$filename}";
+
+        $uploaded = Storage::disk('str_moon')->putFileAs(
+            'dok_asesmen/foto',
+            $image,
+            $filename
+        );
+
+        if (!$uploaded) {
+            return response()->json([
+                'message' => 'Upload failed',
+            ], 500);
+        }
+
+        $fullImageUrl = 'https://moon.lspgatensi.id/files/new_gatensi' . '/' . $path;
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_docs_asesmen' => $fullImageUrl]
+        );
+
+        return response()->json([
+            'message' => 'success',
+            'url' => $fullImageUrl,
         ]);
     }
 }
