@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AsesiJadwal;
 use App\Models\BuktiAsesmen;
+use App\Models\BuktiKegiatan;
 use App\Models\Pendidikan;
 use App\Models\Personal;
 use App\Models\Proyek;
@@ -94,41 +95,100 @@ class BuktiController extends Controller
     public function uploadBuktiKegiatan(Request $request, $id)
     {
         $request->validate([
-            'image' => [
-                'required',
-                'image',
-                'mimes:jpg,jpeg,png,webp',
-                'max:2048', // KB
-            ],
+            'foto_bersama' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+
+            'ttd_asesi_asesmen'  => 'nullable|file|mimes:pdf|max:2048',
+            'ttd_asesi_pra'      => 'nullable|file|mimes:pdf|max:2048',
+            'ttd_asesor_asesmen' => 'nullable|file|mimes:pdf|max:2048',
+            'ttd_asesor_pra'     => 'nullable|file|mimes:pdf|max:2048',
         ]);
 
-        $image = $request->file('image');
+        $baseUrl = 'https://moon.lspgatensi.id/files/new_gatensi';
+        $data = [];
 
-        $filename = (string) Str::uuid() . '.' . $image->getClientOriginalExtension();
-        $path = "dok_asesmen/foto/{$filename}";
+        /* =========================
+        * OPTIONAL FOTO BERSAMA
+        * ========================= */
+        if ($request->hasFile('foto_bersama')) {
+            $image = $request->file('foto_bersama');
+            $imageName = Str::uuid() . '.' . $image->getClientOriginalExtension();
+            $imagePath = "dok_asesmen/foto/{$imageName}";
 
-        $uploaded = Storage::disk('str_moon')->putFileAs(
-            'dok_asesmen/foto',
-            $image,
-            $filename
-        );
+            $uploaded = Storage::disk('str_moon')->putFileAs(
+                'dok_asesmen/foto',
+                $image,
+                $imageName
+            );
 
-        if (!$uploaded) {
-            return response()->json([
-                'message' => 'Upload failed',
-            ], 500);
+            if (!$uploaded) {
+                return response()->json(['message' => 'Upload foto gagal'], 500);
+            }
+
+            $data['url_foto_bersama'] = "{$baseUrl}/{$imagePath}";
         }
 
-        $fullImageUrl = 'https://moon.lspgatensi.id/files/new_gatensi' . '/' . $path;
+        /* =========================
+        * OPTIONAL PDF UPLOADS
+        * ========================= */
+        $pdfFields = [
+            'ttd_asesi_asesmen'  => 'url_ttd_asesi_asesmen',
+            'ttd_asesi_pra'      => 'url_ttd_asesi_pra',
+            'ttd_asesor_asesmen' => 'url_ttd_asesor_asesmen',
+            'ttd_asesor_pra'     => 'url_ttd_asesor_pra',
+        ];
 
-        BuktiAsesmen::updateOrCreate(
-            ['id_izin' => $id],
-            ['url_docs_asesmen' => $fullImageUrl]
-        );
+        foreach ($pdfFields as $input => $column) {
+            if ($request->hasFile($input)) {
+                $pdf = $request->file($input);
+                $pdfName = Str::uuid() . '.pdf';
+                $pdfPath = "dok_asesmen/ttd/{$pdfName}";
+
+                Storage::disk('str_moon')->putFileAs(
+                    'dok_asesmen/ttd',
+                    $pdf,
+                    $pdfName
+                );
+
+                $data[$column] = "{$baseUrl}/{$pdfPath}";
+            }
+        }
+
+        /* =========================
+        * SAVE (ONLY IF SOMETHING EXISTS)
+        * ========================= */
+        if (!empty($data)) {
+            BuktiKegiatan::updateOrCreate(
+                ['id_jadwal' => $id],
+                $data
+            );
+        }
 
         return response()->json([
             'message' => 'success',
-            'url' => $fullImageUrl,
+            'data'    => $data,
+        ]);
+    }
+
+    public function getBuktiKegiatan($id)
+    {
+        $data = BuktiKegiatan::where('id_jadwal', $id)->first();
+
+        if (!$data) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data'    => null,
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => 'success',
+            'data' => [
+                'url_foto_bersama'        => $data->url_foto_bersama,
+                'url_ttd_asesi_asesmen'   => $data->url_ttd_asesi_asesmen,
+                'url_ttd_asesi_pra'       => $data->url_ttd_asesi_pra,
+                'url_ttd_asesor_asesmen'  => $data->url_ttd_asesor_asesmen,
+                'url_ttd_asesor_pra'      => $data->url_ttd_asesor_pra,
+            ],
         ]);
     }
 }

@@ -170,6 +170,8 @@ Route::middleware(['auth:api'])->group(function () {
 
     Route::prefix('bukti')->group(function () {
         Route::post('/{id}/foto-kegiatan', [BuktiController::class, 'uploadKegiatan']);
+        Route::post('/{id}/kegiatan', [BuktiController::class, 'uploadBuktiKegiatan']);
+        Route::get('/{id}/kegiatan', [BuktiController::class, 'getBuktiKegiatan']);
     });
 
     Route::get('/dokumen/asesi/{id}', [AsesmenController::class, 'dokumenAsesi']);

@@ -241,6 +241,51 @@ td {
         @endforeach
 
         {!! $referensi_form[0]['referensis'][0]['nama'] !!}
+        <br>
+        <!-- ================= TANDA TANGAN ================= -->
+        <table width="100%" cellpadding="5" cellspacing="0" align="center">
+            <tr>
+                <td class="hd-dok" style="width: 20%;">Status</td>
+                <td class="hd-dok" style="width: 10%;" align="center">No</td>
+                <td class="hd-dok" style="width: 25%;" align="center">Nama</td>
+                <td class="hd-dok" style="width: 20%;">Nomor MET</td>
+                <td class="hd-dok" style="width: 25%;">Tanda Tangan dan Tanggal</td>
+            </tr>
+            <tr>
+                <td rowspan="2">Penyusun</td>
+                <td align="center">1</td>
+                <td>{{ $dokumenHeader['nama_penyusun'] ?? '' }}</td>
+                <td>{{ $dokumenHeader['noreg_penyusun'] ?? '' }}</td>
+                <td rowspan="2">
+                    @if($dokumenHeader['barcode_penyusun'] ?? null)
+                    <img src="{{ $dokumenHeader['barcode_penyusun'] }}" width="80" height="80" /><br />
+                    @endif
+                    {{ $dokumenHeader['tanggal_penyusun'] ? \Carbon\Carbon::parse($dokumenHeader['tanggal_penyusun'])->locale('id')->translatedFormat('d F Y') : '' }}
+                </td>
+            </tr>
+            <tr>
+                <td align="center">2</td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td rowspan="2">Validator</td>
+                <td align="center">1</td>
+                <td>{{ $dokumenHeader['nama_validator'] ?? '' }}</td>
+                <td>{{ $dokumenHeader['noreg_validator'] ?? '' }}</td>
+                <td rowspan="2">
+                    @if($dokumenHeader['barcode_validator'] ?? null)
+                    <img src="{{ $dokumenHeader['barcode_validator'] }}" width="80" height="80" /><br />
+                    @endif
+                    {{ $dokumenHeader['tanggal_validator'] ? \Carbon\Carbon::parse($dokumenHeader['tanggal_validator'])->locale('id')->translatedFormat('d F Y') : '' }}
+                </td>
+            </tr>
+            <tr>
+                <td align="center">2</td>
+                <td></td>
+                <td></td>
+            </tr>
+        </table>
 
     </body>
 </html>

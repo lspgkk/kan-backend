@@ -253,6 +253,11 @@ class PraAsesmenController extends Controller
         $idAsesor1 = User::where('noreg', $jadwal->asesor?->noreg)->value('id');
         $idAsesor2 = User::where('noreg', $jadwal->asesor2?->noreg)->value('id');
 
+        $penyusun_validator = JabatanConfigA::with([
+            'penyusun:id,name,noreg',
+            'validator:id,name,noreg',
+        ])->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'validator_id', 'validator_tgl', 'validator_img'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
+
         return [
             'jabatan_kerja'   => $jabatanKerja,
             'nomor_skema'     => $jabatanConfig?->no_skema,
@@ -271,6 +276,15 @@ class PraAsesmenController extends Controller
             'tanggal_uji'     => $jadwal->tanggal_uji,
             'tanggal_selesai' => $jadwal->tanggal_selesai,
             'jenis_kelas'     => $jadwal->jenis_kelas,
+
+            'nama_penyusun' => $penyusun_validator->penyusun?->name,
+            'nama_validator' => $penyusun_validator->validator?->name,
+            'tanggal_penyusun' => $penyusun_validator->penyusun_tgl,
+            'tanggal_validator' => $penyusun_validator->validator_tgl,
+            'barcode_penyusun' => $this->imageUrlToBase64($penyusun_validator->penyusun_img),
+            'barcode_validator' => $this->imageUrlToBase64($penyusun_validator->validator_img),
+            'noreg_penyusun' => $penyusun_validator->penyusun?->noreg,
+            'noreg_validator' => $penyusun_validator->validator?->noreg,
         ];
     }
 

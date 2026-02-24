@@ -291,9 +291,14 @@
             <tr style="background: #fff; font-weight: bold;">
                 <td rowspan="2" style="text-align: center;">PENYUSUN</td>
                 <td style="text-align: center;">1</td>
-                <td></td>
-                <td></td>
-                <td></td>
+                <td>{{ $dokumenHeader['nama_penyusun'] ?? '' }}</td>
+                <td>{{ $dokumenHeader['noreg_penyusun'] ?? '' }}</td>
+                <td>
+                    @if($dokumenHeader['barcode_penyusun'] ?? null)
+                    <img src="{{ $dokumenHeader['barcode_penyusun'] }}" width="80" height="80" /><br />
+                    @endif
+                    {{ $dokumenHeader['tanggal_penyusun'] ? \Carbon\Carbon::parse($dokumenHeader['tanggal_penyusun'])->locale('id')->translatedFormat('d F Y') : '' }}
+                </td>
             </tr>
             <tr style="background: #fff;">
                 <td style="text-align: center;">2</td>
@@ -304,9 +309,14 @@
             <tr style="background: #fff; font-weight: bold;">
                 <td rowspan="2" style="text-align: center;">VALIDATOR</td>
                 <td style="text-align: center;">1</td>
-                <td></td>
-                <td></td>
-                <td></td>
+                <td>{{ $dokumenHeader['nama_validator'] ?? '' }}</td>
+                <td>{{ $dokumenHeader['noreg_validator'] ?? '' }}</td>
+                <td>
+                    @if($dokumenHeader['barcode_validator'] ?? null)
+                    <img src="{{ $dokumenHeader['barcode_validator'] }}" width="80" height="80" /><br />
+                    @endif
+                    {{ $dokumenHeader['tanggal_validator'] ? \Carbon\Carbon::parse($dokumenHeader['tanggal_validator'])->locale('id')->translatedFormat('d F Y') : '' }}
+                </td>
             </tr>
             <tr style="background: #fff;">
                 <td style="text-align: center;">2</td>
