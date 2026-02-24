@@ -13,6 +13,7 @@ use App\Models\Apl2Submission;
 use App\Models\AsesiJadwal;
 use App\Models\AsesorBnsp;
 use App\Models\Barcode;
+use App\Models\BuktiAsesmen;
 use App\Models\ImpBukti;
 use App\Models\JabatanConfigA;
 use App\Models\JabatanDokumen;
@@ -24,6 +25,7 @@ use App\Models\Pendidikan;
 use App\Models\Personal;
 use App\Models\Proyek;
 use App\Models\Referensi;
+use App\Models\Role;
 use App\Models\UnitKompetensi;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -34,6 +36,114 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class PraAsesmenController extends Controller
 {
+    public function absenAwal(Request $request, $id)
+    {
+        return $this->handleAbsen($request, $id, 'awal');
+    }
+
+    public function absenAkhir(Request $request, $id)
+    {
+        return $this->handleAbsen($request, $id, 'akhir');
+    }
+
+    private function handleAbsen(Request $request, $id, string $type)
+    {
+        // 🔹 Validate input
+        $request->validate([
+            'image' => [
+                'required',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:2048',
+            ],
+        ]);
+
+        $user = auth()->user();
+        $role = Role::find($user->role_id);
+
+        if (!$role) {
+            return response()->json([
+                'message' => 'Role tidak ditemukan',
+            ], 403);
+        }
+
+        // 🔹 Upload image
+        $image = $request->file('image');
+        $filename = (string) Str::uuid() . '.' . $image->getClientOriginalExtension();
+        $relativePath = "dok_asesmen/absen/{$filename}";
+
+        $uploaded = Storage::disk('str_moon')->putFileAs(
+            'dok_asesmen/absen',
+            $image,
+            $filename
+        );
+
+        if (!$uploaded) {
+            return response()->json([
+                'message' => 'Gagal mengupload gambar',
+            ], 500);
+        }
+
+        $imageUrl = 'https://moon.lspgatensi.id/files/new_gatensi/' . $relativePath;
+
+        // 🔹 ASSESI
+        if ($role->name === 'Asesi') {
+            BuktiAsesmen::updateOrCreate(
+                ['id_izin' => $id],
+                ["url_absen_asesi_pra_{$type}" => $imageUrl]
+            );
+
+            return response()->json([
+                'message' => "Absen {$type} asesi berhasil disimpan",
+                'url' => $imageUrl,
+            ]);
+        }
+
+        // 🔹 ASESOR
+        if ($role->name === 'Asesor') {
+
+            $jadwalId = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
+            $jadwal = Jadwal::with(['asesor:id,noreg', 'asesor2:id,noreg'])
+                ->where('jadwal_id', $jadwalId)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json([
+                    'message' => 'Jadwal tidak ditemukan',
+                ], 404);
+            }
+
+            $roleAsesor = null;
+
+            if ($jadwal->asesor && $user->noreg === $jadwal->asesor->noreg) {
+                $roleAsesor = 'asesor1';
+            } elseif ($jadwal->asesor2 && $user->noreg === $jadwal->asesor2->noreg) {
+                $roleAsesor = 'asesor2';
+            }
+
+            if (!$roleAsesor) {
+                return response()->json([
+                    'message' => 'Anda tidak berhak mengisi absen pada jadwal ini',
+                ], 403);
+            }
+
+            BuktiAsesmen::updateOrCreate(
+                ['id_izin' => $id],
+                ["url_absen_{$roleAsesor}_pra_{$type}" => $imageUrl]
+            );
+
+            return response()->json([
+                'message' => "Absen {$type} {$roleAsesor} berhasil disimpan",
+                'url' => $imageUrl,
+            ]);
+        }
+
+        // 🔹 ROLE NOT ALLOWED
+        return response()->json([
+            'message' => 'Role tidak diizinkan melakukan absen',
+        ], 403);
+    }
+    
     public function getDokumenHeader($id)
     {
         $namaAsesi = Personal::where('id_izin', $id)->value('nama');
@@ -61,8 +171,8 @@ class PraAsesmenController extends Controller
         $idAsesor2 = User::where('noreg', $jadwal->asesor2 ? $jadwal->asesor2->noreg : null)->value('id');
 
         $penyusun_validator = JabatanConfigA::with([
-            'penyusun:id,name',
-            'validator:id,name',
+            'penyusun:id,name,noreg',
+            'validator:id,name,noreg',
         ])->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'validator_id', 'validator_tgl', 'validator_img'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
 
         return response()->json([
@@ -87,6 +197,8 @@ class PraAsesmenController extends Controller
                 'tanggal_validator' => $penyusun_validator->validator_tgl,
                 'barcode_penyusun' => $penyusun_validator->penyusun_img,
                 'barcode_validator' => $penyusun_validator->validator_img,
+                'noreg_penyusun' => $penyusun_validator->penyusun?->noreg,
+                'noreg_validator' => $penyusun_validator->validator?->noreg,
             ]
         ]);
     }

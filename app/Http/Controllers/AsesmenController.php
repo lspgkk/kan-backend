@@ -172,8 +172,8 @@ class AsesmenController extends Controller
         $idAsesor2 = User::where('noreg', $jadwal->asesor2 ? $jadwal->asesor2->noreg : null)->value('id');
 
         $penyusun_validator = JabatanConfigA::with([
-            'penyusun:id,name',
-            'validator:id,name',
+            'penyusun:id,name,noreg',
+            'validator:id,name,noreg',
         ])->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'validator_id', 'validator_tgl', 'validator_img'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
 
         return response()->json([
@@ -198,6 +198,8 @@ class AsesmenController extends Controller
                 'tanggal_validator' => $penyusun_validator->validator_tgl,
                 'barcode_penyusun' => $penyusun_validator->penyusun_img,
                 'barcode_validator' => $penyusun_validator->validator_img,
+                'noreg_penyusun' => $penyusun_validator->penyusun?->noreg,
+                'noreg_validator' => $penyusun_validator->validator?->noreg,
             ]
         ]);
     }
@@ -1347,6 +1349,34 @@ class AsesmenController extends Controller
                 'tugas' => $dokumen->url_paparan,
                 'foto_kegiatan' => $dokumen->url_docs_asesmen,
             ]
+        ]);
+    }
+
+    public function absensi($id)
+    {
+        $fields = [
+            'url_absen_asesi_awal',
+            'url_absen_asesi_akhir',
+            'url_absen_asesor1_awal',
+            'url_absen_asesor1_akhir',
+            'url_absen_asesor2_awal',
+            'url_absen_asesor2_akhir',
+            'url_absen_asesi_pra_awal',
+            'url_absen_asesi_pra_akhir',
+            'url_absen_asesor1_pra_awal',
+            'url_absen_asesor1_pra_akhir',
+            'url_absen_asesor2_pra_awal',
+            'url_absen_asesor2_pra_akhir',
+            'url_docs_asesmen as foto_kegiatan'
+        ];
+
+        $dokumen = BuktiAsesmen::select($fields)
+            ->where('id_izin', $id)
+            ->firstOrFail();
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => $dokumen
         ]);
     }
 

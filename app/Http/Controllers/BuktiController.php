@@ -43,7 +43,6 @@ class BuktiController extends Controller
             'referensi_kerja' => $referensiKerja,
             'spt_asesor' => $sptAsesor ? $sptAsesor->file_spt : null,
             'verifikasi_tuk' => $verifikasiTuk,
-            
         ];
         return response()->json([
             'message' => 'Success',
@@ -52,6 +51,47 @@ class BuktiController extends Controller
     }
 
     public function uploadKegiatan(Request $request, $id)
+    {
+        $request->validate([
+            'image' => [
+                'required',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:2048', // KB
+            ],
+        ]);
+
+        $image = $request->file('image');
+
+        $filename = (string) Str::uuid() . '.' . $image->getClientOriginalExtension();
+        $path = "dok_asesmen/foto/{$filename}";
+
+        $uploaded = Storage::disk('str_moon')->putFileAs(
+            'dok_asesmen/foto',
+            $image,
+            $filename
+        );
+
+        if (!$uploaded) {
+            return response()->json([
+                'message' => 'Upload failed',
+            ], 500);
+        }
+
+        $fullImageUrl = 'https://moon.lspgatensi.id/files/new_gatensi' . '/' . $path;
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_docs_asesmen' => $fullImageUrl]
+        );
+
+        return response()->json([
+            'message' => 'success',
+            'url' => $fullImageUrl,
+        ]);
+    }
+
+    public function uploadBuktiKegiatan(Request $request, $id)
     {
         $request->validate([
             'image' => [

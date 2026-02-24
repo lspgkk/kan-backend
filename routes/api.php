@@ -169,11 +169,11 @@ Route::middleware(['auth:api'])->group(function () {
     });
 
     Route::prefix('bukti')->group(function () {
-        Route::post('/{id}/absen-awal', [AsesmenController::class, 'absenAwal']);
-        Route::post('/{id}/absen-akhir', [AsesmenController::class, 'absenAkhir']);
+        Route::post('/{id}/foto-kegiatan', [BuktiController::class, 'uploadKegiatan']);
     });
 
     Route::get('/dokumen/asesi/{id}', [AsesmenController::class, 'dokumenAsesi']);
+    Route::get('/dokumen/absen/{id}', [AsesmenController::class, 'absensi']);
     Route::get('/dokumen/ak01/{id}', [PraAsesmenController::class, 'generateAk01']);
     Route::get('/dokumen/ak02/{id}', [AsesmenController::class, 'generateAk02']);
     Route::get('/dokumen/ak03/{id}', [AsesmenController::class, 'generateAk03']);
@@ -190,6 +190,8 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('/generate-penyusun', [BarcodeController::class, 'generateBarcodePenyusun']);
     
     Route::prefix('praasesmen')->group(function () {
+        Route::post('/{id}/absen-awal', [PraAsesmenController::class, 'absenAwal']);
+        Route::post('/{id}/absen-akhir', [PraAsesmenController::class, 'absenAkhir']);
         Route::get('/kebenaran-data', [KebenaranDataController::class, 'index']);
         Route::get('/{id}/data-dokumen', [PraAsesmenController::class, 'getDokumenHeader']);
         Route::get('/{id}/apl01', [PraAsesmenController::class, 'getApl01']);
@@ -228,6 +230,8 @@ Route::middleware(['auth:api'])->group(function () {
     });
 
     Route::prefix('asesmen')->group(function () {
+        Route::post('/{id}/absen-awal', [AsesmenController::class, 'absenAwal']);
+        Route::post('/{id}/absen-akhir', [AsesmenController::class, 'absenAkhir']);
         Route::get('/{id}/data-dokumen', [AsesmenController::class, 'getDokumenHeader']);
         Route::get('/{id}/ia04a', [AsesmenController::class, 'getIa04a']);
         Route::get('/{id}/tugas', [AsesmenController::class, 'getTugas']);

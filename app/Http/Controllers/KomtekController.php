@@ -38,6 +38,8 @@ class KomtekController extends Controller
 
     public function rekomendasi(Request $request, $id)
     {
-        $asesi = AsesiJadwal::where('id_izin', $id)->first()
+        $asesi = AsesiJadwal::where('id_izin', $id)->first();
+
+        
     }
 }
