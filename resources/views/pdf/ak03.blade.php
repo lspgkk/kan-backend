@@ -65,7 +65,8 @@
                 display: inline-block;
                 text-align: center;
                 line-height: 11px;
-                font-size: 10px;
+                font-size: 15px;
+                font-family: "DejaVu Sans", sans-serif;
             }
 
             .checked::after {
