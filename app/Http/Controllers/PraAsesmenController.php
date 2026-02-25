@@ -33,6 +33,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Ramsey\Uuid\Uuid;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class PraAsesmenController extends Controller
 {
@@ -469,11 +471,14 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    public function generateApl01($id)
+    public function ttdApl01(Request $request, $id)
     {
-        /* =========================
-        * FETCH DATA
-        * ========================= */
+        $data = $this->generateTtdBarcode(
+            $request,
+            'APL01',
+            'ttd_apl01',
+            $id
+        );
 
         $personal = Personal::select([
             'nama', 'nik', 'tempat_lahir', 'tanggal_lahir',
@@ -580,7 +585,7 @@ class PraAsesmenController extends Controller
             return [
                 'user'    => $barcode->user,
                 'tanggal' => $barcode->created_at,
-                'url'  => $this->imageUrlToBase64($barcode->url_image), // URL → Base64
+                'base64'  => $this->imageUrlToBase64($barcode->url_image), // URL → Base64
             ];
         });
 
@@ -591,7 +596,7 @@ class PraAsesmenController extends Controller
         * DATA FOR BLADE
         * ========================= */
 
-        $data = [
+        $dataPdf = [
             'data_pribadi' => [
                 'nama'           => $personal->nama,
                 'nik'            => $personal->nik,
@@ -636,12 +641,39 @@ class PraAsesmenController extends Controller
         * GENERATE PDF
         * ========================= */
 
-        $pdf = Pdf::loadView('pdf.apl01', $data)
+        $pdf = Pdf::loadView('pdf.apl01', $dataPdf)
             ->setPaper('A4', 'portrait');
 
-        $filename = 'FR-APL-01-' . Str::slug($id) . '.pdf';
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/apl01';
 
-        return $pdf->download($filename);
+        // unique + traceable filename
+        $filename = 'FR-APL-01-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_apl_01' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
     }
 
     private function buildApl02Data(
@@ -879,10 +911,17 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    public function generateApl02($id)
+    public function ttdApl02(Request $request, $id)
     {
-        $data = $this->buildApl02Data($id, true);
-        if (!$data) {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'APL02',
+            'ttd_apl02',
+            $id
+        );
+
+        $dataApl = $this->buildApl02Data($id, true);
+        if (!$dataApl) {
             abort(404, 'Data not found');
         }
 
@@ -891,13 +930,47 @@ class PraAsesmenController extends Controller
             abort(404, 'Dokumen header not found');
         }
 
-        $viewData = array_merge($data, [
+        $viewData = array_merge($dataApl, [
             'dokumenHeader' => $dokumenHeader
         ]);
 
-        return Pdf::loadView('pdf.apl02', $viewData)
-            ->setPaper('A4', 'portrait')
-            ->download('FR-APL-02-' . Str::slug($id) . '.pdf');
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.apl02', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/apl02';
+
+        // unique + traceable filename
+        $filename = 'FR-APL-02-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_apl_02' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
     }
 
     private function buildMapa01Data(
@@ -1324,10 +1397,17 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    public function generateAk07($id)
+    public function ttdAk07(Request $request, $id)
     {
-        $data = $this->buildAk07Data($id, true);
-        if (!$data) {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'AK07',
+            'ttd_ak07',
+            $id
+        );
+
+        $dataDokumen = $this->buildAk07Data($id, true);
+        if (!$dataDokumen) {
             abort(404, 'Data not found');
         }
 
@@ -1336,13 +1416,47 @@ class PraAsesmenController extends Controller
             abort(404, 'Dokumen header not found');
         }
 
-        $viewData = array_merge($data, [
+        $viewData = array_merge($dataDokumen, [
             'dokumenHeader' => $dokumenHeader
         ]);
 
-        return Pdf::loadView('pdf.ak07', $viewData)
-            ->setPaper('A4', 'portrait')
-            ->download('AK-07-' . Str::slug($id) . '.pdf');
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.ak07', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/ak07';
+
+        // unique + traceable filename
+        $filename = 'FR-AK-07-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_ak07' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
     }
 
     public function submitAk07(Request $request, $id)
@@ -1543,10 +1657,17 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    public function generateAk04($id)
+    public function ttdAk04(Request $request, $id)
     {
-        $data = $this->buildAk04Data($id);
-        if (!$data) {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'AK04',
+            'ttd_ak04',
+            $id
+        );
+
+        $dataDokumen = $this->buildAk04Data($id);
+        if (!$dataDokumen) {
             abort(404, 'Data not found');
         }
 
@@ -1555,13 +1676,47 @@ class PraAsesmenController extends Controller
             abort(404, 'Dokumen header not found');
         }
 
-        $viewData = array_merge($data, [
+        $viewData = array_merge($dataDokumen, [
             'dokumenHeader' => $dokumenHeader
         ]);
 
-        return Pdf::loadView('pdf.ak04', $viewData)
-            ->setPaper('A4', 'portrait')
-            ->download('AK-04-' . Str::slug($id) . '.pdf');
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.ak04', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/ak04';
+
+        // unique + traceable filename
+        $filename = 'FR-AK-04-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_ak04' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
     }
 
     public function getK3Asesmen()
@@ -1649,10 +1804,17 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    public function generateAk01($id)
+    public function ttdAk01(Request $request, $id)
     {
-        $data = $this->buildAk01Data($id, true);
-        if (!$data) {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'AK01',
+            'ttd_ak01',
+            $id
+        );
+
+        $dataDokumen = $this->buildAk01Data($id, true);
+        if (!$dataDokumen) {
             abort(404, 'Data not found');
         }
 
@@ -1661,13 +1823,47 @@ class PraAsesmenController extends Controller
             abort(404, 'Dokumen header not found');
         }
 
-        $viewData = array_merge($data, [
+        $viewData = array_merge($dataDokumen, [
             'dokumenHeader' => $dokumenHeader
         ]);
 
-        return Pdf::loadView('pdf.ak01', $viewData)
-            ->setPaper('A4', 'portrait')
-            ->download('AK-01-' . Str::slug($id) . '.pdf');
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.ak01', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/ak01';
+
+        // unique + traceable filename
+        $filename = 'FR-AK-01-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_ak01' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
     }
 
     private function mapBarcode(?Barcode $barcode): ?array
@@ -1794,5 +1990,58 @@ class PraAsesmenController extends Controller
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    private function generateTtdBarcode(
+        Request $request,
+        string $docType,
+        string $filePrefix,
+        string $izinId
+    ) {
+        $request->validate([
+            'id_jadwal' => 'required'
+        ]);
+
+        // 1️⃣ Generate UUID & URL TTD
+        $uuid = (string) Uuid::uuid4();
+        $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
+
+        // 2️⃣ Generate filename
+        $filename = "{$filePrefix}_" . Str::uuid() . '.png';
+
+        // 3️⃣ Generate QR image
+        $qrImage = QrCode::format('png')
+            ->size(300)
+            ->margin(1)
+            ->generate($urlTtd);
+
+        // 4️⃣ FTP path
+        $path = "barcodes/{$filename}";
+
+        // 5️⃣ Upload to FTP
+        Storage::disk('str_moon')->put($path, $qrImage);
+
+        // 6️⃣ Public image URL
+        $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        // 7️⃣ Save / update DB
+        Barcode::updateOrCreate(
+            [
+                'id_user'       => auth()->user()->id,
+                'id_izin'       => $izinId,
+                'jenis_dokumen' => $docType,
+            ],
+            [
+                'id_jadwal' => $request->id_jadwal,
+                'url_image' => $urlImage,
+                'url_ttd'   => $urlTtd,
+                'id_role'   => auth()->user()->role_id,
+            ]
+        );
+
+        return [
+            'url_image' => $urlImage,
+            'url_ttd'   => $urlTtd,
+        ];
     }
 }

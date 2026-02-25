@@ -92,6 +92,13 @@
     }
 
     .checked::after { content: "✔"; }
+
+    .file-link {
+        color: #0645AD;              /* PDF-safe blue */
+        text-decoration: underline;  /* visible as link */
+        font-size: 10pt;
+        word-break: break-word;
+    }
 </style>
 </head>
 <body>
@@ -199,28 +206,28 @@
                 @if ($no_kuk === 0)
                     @if (count($rowsubuk['kuk_list']) === 1)
                         <td align="center" valign="middle">
-                            @if ($rowsubuk['kompeten'])
-                                <span class="checkbox checked"></span>
-                            @endif
+                            <span class="checkbox {{ $rowsubuk['kompeten'] ? 'checked' : '' }}"></span>
                         </td>
                         <td align="center" valign="middle">
-                            @if (!$rowsubuk['kompeten'])
-                                <span class="checkbox checked"></span>
-                            @endif
+                            <span class="checkbox {{ !$rowsubuk['kompeten'] ? 'checked' : '' }}"></span>
                         </td>
-                        <td align="center" valign="middle"></td>
+                        <td align="center" valign="middle">
+                            @foreach ($rowsubuk['files'] as $file)
+                                <a class="file-link" href="{{ $file['path'] }}">{{ $file['name'] }}</a>
+                            @endforeach
+                        </td>
                     @else
                         <td class="no-bottom" align="center" valign="middle">
-                            @if ($rowsubuk['kompeten'])
-                                <span class="checkbox checked"></span>
-                            @endif
+                            <span class="checkbox {{ $rowsubuk['kompeten'] ? 'checked' : '' }}"></span>
                         </td>
                         <td class="no-bottom" align="center" valign="middle">
-                            @if (!$rowsubuk['kompeten'])
-                                <span class="checkbox checked"></span>
-                            @endif
+                            <span class="checkbox {{ !$rowsubuk['kompeten'] ? 'checked' : '' }}"></span>
                         </td>
-                        <td class="no-bottom" align="center" valign="middle"></td>
+                        <td class="no-bottom" align="center" valign="middle">
+                            @foreach ($rowsubuk['files'] as $file)
+                                <a class="file-link" href="{{ $file['path'] }}">{{ $file['name'] }}</a>
+                            @endforeach
+                        </td>
                     @endif
                 @else
                     @if ($no_kuk + 1 < count($rowsubuk['kuk_list']))

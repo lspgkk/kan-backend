@@ -345,8 +345,10 @@
     <tr>
         <td height=60 valign=top>Tanda tangan/ Tanggal</td>
         @if($barcodes['asesi']['base64'] ?? null)
-            <img src="{{ $barcodes['asesi']['base64'] }}" width="80" height="80"><br>
-            {{ \Carbon\Carbon::parse($barcodes['asesi']['tanggal'])->translatedFormat('d F Y') }}
+            <td>
+                <img src="{{ $barcodes['asesi']['base64'] }}" width="80" height="80"><br>
+                {{ \Carbon\Carbon::parse($barcodes['asesi']['tanggal'])->translatedFormat('d F Y') }}
+            </td>
         @else
         <td></td>
         @endif

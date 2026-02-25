@@ -34,6 +34,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class AsesmenController extends Controller
 {
@@ -416,10 +417,17 @@ class AsesmenController extends Controller
         ]);
     }
 
-    public function generateIa04a($id)
+    public function ttdIa04a(Request $request, $id)
     {
-        $data = $this->buildIa04aData($id, true);
-        if (!$data) {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'IA04A',
+            'ttd_ia04a',
+            $id
+        );
+
+        $dataDokumen = $this->buildIa04aData($id, true);
+        if (!$dataDokumen) {
             abort(404, 'Data not found');
         }
 
@@ -428,13 +436,47 @@ class AsesmenController extends Controller
             abort(404, 'Dokumen header not found');
         }
 
-        $viewData = array_merge($data, [
+        $viewData = array_merge($dataDokumen, [
             'dokumenHeader' => $dokumenHeader
         ]);
 
-        return Pdf::loadView('pdf.ia04a', $viewData)
-            ->setPaper('A4', 'portrait')
-            ->download('IA-04A-' . Str::slug($id) . '.pdf');
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.ia04a', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/ia04a';
+
+        // unique + traceable filename
+        $filename = 'FR-IA-04A-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_ia_04a' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
     }
 
     public function getTugas($id)
@@ -703,10 +745,17 @@ class AsesmenController extends Controller
         ]);
     }
 
-    public function generateIa04b($id)
+    public function ttdIa04b(Request $request, $id)
     {
-        $data = $this->buildIa04bData($id, true);
-        if (!$data) {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'IA04B',
+            'ttd_ia04b',
+            $id
+        );
+
+        $dataDokumen = $this->buildIa04bData($id, true);
+        if (!$dataDokumen) {
             abort(404, 'Data not found');
         }
 
@@ -715,13 +764,47 @@ class AsesmenController extends Controller
             abort(404, 'Dokumen header not found');
         }
 
-        $viewData = array_merge($data, [
+        $viewData = array_merge($dataDokumen, [
             'dokumenHeader' => $dokumenHeader
         ]);
 
-        return Pdf::loadView('pdf.ia04b', $viewData)
-            ->setPaper('A4', 'portrait')
-            ->download('IA-04B-' . Str::slug($id) . '.pdf');
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.ia04b', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/ia04b';
+
+        // unique + traceable filename
+        $filename = 'FR-IA-04B-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_ia_04b' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
     }
 
     private function buildIa05Data(
@@ -850,10 +933,17 @@ class AsesmenController extends Controller
         ]);
     }
 
-    public function generateIa05($id)
+    public function ttdIa05(Request $request, $id)
     {
-        $data = $this->buildIa05Data($id, true);
-        if (!$data) {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'IA05',
+            'ttd_ia05',
+            $id
+        );
+
+        $dataDokumen = $this->buildIa05Data($id, true);
+        if (!$dataDokumen) {
             abort(404, 'Data not found');
         }
 
@@ -862,15 +952,49 @@ class AsesmenController extends Controller
             abort(404, 'Dokumen header not found');
         }
 
-        $viewData = array_merge($data, [
+        $viewData = array_merge($dataDokumen, [
             'dokumenHeader' => $dokumenHeader,
             'imga_checked' => '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAGvSURBVHjaYvz//z8DNQAjI6M5kCoFCCAYfxoQfwfi/yRgkHobqH4NIH4AxCkAAcQIJDqAuByq6AUQ/yHCQcxA/ByIPYCYB4j3AfEFoG+DAAIIJPkNaogrGT6VAuJLQPwaiBVBwQcQQAxQl90gwzBRID4G1Z8IMgyEAQIIZuBFEg0ThHoTpHctzDAQBgggmIGXSTCMF4i3IYW5OrKBAAGEbGAOEGsRMIwTiNcjxXQm2AAkAwECCNnALmjkzAZiXRyGrUQybCsQM6EbCBBA6F7uh/J/APEKILaEirMC8TIkw94iW4psIEAAoRsISpdzkDSCXLwGiFehJepiJJfrIRsIEEDYIoUNiFfjySF7oWpAoBCIfyEbCBBAuGIZFJO7sBj2CYhNkNRdgPgYYSBAAOFLNqCEexzNwCo0NWfRDQQIIJiBl3AkE3kgvoLFqzBwGt1AgACCGXgNT9rTB+ITQGyBRe4SuoEAAcQATSKg2LQiMfuByr/fIP3IBgIEEAtQYAYQ5wPxYSB+BMR/iSy+ZKH0TGQJgACCoQVQl5JSwP4E4kXoCRsggBipVQXAAECAAQAl4g0mXRSaqQAAAABJRU5ErkJggg==" align=abmiddle>',
 		    'imga_nochecked' => '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAEGSURBVHjaYvz//z8DNQFAAMHQNCD+DsT/ScB/gbgCpBnkKBgGCCAQvwOq4B8QPwPiRzjwFyD+BsRfoZb/heoJRDYQIIAYoIr+ALErib4yB+IfQHwK2UCAAGKAuu4GmUG1CYh/IRsIEEBMUImfZBoI8jozsgBAADGh0RQDgABionZyAQggqhsIEEBUNxAggKhuIEAAUWqgGroZAAFEqYEK6AIAAUSpgRglC0AAMeGSINdAgACCGchCpoEY+gACiAGawUGFgxWJhsXCSinkvAwQQCAbZgBxPhAfhhZTf3EYIArEjEg+44aydyErAgggGFoAdSkpBSyoLDyIXsACBBAjtasAgAADADiOfQARGEFnAAAAAElFTkSuQmCC" align=abmiddle>',
         ]);
 
-        return Pdf::loadView('pdf.ia05', $viewData)
-            ->setPaper('A4', 'portrait')
-            ->download('IA-05-' . Str::slug($id) . '.pdf');
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.ia05', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/ia05';
+
+        // unique + traceable filename
+        $filename = 'FR-IA-05-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_ia_05' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
     }
 
     private function buildAk02Data(
@@ -998,10 +1122,17 @@ class AsesmenController extends Controller
         ]);
     }
 
-    public function generateAk02($id)
+    public function ttdAk02(Request $request, $id)
     {
-        $data = $this->buildAk02Data($id, true);
-        if (!$data) {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'AK02',
+            'ttd_ak02',
+            $id
+        );
+
+        $dataDokumen = $this->buildAk02Data($id, true);
+        if (!$dataDokumen) {
             abort(404, 'Data not found');
         }
 
@@ -1010,13 +1141,47 @@ class AsesmenController extends Controller
             abort(404, 'Dokumen header not found');
         }
 
-        $viewData = array_merge($data, [
+        $viewData = array_merge($dataDokumen, [
             'dokumenHeader' => $dokumenHeader
         ]);
 
-        return Pdf::loadView('pdf.ak02', $viewData)
-            ->setPaper('A4', 'portrait')
-            ->download('AK-02-' . Str::slug($id) . '.pdf');
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.ak02', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/ak02';
+
+        // unique + traceable filename
+        $filename = 'FR-AK-02-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_ak02' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
     }
 
     private function buildAk03Data($id): ?array
@@ -1297,10 +1462,17 @@ class AsesmenController extends Controller
         ]);
     }
 
-    public function generateAk06($id)
+    public function ttdAk06(Request $request, $id)
     {
-        $data = $this->buildAk06Data($id, true);
-        if (!$data) {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'AK06',
+            'ttd_ak06',
+            $id
+        );
+
+        $dataDokumen = $this->buildAk06Data($id, true);
+        if (!$dataDokumen) {
             abort(404, 'Data not found');
         }
 
@@ -1309,13 +1481,47 @@ class AsesmenController extends Controller
             abort(404, 'Dokumen header not found');
         }
 
-        $viewData = array_merge($data, [
+        $viewData = array_merge($dataDokumen, [
             'dokumenHeader' => $dokumenHeader
         ]);
 
-        return Pdf::loadView('pdf.ak06', $viewData)
-            ->setPaper('A4', 'portrait')
-            ->download('AK-06-' . Str::slug($id) . '.pdf');
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.ak06', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/ak06';
+
+        // unique + traceable filename
+        $filename = 'FR-AK-06-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_ak06' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
     }
 
     public function dokumenAsesi($id)
@@ -1518,5 +1724,58 @@ class AsesmenController extends Controller
         } catch (\Throwable $e) {
             return null;
         }
+    }
+
+    private function generateTtdBarcode(
+        Request $request,
+        string $docType,
+        string $filePrefix,
+        string $izinId
+    ) {
+        $request->validate([
+            'id_jadwal' => 'required'
+        ]);
+
+        // 1️⃣ Generate UUID & URL TTD
+        $uuid = (string) Uuid::uuid4();
+        $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
+
+        // 2️⃣ Generate filename
+        $filename = "{$filePrefix}_" . Str::uuid() . '.png';
+
+        // 3️⃣ Generate QR image
+        $qrImage = QrCode::format('png')
+            ->size(300)
+            ->margin(1)
+            ->generate($urlTtd);
+
+        // 4️⃣ FTP path
+        $path = "barcodes/{$filename}";
+
+        // 5️⃣ Upload to FTP
+        Storage::disk('str_moon')->put($path, $qrImage);
+
+        // 6️⃣ Public image URL
+        $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        // 7️⃣ Save / update DB
+        Barcode::updateOrCreate(
+            [
+                'id_user'       => auth()->user()->id,
+                'id_izin'       => $izinId,
+                'jenis_dokumen' => $docType,
+            ],
+            [
+                'id_jadwal' => $request->id_jadwal,
+                'url_image' => $urlImage,
+                'url_ttd'   => $urlTtd,
+                'id_role'   => auth()->user()->role_id,
+            ]
+        );
+
+        return [
+            'url_image' => $urlImage,
+            'url_ttd'   => $urlTtd,
+        ];
     }
 }

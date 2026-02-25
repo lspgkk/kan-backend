@@ -38,8 +38,16 @@ class KomtekController extends Controller
 
     public function rekomendasi(Request $request, $id)
     {
-        $asesi = AsesiJadwal::where('id_izin', $id)->first();
+        $validated = $request->validate([
+            'kompeten' => 'required|boolean',
+        ]);
 
-        
+        AsesiJadwal::where('id_izin', $id)->update([
+            'kompeten' => (bool) $validated['kompeten'],
+        ]);
+
+        return response()->json([
+            'message' => 'success',
+        ]);
     }
 }

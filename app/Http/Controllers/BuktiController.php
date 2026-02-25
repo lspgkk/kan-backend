@@ -97,10 +97,10 @@ class BuktiController extends Controller
         $request->validate([
             'foto_bersama' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
 
-            'ttd_asesi_asesmen'  => 'nullable|file|mimes:pdf|max:2048',
-            'ttd_asesi_pra'      => 'nullable|file|mimes:pdf|max:2048',
-            'ttd_asesor_asesmen' => 'nullable|file|mimes:pdf|max:2048',
-            'ttd_asesor_pra'     => 'nullable|file|mimes:pdf|max:2048',
+            'ttd_asesi_asesmen'  => 'nullable|image|mimes:jpg,jpeg,png,webp,pdf|max:2048',
+            'ttd_asesi_pra'      => 'nullable|file|mimes:jpg,jpeg,png,webppdf|max:2048',
+            'ttd_asesor_asesmen' => 'nullable|file|mimes:jpg,jpeg,png,webppdf|max:2048',
+            'ttd_asesor_pra'     => 'nullable|file|mimes:jpg,jpeg,png,webppdf|max:2048',
         ]);
 
         $baseUrl = 'https://moon.lspgatensi.id/files/new_gatensi';
