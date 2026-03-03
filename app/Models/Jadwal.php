@@ -52,4 +52,13 @@ class Jadwal extends Model
     {
         return $this->belongsTo(Skema::class, 'skema_id', 'id');
     }
+
+    public function komtekRecommendations()
+    {
+        return $this->hasMany(
+            KomtekRecommendation::class,
+            'id_izin',
+            'id_izin'
+        );
+    }
 }

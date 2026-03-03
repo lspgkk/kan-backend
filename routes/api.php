@@ -9,6 +9,7 @@ use App\Http\Controllers\BuktiController;
 use App\Http\Controllers\CityController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DirekturController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermohonanController;
 use App\Http\Controllers\HitStatusController;
@@ -122,6 +123,13 @@ Route::middleware(['auth:api'])->group(function () {
 
     Route::prefix('komtek')->group(function () {
         Route::get('/', [KomtekController::class, 'index']);
+        Route::post('/rekomendasi/{id}', [KomtekController::class, 'rekomendasi']);
+        Route::get('/rekomendasi/{id}', [KomtekController::class, 'getRekomendasi']);
+        Route::get('/files/{id}', [KomtekController::class, 'komtekFiles']);
+    });
+
+    Route::prefix('direktur')->group(function () {
+        Route::get('/files/{id}', [DirekturController::class, 'jadwalFiles']);
     });
 
     Route::prefix('jenjang')->group(function () {
@@ -156,6 +164,10 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{id}', [JadwalController::class, 'show']);
     });
 
+    Route::prefix('dokumen')->group(function () {
+        Route::post('/sk-pelaksanaan-uji/{jadwalId}', [JadwalController::class, 'ttdSkPelaksanaanUji']);
+    });
+
     Route::prefix('kegiatan')->group(function () {
         Route::get('/asesi', [JadwalController::class, 'getKegiatanAsesi']);
         Route::get('/asesor', [JadwalController::class, 'getKegiatanAsesor']);
@@ -176,19 +188,6 @@ Route::middleware(['auth:api'])->group(function () {
 
     Route::get('/dokumen/asesi/{id}', [AsesmenController::class, 'dokumenAsesi']);
     Route::get('/dokumen/absen/{id}', [AsesmenController::class, 'absensi']);
-    Route::get('/dokumen/ak01/{id}', [PraAsesmenController::class, 'generateAk01']);
-    Route::get('/dokumen/ak02/{id}', [AsesmenController::class, 'generateAk02']);
-    Route::get('/dokumen/ak03/{id}', [AsesmenController::class, 'generateAk03']);
-    Route::get('/dokumen/ak04/{id}', [PraAsesmenController::class, 'generateAk04']);
-    Route::get('/dokumen/ak06/{id}', [AsesmenController::class, 'generateAk06']);
-    Route::get('/dokumen/ak07/{id}', [PraAsesmenController::class, 'generateAk07']);
-    Route::get('/dokumen/apl01/{id}', [PraAsesmenController::class, 'generateApl01']);
-    Route::get('/dokumen/apl02/{id}', [PraAsesmenController::class, 'generateApl02']);
-    Route::get('/dokumen/ia04a/{id}', [AsesmenController::class, 'generateIa04a']);
-    Route::get('/dokumen/ia04b/{id}', [AsesmenController::class, 'generateIa04b']);
-    Route::get('/dokumen/ia05/{id}', [AsesmenController::class, 'generateIa05']);
-    Route::get('/dokumen/mapa01/{id}', [PraAsesmenController::class, 'generateMapa01']);
-    Route::get('/dokumen/mapa02/{id}', [PraAsesmenController::class, 'generateMapa02']);
     Route::get('/generate-penyusun', [BarcodeController::class, 'generateBarcodePenyusun']);
     
     Route::prefix('praasesmen')->group(function () {
@@ -208,8 +207,8 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/apl01', [PraAsesmenController::class, 'submitApl01']);
         Route::post('/{id}/apl02', [PraAsesmenController::class, 'submitApl02']);
         Route::post('/{id}/apl02/files', [PraAsesmenController::class, 'uploadApl02Files']);
-        Route::post('/{id}/mapa01', [PraAsesmenController::class, 'submitMapa01']);
-        Route::post('/{id}/mapa02', [PraAsesmenController::class, 'submitMapa02']);
+        Route::post('/{id}/mapa01', [PraAsesmenController::class, 'generateMapa01']);
+        Route::post('/{id}/mapa02', [PraAsesmenController::class, 'generateMapa02']);
         Route::post('/{id}/ak07', [PraAsesmenController::class, 'submitAk07']);
         Route::post('/{id}/ak04', [PraAsesmenController::class, 'submitAk04']);
         Route::post('/file-k3', [PraAsesmenController::class, 'submitK3Asesmen']);
@@ -241,6 +240,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{id}/ia05', [AsesmenController::class, 'getIa05']);
         Route::get('/{id}/ak02', [AsesmenController::class, 'getAk02']);
         Route::get('/{id}/ak03', [AsesmenController::class, 'getAk03']);
+        Route::get('/{id}/ak05', [AsesmenController::class, 'getAk05']);
         Route::get('/{id}/ak06', [AsesmenController::class, 'getAk06']);
         Route::post('/{id}/ia04a', [AsesmenController::class, 'submitIa04a']);
         Route::post('/{id}/tugas', [AsesmenController::class, 'uploadTugas']);
@@ -249,6 +249,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/ia05', [AsesmenController::class, 'submitIa05']);
         Route::post('/{id}/ak02', [AsesmenController::class, 'submitAk02']);
         Route::post('/{id}/ak03', [AsesmenController::class, 'submitAk03']);
+        Route::post('/{id}/ak05', [AsesmenController::class, 'submitAk05']);
         Route::post('/{id}/ak06', [AsesmenController::class, 'submitAk06']);
     });
 

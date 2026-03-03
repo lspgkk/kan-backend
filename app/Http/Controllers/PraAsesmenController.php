@@ -1153,9 +1153,43 @@ class PraAsesmenController extends Controller
             'dokumenHeader' => $dokumenHeader
         ]);
 
-        return Pdf::loadView('pdf.mapa01', $viewData)
-            ->setPaper('A4', 'portrait')
-            ->download('MAPA-01-' . Str::slug($id) . '.pdf');
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.mapa01', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/mapa01';
+
+        // unique + traceable filename
+        $filename = 'FR-MAPA-01-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_mapa01' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $fullUrl,
+        ]);
     }
 
     private function buildMapa02Data(
@@ -1263,9 +1297,43 @@ class PraAsesmenController extends Controller
             'dokumenHeader' => $dokumenHeader
         ]);
 
-        return Pdf::loadView('pdf.mapa02', $viewData)
-            ->setPaper('A4', 'portrait')
-            ->download('MAPA-02-' . Str::slug($id) . '.pdf');
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.mapa02', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/mapa02';
+
+        // unique + traceable filename
+        $filename = 'FR-MAPA-02-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_mapa02' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $fullUrl,
+        ]);
     }
 
     private function buildAk07Data(

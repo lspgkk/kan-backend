@@ -6,6 +6,7 @@ use App\Models\Ak2Answer;
 use App\Models\Ak2Feedback;
 use App\Models\Ak3Answer;
 use App\Models\Ak3Note;
+use App\Models\Ak5Answer;
 use App\Models\Ak6Answer;
 use App\Models\Ak6Feedback;
 use App\Models\AsesiJadwal;
@@ -45,6 +46,7 @@ class AsesmenController extends Controller
 
     public function absenAkhir(Request $request, $id)
     {
+
         return $this->handleAbsen($request, $id, 'akhir');
     }
 
@@ -1290,11 +1292,14 @@ class AsesmenController extends Controller
             if (!empty($validated['catatan'])) {
                 Ak3Note::updateOrCreate(
                     ['id_izin' => $id],
-                    [
-                        'catatan' => $validated['catatan'],
-                    ]
+                    ['catatan' => $validated['catatan']]
                 );
             }
+
+            // 🔥 Run AFTER transaction is committed
+            DB::afterCommit(function () use ($id) {
+                $this->generateAk03Internal($id);
+            });
         });
 
         return response()->json([
@@ -1302,25 +1307,191 @@ class AsesmenController extends Controller
         ]);
     }
 
-    public function generateAk03($id)
+    private function generateAk03Internal($id): string
     {
         $data = $this->buildAk03Data($id);
         if (!$data) {
-            abort(404, 'Data not found');
+            throw new \Exception('AK03 data not found');
         }
 
         $dokumenHeader = $this->buildDokumenHeader($id, true);
         if (!$dokumenHeader) {
-            abort(404, 'Dokumen header not found');
+            throw new \Exception('Dokumen header not found');
         }
 
         $viewData = array_merge($data, [
             'dokumenHeader' => $dokumenHeader
         ]);
 
-        return Pdf::loadView('pdf.ak03', $viewData)
-            ->setPaper('A4', 'portrait')
-            ->download('AK-03-' . Str::slug($id) . '.pdf');
+        $pdf = Pdf::loadView('pdf.ak03', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/ak03';
+
+        $filename = 'FR-AK-03-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_ak03' => $fullUrl]
+        );
+
+        return $fullUrl;
+    }
+
+    private function buildAk05Data(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
+    {
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$klasifikasi) {
+            return null;
+        }
+
+        $answer = Ak5Answer::select(['keterangan', 'aspek', 'pencatatan_penolakan', 'saran', 'catatan'])->where('id_izin', $id)->first();
+
+        $barcodes = $this->resolveDocumentBarcodes($id, 'AK05', $forPdf);
+
+        unset($barcodes['asesi']);
+
+        $kompeten = AsesiJadwal::where('id_izin', $id)->value('kompeten');
+
+        return [
+            'kompeten' => $kompeten === 'K' ? true : false,
+            'answers' => $answer,
+            'barcodes' => $barcodes
+        ];
+    }
+
+    public function getAk05($id)
+    {
+        $data = $this->buildAk05Data($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => $data,
+        ]);
+    }
+
+    public function submitAk05(Request $request, $id)
+    {
+        // 🔹 Validate request
+        $validated = $request->validate([
+            'kompeten'              => 'required|boolean',
+            'keterangan'            => 'nullable|string',
+            'aspek'                 => 'nullable|string',
+            'pencatatan_penolakan'  => 'nullable|string',
+            'saran'                 => 'nullable|string',
+            'catatan'               => 'nullable|string',
+        ]);
+
+        // 🔹 Ensure klasifikasi exists (same logic as getAk05)
+        $klasifikasi = KlasifikasiKualifikasi::where('id_izin', $id)->first();
+
+        if (!$klasifikasi) {
+            return response()->json([
+                'message' => 'Data tidak ditemukan',
+            ], 404);
+        }
+
+        // 🔹 Create or update AK05 answer
+        Ak5Answer::updateOrCreate(
+            ['id_izin' => $id],
+            [
+                'keterangan'           => $validated['keterangan'],
+                'aspek'                => $validated['aspek'],
+                'pencatatan_penolakan' => $validated['pencatatan_penolakan'] ?? null,
+                'saran'                => $validated['saran'] ?? null,
+                'catatan'              => $validated['catatan'] ?? null,
+            ]
+        );
+
+        AsesiJadwal::where('id_izin', $id)->update([
+            'kompeten' => $request->kompeten ? 'K' : 'BK'
+        ]);
+
+        return response()->json([
+            'message' => 'AK05 berhasil disubmit'
+        ]);
+    }
+
+    public function ttdAk05(Request $request, $id)
+    {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'AK05',
+            'ttd_ak05',
+            $id
+        );
+
+        $dataDokumen = $this->buildAk05Data($id, true);
+        if (!$dataDokumen) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($dataDokumen, [
+            'dokumenHeader' => $dokumenHeader
+        ]);
+
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.ak05', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/ak05';
+
+        // unique + traceable filename
+        $filename = 'FR-AK-05-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_ak05' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
     }
 
     private function buildAk06Data(

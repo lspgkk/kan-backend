@@ -274,7 +274,7 @@
     </tr>
     <tr>
         <td>Nama</td>
-        <td>{{ $barcodes['asesor1']['nama'] }}</td>
+        <td>{{ $dokumenHeader['asesor_1'] }}</td>
     </tr>
     <tr>
         <td>No Reg</td>
@@ -296,7 +296,7 @@
     </tr>
     <tr>
         <td>Nama</td>
-        <td>{{ $barcodes['asesor2']['nama'] }}</td>
+        <td>{{ $dokumenHeader['asesor_2'] }}</td>
     </tr>
     <tr>
         <td>No Reg</td>
@@ -319,7 +319,7 @@
     </tr>
     <tr>
         <td>Nama</td>
-        <td>{{ $barcodes['asesor1']['nama'] }}</td>
+        <td>{{ $dokumenHeader['asesor_1'] }}</td>
     </tr>
     <tr>
         <td>No Reg</td>
