@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\BaKomtek;
+use App\Models\SkKomtek;
+use App\Models\SkPelaksanaanUji;
 use App\Models\SPTAsesor;
 use App\Models\SPTKomtek;
 use Illuminate\Http\Request;
@@ -14,14 +16,16 @@ class DirekturController extends Controller
         $ba_komtek = BaKomtek::where('jadwal_id', $id)->value('link');
         $spt_komtek = SPTKomtek::where('jadwal_id', $id)->value('link');
         $spt_asesor = SPTAsesor::where('jadwal_id', $id)->value('link');
+        $sk_pelaksanaan_uji = SkPelaksanaanUji::where('jadwal_id', $id)->value('link');
+        $sk_komtek = SkKomtek::where('jadwal_id', $id)->value('link');
 
         return response()->json([
             'message' => 'Success',
             'data' => [
-                'sk_pelaksanaan_uji' => null,
+                'sk_pelaksanaan_uji' => $sk_pelaksanaan_uji,
                 'spt_asesor' => $spt_asesor,
                 'spt_komtek' => $spt_komtek,
-                'sk_komtek' => null,
+                'sk_komtek' => $sk_komtek,
                 'ba_komtek' => $ba_komtek,
             ]
         ]);

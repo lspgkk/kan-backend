@@ -16,6 +16,7 @@ use App\Models\Pendidikan;
 use App\Models\Personal;
 use App\Models\SPTAsesor;
 use App\Models\SPTKomtek;
+use App\Models\SkKomtek;
 use App\Models\SkPelaksanaanUji;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -760,10 +761,10 @@ class JadwalController extends Controller
         /** ===============================
          *  6. UPLOAD TO FTP
          *  =============================== */
-        $path = "/baru/spt_asesor/{$jadwalId}.pdf";
-        Storage::disk('sertif_ftp')->put($path, $pdfContent);
+        $path = "spt_asesor/{$jadwalId}.pdf";
+        Storage::disk('str_moon')->put($path, $pdfContent);
 
-        $fileUrl = "https://lspgatensi.id/files{$path}";
+        $fileUrl = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
 
         /** ===============================
          *  7. SEND TO BNSP
@@ -840,10 +841,7 @@ class JadwalController extends Controller
         $getNamaKomtek = function ($nomor) {
             if (!$nomor) return null;
 
-            return DB::connection('mygatensi')
-                ->table('mypersonillsp')
-                ->where('Nomor', $nomor)
-                ->value('Nama');
+            return User::where('id', $nomor)->value('name');
         };
 
         $nama_komtek1 = $getNamaKomtek($jadwal->komtek1);
@@ -938,7 +936,7 @@ class JadwalController extends Controller
             $qrImage = $this->convertSvgToPng($qrSvg);
 
             // Save to FTP server
-            $path = "new_gatensi/barcodes/{$barcodeUuid}.png";
+            $path = "barcodes/{$barcodeUuid}.png";
             Storage::disk('str_moon')->put($path, $qrImage);
 
             // Public image URL
@@ -982,9 +980,9 @@ class JadwalController extends Controller
         $pdf = PDF::loadView('template-surat.spt_komtek', $viewData);
         $pdfContent = $pdf->output();
 
-        $path = "/baru/spt_komtek/{$jadwalId}.pdf";
-        Storage::disk('sertif_ftp')->put($path, $pdfContent);
-        $fileUrl = "https://lspgatensi.id/files{$path}";
+        $path = "spt_komtek/{$jadwalId}.pdf";
+        Storage::disk('str_moon')->put($path, $pdfContent);
+        $fileUrl = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
 
         /** ===============================
          *  7. SAVE DB (ALWAYS)
@@ -1036,11 +1034,9 @@ class JadwalController extends Controller
          *  =============================== */
         $existing = SkPelaksanaanUji::where('jadwal_id', $jadwalId)->first();
 
+        // Use existing no_surat if available, otherwise use the provided one
         if ($existing) {
-            return [
-                'nomor_sk' => $existing->no_surat,
-                'url' => $existing->link,
-            ];
+            $nomorSk = $existing->no_surat;
         }
 
         /** ===============================
@@ -1122,11 +1118,14 @@ class JadwalController extends Controller
          *  5. GENERATE QR CODE
          *  =============================== */
         $barcodeUuid = (string) \Ramsey\Uuid\Uuid::uuid4();
-        $qrSvg = QrCode::margin(0)->size(70)
+        $qrSvg = QrCode::margin(1)->size(120)
             ->generate("https://barcode.lspgatensi.id/{$barcodeUuid}");
 
         // Convert SVG to PNG image
         $qrImage = $this->convertSvgToPng($qrSvg);
+
+        // Convert PNG to base64 for PDF embedding
+        $qrBase64 = base64_encode($qrImage);
 
         // Save to FTP server
         $path = "new_gatensi/barcodes/{$barcodeUuid}.png";
@@ -1160,22 +1159,26 @@ class JadwalController extends Controller
             'tanggal_uji_sertifikasi' => $tanggalUji->isoFormat('D MMMM YYYY'),
             'tanggal_direktur_lsp' => Carbon::parse($tanggalDirekturLsp)->isoFormat('D MMMM YYYY'),
             'hasil_sertifikasi' => $hasilSertifikasi,
-            'qr' => $qrSvg,
+            'qr' => $qrBase64,
         ];
 
         $pdf = Pdf::loadView('template-surat.sk_pelaksanaan_uji', $viewData);
         $pdfContent = $pdf->output();
 
-        $path = "/baru/sk_pelaksanaan_uji/{$jadwalId}.pdf";
-        Storage::disk('sertif_ftp')->put($path, $pdfContent);
-        $fileUrl = "https://lspgatensi.id/files{$path}";
+        // Generate unique filename with timestamp to prevent caching
+        $timestamp = now()->format('YmdHis');
+        $path = "sk_pelaksanaan_uji/{$jadwalId}_{$timestamp}.pdf";
+        Storage::disk('str_moon')->put($path, $pdfContent);
+        $fileUrl = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
 
-        // Save to SkPelaksanaanUji model
-        SkPelaksanaanUji::create([
-            'jadwal_id' => $jadwalId,
-            'no_surat' => $nomorSk,
-            'link' => $fileUrl,
-        ]);
+        // Save or update SkPelaksanaanUji model
+        SkPelaksanaanUji::updateOrCreate(
+            ['jadwal_id' => $jadwalId],
+            [
+                'no_surat' => $nomorSk,
+                'link' => $fileUrl,
+            ]
+        );
 
         return [
             'nomor_sk' => $nomorSk,
@@ -1231,6 +1234,169 @@ class JadwalController extends Controller
 
             return response()->json([
                 'message' => 'SK Pelaksanaan Uji generated successfully.',
+                'data' => $result
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    private function generateSkKomtek(
+        int $jadwalId,
+        string $nomorSk,
+        string $tanggalPenetapan
+    ): array
+    {
+        /** ===============================
+         *  1. CHECK EXISTING SK KOMTEK
+         *  =============================== */
+        $existing = SkKomtek::where('jadwal_id', $jadwalId)->first();
+
+        // Use existing no_surat if available, otherwise use the provided one
+        if ($existing) {
+            $nomorSk = $existing->no_surat;
+        }
+
+        /** ===============================
+         *  2. GET JADWAL DATA FROM DATABASE
+         *  =============================== */
+        $jadwal = Jadwal::where('jadwal_id', $jadwalId)->firstOrFail();
+
+        /** ===============================
+         *  3. GET KOMTEK MEMBERS
+         *  =============================== */
+        $getNamaKomtek = function ($nomor) {
+            if (!$nomor) return null;
+
+            return User::where('id', $nomor)->value('name');
+        };
+
+        $komtekMembers = [];
+        $jabatanList = ['Ketua', 'Anggota', 'Anggota'];
+
+        for ($i = 1; $i <= 3; $i++) {
+            $komtekNomor = $jadwal->{"komtek{$i}"};
+            if ($komtekNomor) {
+                $nama = $getNamaKomtek($komtekNomor);
+                if ($nama) {
+                    $komtekMembers[] = [
+                        'nama' => $nama,
+                        'jabatan' => $jabatanList[$i - 1] ?? 'Anggota',
+                    ];
+                }
+            }
+        }
+
+        /** ===============================
+         *  4. GENERATE QR CODE
+         *  =============================== */
+        $barcodeUuid = (string) \Ramsey\Uuid\Uuid::uuid4();
+        $qrSvg = QrCode::margin(1)->size(120)
+            ->generate("https://barcode.lspgatensi.id/{$barcodeUuid}");
+
+        // Convert SVG to PNG image
+        $qrImage = $this->convertSvgToPng($qrSvg);
+
+        // Save to FTP server
+        $path = "barcodes/{$barcodeUuid}.png";
+        Storage::disk('str_moon')->put($path, $qrImage);
+
+        // Public image URL
+        $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        // Save / update DB
+        Barcode::updateOrCreate(
+            [
+                'id_user'       => auth()->id(),
+                'id_izin'       => '2220910001',
+                'jenis_dokumen' => 'SK Komtek',
+            ],
+            [
+                'id_jadwal' => $jadwalId,
+                'url_image' => $urlImage,
+                'url_ttd'   => "https://barcode.lspgatensi.id/{$barcodeUuid}",
+                'id_role'   => auth()->user()->role_id ?? null,
+            ]
+        );
+
+        /** ===============================
+         *  5. GENERATE PDF
+         *  =============================== */
+        $viewData = [
+            'nomor' => $nomorSk,
+            'tanggal_penetapan' => Carbon::parse($tanggalPenetapan)->isoFormat('D MMMM YYYY'),
+            'komtek_members' => $komtekMembers,
+            'qr' => $qrSvg,
+        ];
+
+        $pdf = Pdf::loadView('template-surat.sk_komtek', $viewData);
+        $pdfContent = $pdf->output();
+
+        // Generate unique filename with timestamp to prevent caching
+        $timestamp = now()->format('YmdHis');
+        $path = "sk_komtek/{$jadwalId}_{$timestamp}.pdf";
+        Storage::disk('str_moon')->put($path, $pdfContent);
+        $fileUrl = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        // Save or update SkKomtek model
+        SkKomtek::updateOrCreate(
+            ['jadwal_id' => $jadwalId],
+            [
+                'no_surat' => $nomorSk,
+                'link' => $fileUrl,
+            ]
+        );
+
+        return [
+            'nomor_sk' => $nomorSk,
+            'url' => $fileUrl,
+        ];
+    }
+
+    public function ttdSkKomtek(int $jadwalId)
+    {
+        try {
+            /** ===============================
+             *  GENERATE / REUSE SK NUMBER
+             *  =============================== */
+            $existing = SkKomtek::where('jadwal_id', $jadwalId)->first();
+
+            if ($existing) {
+                $nomorSk = $existing->no_surat;
+            } else {
+                $last = SkKomtek::latest('id')->first();
+                $noSk = $last?->no_surat ?? '0/LSP-GKK-C.003-B/I/2024';
+
+                $romawi = [
+                    1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
+                    5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII',
+                    9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
+                ];
+
+                $parts = explode('/', $noSk);
+                $year  = now()->year;
+
+                $parts[0] = ((int)($parts[3] ?? 0) === $year)
+                    ? ((int)$parts[0] + 1)
+                    : 1;
+
+                $parts[2] = $romawi[now()->month];
+                $parts[3] = (string)$year;
+
+                $nomorSk = implode('/', $parts);
+            }
+
+            $result = $this->generateSkKomtek(
+                $jadwalId,
+                $nomorSk,
+                now()->toDateString()
+            );
+
+            return response()->json([
+                'message' => 'SK Komtek generated successfully.',
                 'data' => $result
             ]);
         } catch (\Exception $e) {

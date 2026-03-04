@@ -166,6 +166,7 @@ Route::middleware(['auth:api'])->group(function () {
 
     Route::prefix('dokumen')->group(function () {
         Route::post('/sk-pelaksanaan-uji/{jadwalId}', [JadwalController::class, 'ttdSkPelaksanaanUji']);
+        Route::post('/sk-komtek/{jadwalId}', [JadwalController::class, 'ttdSkKomtek']);
     });
 
     Route::prefix('kegiatan')->group(function () {

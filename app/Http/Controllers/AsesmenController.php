@@ -849,6 +849,7 @@ class AsesmenController extends Controller
             ->where('soals.id_dokumen', $dokumen->id)
             ->where('soals.tipe', 1)
             ->orderBy('soals.no', 'asc')
+            ->groupBy('soals.id')
             ->select([
                 'soals.id',
                 'soals.no',
@@ -867,7 +868,8 @@ class AsesmenController extends Controller
                 'soals.jawaban as kunci_jawaban', // correct answer
                 'a.jawaban as jawaban_asesi'        // answer by id_izin
             ])
-            ->get();
+            ->get()
+            ->values(); // Re-index collection to ensure consistent ordering
 
         $feedback = Ia5Feedback::where('id_izin', $id)->value('umpan_balik');
 

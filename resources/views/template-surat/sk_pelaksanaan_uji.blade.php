@@ -1,287 +1,274 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-    <meta charset="utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <title>SK Direktur - Template</title>
     <style>
+        /**
+            Set the margins of the page to 0, so the footer and the header
+            can be of the full height and width !
+         **/
         @page {
+            margin: 0cm 0cm;
             size: A4;
-            margin: 0;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        /** Define now the real margins of every page in the PDF **/
         body {
+            margin-top: 3cm;
+            margin-left: 2cm;
+            margin-right: 2cm;
+            margin-bottom: 2cm;
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 11pt;
-            line-height: 1.5;
-            background-color: #f0f0f0;
+            font-size: 14px;
+            line-height: 1.4;
+            -webkit-print-color-adjust: exact !important;
         }
 
-        .page {
-            width: 210mm;
-            height: 297mm;
-            padding: 25mm 30mm;
-            background-color: white;
-            background-image: './images/untuk-template/template-skdirektur.png';
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            page-break-after: always;
-            position: relative;
-            margin: 10px auto;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        /** Define the header rules **/
+        header {
+            position: fixed;
+            top: 0cm;
+            left: 0cm;
+            right: 0cm;
+            height: 3cm;
         }
 
-        .page:last-child {
-            page-break-after: auto;
-        }
-
-        /* Header Styles */
-        .header {
-            text-align: center;
-            margin-bottom: 10px;
-        }
-
-        .header h1 {
-            font-size: 11pt;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
-        .header h2 {
-            font-size: 11pt;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
-        .nomor {
-            text-align: center;
-            margin-bottom: 10px;
-        }
-
-        .tentang {
-            text-align: center;
-            font-weight: bold;
-            margin-bottom: 20px;
-        }
-
-        .tentang h3 {
-            font-size: 11pt;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-
-        .double-line {
-            border-top: 2px solid #000;
-            border-bottom: 1px solid #000;
-            height: 3px;
-            margin-bottom: 20px;
-        }
-
-        /* --- KUNCI PERAPIAN TITIK DUA --- */
-        .section {
-            display: flex;
-            margin-bottom: 15px;
-            align-items: flex-start;
-        }
-
-        .section-title {
-            width: 100px; /* Lebar label kiri */
-            flex-shrink: 0;
-            font-weight: normal;
-        }
-
-        .section-separator {
-            width: 20px; /* Ruang untuk titik dua */
-            flex-shrink: 0;
-            text-align: center;
-        }
-
-        .section-content {
-            flex: 1;
-            text-align: justify;
-        }
-
-        .section-content ol {
-            padding-left: 18px; /* Ruang untuk angka list */
-            margin: 0;
-        }
-
-        .section-content ol li {
-            margin-bottom: 8px;
-        }
-
-        .section-content p {
-            margin: 0;
-        }
-        /* ------------------------------- */
-
-        .memutuskan {
-            text-align: center;
-            font-weight: bold;
-            font-size: 11pt;
-            margin-bottom: 30px;
-            text-transform: uppercase;
-        }
-
-        .ttd-area {
-            position: absolute;
-            bottom: 80px;
-            right: 80px;
-            text-align: left;
-            width: 280px;
-        }
-
-        .ttd-area .tanggal {
-            margin-bottom: 5px;
-        }
-
-        .ttd-area .lembaga {
-            font-weight: bold;
-            margin-bottom: 60px;
-            display: block;
-        }
-
-        .ttd-area .nama {
-            font-weight: bold;
-            text-decoration: underline;
+        /** Define the footer rules **/
+        footer {
+            position: fixed;
+            bottom: 0cm;
+            left: 0cm;
+            right: 0cm;
+            height: 2cm;
         }
 
         table {
             width: 100%;
+            border: 1px solid black;
             border-collapse: collapse;
-            margin-top: 20px;
+            font-size: 13px;
         }
 
-        table th, table td {
+        td {
             border: 1px solid black;
-            padding: 8px;
+            vertical-align: top;
+            padding: 5px;
+            word-wrap: break-word;
+        }
+
+        th {
+            border: 1px solid black;
+            padding: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        li {
+            padding-left: 5px;
+            margin-bottom: 5px;
         }
 
         @media print {
-            body { background-color: white; }
-            .page { margin: 0; box-shadow: none; 
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;}
+            .noprint {
+                display: none;
+            }
+
+            .nobg {
+                box-shadow: 0px 0px 5px 0px rgb(255, 255, 255);
+            }
+
+            .pagebreak {
+                page-break-after: always;
+            }
         }
     </style>
 </head>
-<body>
 
-    <div class="page">
-        <div class="header">
-            <h1>SURAT KEPUTUSAN</h1>
-            <h2>DIREKTUR LEMBAGA SERTIFIKASI PROFESI GATENSI KARYA KONSTRUKSI</h2>
+<body>
+    <!-- Define header and footer blocks before your content -->
+    <header>
+        <img src="./images/untuk-template/kop_satu.png" width="100%" />
+    </header>
+
+    <footer>
+        <img src="./images/untuk-template/kop_dua.png" width="100%" />
+    </footer>
+
+    <!-- Wrap the content of your PDF inside a main tag -->
+    <main>
+        <div style="text-align: center; margin-bottom: 15px;">
+            <h3 style="margin: 0; padding: 0; font-weight: bold;">SURAT KEPUTUSAN</h3>
+            <h3 style="margin: 5px 0; padding: 0; font-weight: bold;">DIREKTUR LEMBAGA SERTIFIKASI PROFESI GATENSI KARYA KONSTRUKSI</h3>
         </div>
-        <div class="nomor">
+
+        <div style="text-align: center; margin-bottom: 15px;">
             <strong>Nomor : {{ $nomor }}</strong>
         </div>
-        <div class="tentang">
-            <h3>TENTANG</h3>
-            <h3>PENETAPAN HASIL SERTIFIKASI KOMPETENSI</h3>
-            <h3>LEMBAGA SERTIFIKASI PROFESI GATENSI KARYA KONSTRUKSI</h3>
+
+        <div style="text-align: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; font-weight: bold;">TENTANG</h3>
+            <h3 style="margin: 5px 0; font-weight: bold;">PENETAPAN HASIL SERTIFIKASI KOMPETENSI</h3>
+            <h3 style="margin: 5px 0; font-weight: bold;">LEMBAGA SERTIFIKASI PROFESI GATENSI KARYA KONSTRUKSI</h3>
         </div>
 
-        <div class="double-line"></div>
+        <div style="border-top: 2px solid #000; border-bottom: 1px solid #000; height: 3px; margin-bottom: 15px;"></div>
 
-        <div style="font-weight: bold; text-align: center; margin-bottom: 25px;">
+        <div style="text-align: center; font-weight: bold; margin-bottom: 20px;">
             DIREKTUR LEMBAGA SERTIFIKASI PROFESI GATENSI KARYA KONSTRUKSI
         </div>
 
-        <div class="section">
-            <div class="section-title">Menimbang</div>
-            <div class="section-separator">:</div>
-            <div class="section-content">
-                <ol type="a">
-                    <li>Undang-Undang Republik Indonesia Nomor 13 Tahun 2003 Tentang Ketenagakerjaan;</li>
-                    <li>Bahwa hasil sertifikasi Kompetensi harus ditetapkan oleh Lembaga Sertifikasi Profesi;</li>
-                    <li>Bahwa berdasarkan berita acara rapat pleno komite teknis pada tanggal {{ $tanggal_pleno_komtek }}</li>
-                    <li>Bahwa berdasarkan poin b dan c maka perlu ditetapkan hasil sertifikasi kompetensi Lembaga Sertifikasi Profesi Gatensi Karya Konstruksi.</li>
-                </ol>
-            </div>
+        <table style="width: 100%; margin-bottom: 15px; border: none;">
+            <tr style="border: none;">
+                <td style="width: 130px; border: none; padding: 0; vertical-align: top; font-weight: normal;">Menimbang</td>
+                <td style="width: 10px; border: none; padding: 0; vertical-align: top; text-align: center;">:</td>
+                <td style="border: none; padding: 0; vertical-align: top;">
+                    <ol type="a" style="padding-left: 20px; margin: 0; text-align: justify;">
+                        <li>Undang-Undang Republik Indonesia Nomor 13 Tahun 2003 Tentang Ketenagakerjaan;</li>
+                        <li>Bahwa hasil sertifikasi Kompetensi harus ditetapkan oleh Lembaga Sertifikasi Profesi;</li>
+                        <li>Bahwa berdasarkan berita acara rapat pleno komite teknis pada tanggal {{ $tanggal_pleno_komtek }}</li>
+                        <li>Bahwa berdasarkan poin b dan c maka perlu ditetapkan hasil sertifikasi kompetensi Lembaga Sertifikasi Profesi Gatensi Karya Konstruksi.</li>
+                    </ol>
+                </td>
+            </tr>
+        </table>
+
+        <table style="width: 100%; margin-bottom: 15px; border: none;">
+            <tr style="border: none;">
+                <td style="width: 130px; border: none; padding: 0; vertical-align: top; font-weight: normal;">Mengingat</td>
+                <td style="width: 10px; border: none; padding: 0; vertical-align: top; text-align: center;">:</td>
+                <td style="border: none; padding: 0; vertical-align: top;">
+                    <ol type="a" style="padding-left: 20px; margin: 0; text-align: justify;">
+                        <li>Peraturan Pemerintah Republik Indonesia Nomor 10 Tahun 2018 tentang Badan Nasional Sertifikasi Profesi;</li>
+                        <li>Peraturan Badan Nasional Sertifikasi Profesi Nomor: 1/BNSP/III/2014 tentang pedoman penilaian kesesuaian persyaratan umum Lembaga Sertifikasi Profesi;</li>
+                        <li>Peraturan Badan Nasional Sertifikasi Profesi Nomor: 2/BNSP/III/2014 tentang pedoman pembentukan Lembaga Sertifikasi Profesi;</li>
+                        <li>Peraturan Badan Nasional Sertifikasi Profesi Nomor: 09/BNSP.301/XI/2013 tentang pedoman pelaksanaan asesmen kompetensi.</li>
+                    </ol>
+                </td>
+            </tr>
+        </table>
+
+        <table style="width: 100%; margin-bottom: 15px; border: none;">
+            <tr style="border: none;">
+                <td style="width: 130px; border: none; padding: 0; vertical-align: top; font-weight: normal;">Memperhatikan</td>
+                <td style="width: 10px; border: none; padding: 0; vertical-align: top; text-align: center;">:</td>
+                <td style="border: none; padding: 0; vertical-align: top; text-align: justify;">
+                    Hasil berita acara pleno komte teknis pada tanggal {{ $tanggal_pleno_komtek }} dengan nomor {{ $nomor_pleno_komtek }}
+                </td>
+            </tr>
+        </table>
+
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h3 style="margin: 0; font-weight: bold; text-transform: uppercase;">M E M U T U S K A N</h3>
         </div>
 
-        <div class="section">
-            <div class="section-title">Mengingat</div>
-            <div class="section-separator">:</div>
-            <div class="section-content">
-                <ol type="a">
-                    <li>Peraturan Pemerintah Republik Indonesia Nomor 10 Tahun 2018 tentang Badan Nasional Sertifikasi Profesi;</li>
-                    <li>Peraturan Badan Nasional Sertifikasi Profesi Nomor: 1/BNSP/III/2014 tentang pedoman penilaian kesesuaian persyaratan umum Lembaga Sertifikasi Profesi;</li>
-                    <li>Peraturan Badan Nasional Sertifikasi Profesi Nomor: 2/BNSP/III/2014 tentang pedoman pembentukan Lembaga Sertifikasi Profesi;</li>
-                    <li>Peraturan Badan Nasional Sertifikasi Profesi Nomor: 09/BNSP.301/XI/2013 tentang pedoman pelaksanaan asesmen kompetensi.</li>
-                </ol>
-            </div>
-        </div>
+        <table style="width: 100%; margin-bottom: 15px; border: none;">
+            <tr style="border: none;">
+                <td style="width: 130px; border: none; padding: 0; vertical-align: top; font-weight: normal;">Menetapkan</td>
+                <td style="width: 10px; border: none; padding: 0; vertical-align: top; text-align: center;">:</td>
+                <td style="border: none; padding: 0; vertical-align: top; text-align: justify;">
+                    Hasil sertifikasi kompetensi Lembaga Sertifikasi Profesi Gatensi Karya Konstruksi yang dilaksanakan pada tanggal {{ $tanggal_uji_sertifikasi }} sebagaimana terlampir.
+                </td>
+            </tr>
+        </table>
 
-        <div class="section">
-            <div class="section-title">Memperhatikan</div>
-            <div class="section-separator">:</div>
-            <div class="section-content">
-                <p>Hasil berita acara pleno komite teknis pada tanggal {{ $tanggal_pleno_komtek }} dengan nomor {{ $nomor_pleno_komtek }}</p>
-            </div>
-        </div>
-    </div>
-
-    <div class="page">
-        <div class="header" style="margin-bottom: 30px;">
-            <h1>M E M U T U S K A N</h1>
-        </div>
-
-        <div class="section">
-            <div class="section-title">Menetapkan</div>
-            <div class="section-separator">:</div>
-            <div class="section-content">
-                <p>Hasil sertifikasi kompetensi Lembaga Sertifikasi Profesi Gatensi Karya Konstruksi yang dilaksanakan pada tanggal {{ $tanggal_uji_sertifikasi }} sebagaimana terlampir.</p>
-            </div>
-        </div>
-
-        <div class="ttd-area">
-            <div class="tanggal">Diterbitkan di : Jakarta</div>
-            <div class="tanggal">Pada Tanggal : {{ $tanggal_direktur_lsp }}</div>
-            <div class="lembaga" style="margin-top: 15px;">Direktur Lembaga Sertifikasi Profesi<br>Gatensi Karya Konstruksi</div>
+        <div style="position: absolute; bottom: 100px; right: 80px; text-align: left; width: 280px;">
+            <div style="margin-bottom: 5px;">Diterbitkan di : Jakarta</div>
+            <div style="margin-bottom: 5px;">Pada Tanggal : {{ $tanggal_direktur_lsp }}</div>
+            <div style="font-weight: bold; margin-bottom: 60px; display: block; margin-top: 15px;">Direktur Lembaga Sertifikasi Profesi<br>Gatensi Karya Konstruksi</div>
             <br><br><br>
-            <div class="nama">Radinal Efendy, ST</div>
-            <div class="jabatan">Direktur LSP</div>
+            <div style="font-weight: bold; text-decoration: underline;">Radinal Efendy, ST</div>
+            <div style="font-size: 13px;">Direktur LSP</div>
             @if($qr)
-            <div style="margin-top: 10px;">{!! $qr !!}</div>
+            <img src="data:image/png;base64,{{ $qr }}" style="width: 120px; height: 120px; margin-top: 10px;" />
             @endif
         </div>
-    </div>
 
-    <div class="page">
-        <div style="font-weight: bold; text-align: center; margin-bottom: 20px;">LAMPIRAN SURAT KEPUTUSAN</div>
-        <div style="text-align: center; margin-bottom: 30px;">
-            <strong>Nomor : {{ $nomor }}</strong><br>
-            <strong>Tentang Penetapan Hasil Sertifikasi Kompetensi</strong>
+        <!-- Page 3 - Lampiran -->
+
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+
+        <div>
+            <div style="text-align: center; font-weight: bold; margin-bottom: 15px;">LAMPIRAN SURAT KEPUTUSAN</div>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <strong>Nomor : {{ $nomor }}</strong><br>
+                <strong>Tentang Penetapan Hasil Sertifikasi Kompetensi</strong>
+            </div>
+            <div style="font-weight: bold; margin-bottom: 10px; text-align: center;">HASIL SERTIFIKASI KOMPETENSI:</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 8%;">No</th>
+                        <th style="width: 37%;">Nama</th>
+                        <th style="width: 37%;">Skema</th>
+                        <th style="width: 18%;">Hasil</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($hasil_sertifikasi as $item)
+                    <tr>
+                        <td style="text-align: center;">{{ $item['no'] }}</td>
+                        <td>{{ $item['nama'] }}</td>
+                        <td>{{ $item['skema'] }}</td>
+                        <td style="text-align: center;">{{ $item['hasil'] }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
-        <div style="font-weight: bold; margin-bottom: 15px;">HASIL SERTIFIKASI KOMPETENSI:</div>
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 10%;">No</th>
-                    <th style="width: 35%;">Nama</th>
-                    <th style="width: 35%;">Skema</th>
-                    <th style="width: 20%;">Hasil</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($hasil_sertifikasi as $item)
-                <tr>
-                    <td style="text-align: center;">{{ $item['no'] }}</td>
-                    <td>{{ $item['nama'] }}</td>
-                    <td>{{ $item['skema'] }}</td>
-                    <td style="text-align: center;">{{ $item['hasil'] }}</td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
-    </div>
-
+    </main>
 </body>
+
 </html>
