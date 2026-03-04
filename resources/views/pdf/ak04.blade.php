@@ -195,17 +195,15 @@
                 </td>
             </tr>
             <tr>
-                @if ($barcodes['asesi']['url'] ?? null)
-                    <td colspan="4" style="height: 80px;">
-                        Tanda tangan Asesi : {{ strtoupper($dokumenHeader['nama_asesi']) }}<br /><br />
-                        Tanggal : {{ \Carbon\Carbon::parse($barcodes['asesi']['tanggal'])->locale('id')->translatedFormat('d F Y')}}
-                    </td>
-                @else
                 <td colspan="4" style="height: 80px;">
                     Tanda tangan Asesi : {{ strtoupper($dokumenHeader['nama_asesi']) }}<br /><br />
-                    Tanggal : 
+                    @if($barcodes['asesi']['url'] ?? null)
+                        <img src="{{ $barcodes['asesi']['url'] }}" style="height: 50px; width: 50px; object-fit: contain;" /><br />
+                        Tanggal : {{ \Carbon\Carbon::parse($barcodes['asesi']['tanggal'])->locale('id')->translatedFormat('d F Y')}}
+                    @else
+                        Tanggal :
+                    @endif
                 </td>
-                @endif
             </tr>
         </table>
     </body>

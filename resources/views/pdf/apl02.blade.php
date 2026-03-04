@@ -131,10 +131,21 @@
         <td colspan=2>TUK</td>
         <td>{{ $dokumenHeader['tuk'] }}</td>
     </tr>
+    @if(isset($dokumenHeader['asesor_2']))
+        <tr>
+            <td colspan=2>Nama Asesor 1</td>
+            <td>{{ $dokumenHeader['asesor_1'] }}</td>
+        </tr>
+        <tr>
+            <td colspan=2>Nama Asesor 2</td>
+            <td>{{ $dokumenHeader['asesor_2'] }}</td>
+        </tr>
+    @else
     <tr>
         <td colspan=2>Nama Asesor</td>
         <td>{{ $dokumenHeader['asesor_1'] }}</td>
     </tr>
+    @endif
     <tr>
         <td colspan=2>Nama Asesi</td>
         <td>{{ $dokumenHeader['nama_asesi'] }}</td>

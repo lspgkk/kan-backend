@@ -1734,7 +1734,7 @@ class PraAsesmenController extends Controller
             $id
         );
 
-        $dataDokumen = $this->buildAk04Data($id);
+        $dataDokumen = $this->buildAk04Data($id, true);
         if (!$dataDokumen) {
             abort(404, 'Data not found');
         }
