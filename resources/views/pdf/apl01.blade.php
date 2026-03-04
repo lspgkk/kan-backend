@@ -46,10 +46,10 @@
         border-top-color: transparent !important;
     }
     .no-bottom-a {
-        border-bottom-color: #D60000 !important;
+        border-bottom: 0.2px solid #D60000 !important;
     }
     .no-top-a {
-        border-top-color: #D60000 !important;
+        border-top: 0.2px solid #D60000 !important;
     }
     .no-top-left {
         border-top:0!important;
