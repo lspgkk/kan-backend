@@ -186,6 +186,7 @@ class PraAsesmenController extends Controller
                 'id_asesor_1' => $idAsesor1,
                 'id_asesor_2' => $idAsesor2,
                 'nama_asesi' => $namaAsesi,
+                'jenjang' => $klasifikasi->jenjang,
                 'asesor_1' => $jadwal->asesor ? $jadwal->asesor->nama : null,
                 'asesor_2' => $jadwal->asesor2 ? $jadwal->asesor2->nama : null,
                 'noreg_asesor_1' => $jadwal->asesor ? $jadwal->asesor->noreg : null,

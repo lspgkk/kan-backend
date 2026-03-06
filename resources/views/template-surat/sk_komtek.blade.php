@@ -208,13 +208,12 @@
             <div style="position: absolute; bottom: 100px; right: 80px; text-align: left; width: 280px;">
                 <div style="margin-bottom: 5px;">Ditetapkan di : Jakarta</div>
                 <div style="margin-bottom: 5px;">Pada Tanggal : {{ $tanggal_penetapan }}</div>
-                <div style="font-weight: bold; margin-bottom: 60px; display: block; margin-top: 15px;">LSP GATENSI KARYA KONSTRUKSI</div>
-                <br><br><br>
+                <div style="font-weight: bold; margin-bottom: 3px; display: block; margin-top: 15px;">LSP GATENSI KARYA KONSTRUKSI</div>
+                @if($qr)
+                <img src="data:image/png;base64,{{ $qr }}" style="width: 120px; height: 120px;" />
+                @endif
                 <div style="font-weight: bold; text-decoration: underline;">RADINAL EFENDY, ST</div>
                 <div style="font-size: 13px;">Direktur</div>
-                @if($qr)
-                <img src="data:image/png;base64,{{ $qr }}" style="width: 120px; height: 120px; margin-top: 10px;" />
-                @endif
             </div>
         </div>
 
@@ -288,8 +287,10 @@
             <div style="position: absolute; bottom: 150px; right: 80px; text-align: left; width: 280px;">
                 <div style="text-align: right; width: 300px; margin-left: auto;">
                     <div style="text-align: center; margin-bottom: 5px;">Jakarta, {{ $tanggal_penetapan }}</div>
-                    <div style="text-align: center; font-weight: bold; margin-bottom: 60px;">LSP GATENSI KARYA KONSTRUKSI</div>
-                    <br><br><br>
+                    <div style="text-align: center; font-weight: bold; margin-bottom: 3px;">LSP GATENSI KARYA KONSTRUKSI</div>
+                    @if($qr)
+                    <img src="data:image/png;base64,{{ $qr }}" style="width: 120px; height: 120px; margin-right: 86px;" />
+                    @endif
                     <div style="text-align: center; font-weight: bold; text-decoration: underline;">RADINAL EFENDY, ST</div>
                     <div style="text-align: center; font-size: 13px;">Direktur</div>
                 </div>

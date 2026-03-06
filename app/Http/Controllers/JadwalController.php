@@ -1325,11 +1325,14 @@ class JadwalController extends Controller
         /** ===============================
          *  5. GENERATE PDF
          *  =============================== */
+        // Convert PNG to base64 for PDF embedding
+        $qrBase64 = base64_encode($qrImage);
+
         $viewData = [
             'nomor' => $nomorSk,
             'tanggal_penetapan' => Carbon::parse($tanggalPenetapan)->isoFormat('D MMMM YYYY'),
             'komtek_members' => $komtekMembers,
-            'qr' => $qrSvg,
+            'qr' => $qrBase64,
         ];
 
         $pdf = Pdf::loadView('template-surat.sk_komtek', $viewData);

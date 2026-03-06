@@ -187,13 +187,12 @@
         <div style="position: absolute; bottom: 100px; right: 80px; text-align: left; width: 280px;">
             <div style="margin-bottom: 5px;">Diterbitkan di : Jakarta</div>
             <div style="margin-bottom: 5px;">Pada Tanggal : {{ $tanggal_direktur_lsp }}</div>
-            <div style="font-weight: bold; margin-bottom: 60px; display: block; margin-top: 15px;">Direktur Lembaga Sertifikasi Profesi<br>Gatensi Karya Konstruksi</div>
-            <br><br><br>
+            <div style="font-weight: bold; margin-bottom: 3px; display: block; margin-top: 15px;">Direktur Lembaga Sertifikasi Profesi<br>Gatensi Karya Konstruksi</div>
+            @if($qr)
+            <img src="data:image/png;base64,{{ $qr }}" style="width: 120px; height: 120px;" />
+            @endif
             <div style="font-weight: bold; text-decoration: underline;">Radinal Efendy, ST</div>
             <div style="font-size: 13px;">Direktur LSP</div>
-            @if($qr)
-            <img src="data:image/png;base64,{{ $qr }}" style="width: 120px; height: 120px; margin-top: 10px;" />
-            @endif
         </div>
 
         <!-- Page 3 - Lampiran -->
