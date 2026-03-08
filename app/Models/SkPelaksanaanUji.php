@@ -12,4 +12,8 @@ class SkPelaksanaanUji extends Model
         'link',
         'is_approved'
     ];
+
+    protected $casts = [
+        'is_approved' => 'boolean',
+    ];
 }

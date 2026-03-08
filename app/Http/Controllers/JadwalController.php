@@ -1026,7 +1026,8 @@ class JadwalController extends Controller
         string $nomorSk,
         string $tanggalPlenoKomtek,
         string $nomorPlenoKomtek,
-        string $tanggalDirekturLsp
+        string $tanggalDirekturLsp,
+        bool $withTtd = true
     ): array
     {
         /** ===============================
@@ -1115,39 +1116,43 @@ class JadwalController extends Controller
         }
 
         /** ===============================
-         *  5. GENERATE QR CODE
+         *  5. GENERATE QR CODE (only if withTtd)
          *  =============================== */
-        $barcodeUuid = (string) \Ramsey\Uuid\Uuid::uuid4();
-        $qrSvg = QrCode::margin(1)->size(120)
-            ->generate("https://barcode.lspgatensi.id/{$barcodeUuid}");
+        $qrBase64 = null;
 
-        // Convert SVG to PNG image
-        $qrImage = $this->convertSvgToPng($qrSvg);
+        if ($withTtd) {
+            $barcodeUuid = (string) \Ramsey\Uuid\Uuid::uuid4();
+            $qrSvg = QrCode::margin(1)->size(120)
+                ->generate("https://barcode.lspgatensi.id/{$barcodeUuid}");
 
-        // Convert PNG to base64 for PDF embedding
-        $qrBase64 = base64_encode($qrImage);
+            // Convert SVG to PNG image
+            $qrImage = $this->convertSvgToPng($qrSvg);
 
-        // Save to FTP server
-        $path = "new_gatensi/barcodes/{$barcodeUuid}.png";
-        Storage::disk('str_moon')->put($path, $qrImage);
+            // Convert PNG to base64 for PDF embedding
+            $qrBase64 = base64_encode($qrImage);
 
-        // Public image URL
-        $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+            // Save to FTP server
+            $path = "new_gatensi/barcodes/{$barcodeUuid}.png";
+            Storage::disk('str_moon')->put($path, $qrImage);
 
-        // Save / update DB
-        Barcode::updateOrCreate(
-            [
-                'id_user'       => auth()->id(),
-                'id_izin'       => '2220910001',
-                'jenis_dokumen' => 'SK Pelaksanaan Uji',
-            ],
-            [
-                'id_jadwal' => $jadwalId,
-                'url_image' => $urlImage,
-                'url_ttd'   => "https://barcode.lspgatensi.id/{$barcodeUuid}",
-                'id_role'   => auth()->user()->role_id ?? null,
-            ]
-        );
+            // Public image URL
+            $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+            // Save / update DB
+            Barcode::updateOrCreate(
+                [
+                    'id_user'       => auth()->id(),
+                    'id_izin'       => '2220910001',
+                    'jenis_dokumen' => 'SK Pelaksanaan Uji',
+                ],
+                [
+                    'id_jadwal' => $jadwalId,
+                    'url_image' => $urlImage,
+                    'url_ttd'   => "https://barcode.lspgatensi.id/{$barcodeUuid}",
+                    'id_role'   => auth()->user()->role_id ?? null,
+                ]
+            );
+        }
 
         /** ===============================
          *  6. GENERATE PDF
@@ -1177,6 +1182,7 @@ class JadwalController extends Controller
             [
                 'no_surat' => $nomorSk,
                 'link' => $fileUrl,
+                'is_approved' => $withTtd,
             ]
         );
 
@@ -1186,21 +1192,21 @@ class JadwalController extends Controller
         ];
     }
 
-    public function ttdSkPelaksanaanUji(int $jadwalId)
+    public function ttdSk(Request $request, int $jadwalId)
     {
         try {
             /** ===============================
-             *  GET ABSEN KOMTEK DATA
+             *  GET ABSEN KOMTEK DATA (needed for SK Pelaksanaan Uji)
              *  =============================== */
             $absenKomtek = AbsenKomtek::where('jadwal_id', $jadwalId)->firstOrFail();
 
             /** ===============================
-             *  GENERATE / REUSE SK NUMBER
+             *  GENERATE / REUSE SK PELAKSANAAN UJI NUMBER
              *  =============================== */
-            $existing = SkPelaksanaanUji::where('jadwal_id', $jadwalId)->first();
+            $existingPelaksanaanUji = SkPelaksanaanUji::where('jadwal_id', $jadwalId)->first();
 
-            if ($existing) {
-                $nomorSk = $existing->no_surat;
+            if ($existingPelaksanaanUji) {
+                $nomorSkPelaksanaanUji = $existingPelaksanaanUji->no_surat;
             } else {
                 $last = SkPelaksanaanUji::latest('id')->first();
                 $noSk = $last?->no_surat ?? '0/LSP-GATENSI/SK-UJI/I/2024';
@@ -1221,20 +1227,64 @@ class JadwalController extends Controller
                 $parts[2] = $romawi[now()->month];
                 $parts[3] = (string)$year;
 
-                $nomorSk = implode('/', $parts);
+                $nomorSkPelaksanaanUji = implode('/', $parts);
             }
 
-            $result = $this->generateSkPelaksanaanUji(
+            /** ===============================
+             *  GENERATE / REUSE SK KOMTEK NUMBER
+             *  =============================== */
+            $existingKomtek = SkKomtek::where('jadwal_id', $jadwalId)->first();
+
+            if ($existingKomtek) {
+                $nomorSkKomtek = $existingKomtek->no_surat;
+            } else {
+                $last = SkKomtek::latest('id')->first();
+                $noSk = $last?->no_surat ?? '0/LSP-GKK-C.003-B/I/2024';
+
+                $romawi = [
+                    1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
+                    5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII',
+                    9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
+                ];
+
+                $parts = explode('/', $noSk);
+                $year  = now()->year;
+
+                $parts[0] = ((int)($parts[3] ?? 0) === $year)
+                    ? ((int)$parts[0] + 1)
+                    : 1;
+
+                $parts[2] = $romawi[now()->month];
+                $parts[3] = (string)$year;
+
+                $nomorSkKomtek = implode('/', $parts);
+            }
+
+            /** ===============================
+             *  GENERATE BOTH SK DOCUMENTS (with TTD by default)
+             *  =============================== */
+            $resultPelaksanaanUji = $this->generateSkPelaksanaanUji(
                 $jadwalId,
-                $nomorSk,
+                $nomorSkPelaksanaanUji,
                 $absenKomtek->created_at->toDateString(),
                 $absenKomtek->no_surat,
-                now()->toDateString()
+                now()->toDateString(),
+                true  // withTtd = true
+            );
+
+            $resultKomtek = $this->generateSkKomtek(
+                $jadwalId,
+                $nomorSkKomtek,
+                now()->toDateString(),
+                true  // withTtd = true
             );
 
             return response()->json([
-                'message' => 'SK Pelaksanaan Uji generated successfully.',
-                'data' => $result
+                'message' => 'SK documents generated successfully.',
+                'data' => [
+                    'sk_pelaksanaan_uji' => $resultPelaksanaanUji,
+                    'sk_komtek' => $resultKomtek,
+                ]
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -1247,7 +1297,8 @@ class JadwalController extends Controller
     private function generateSkKomtek(
         int $jadwalId,
         string $nomorSk,
-        string $tanggalPenetapan
+        string $tanggalPenetapan,
+        bool $withTtd = true
     ): array
     {
         /** ===============================
@@ -1291,43 +1342,47 @@ class JadwalController extends Controller
         }
 
         /** ===============================
-         *  4. GENERATE QR CODE
+         *  4. GENERATE QR CODE (only if withTtd)
          *  =============================== */
-        $barcodeUuid = (string) \Ramsey\Uuid\Uuid::uuid4();
-        $qrSvg = QrCode::margin(1)->size(120)
-            ->generate("https://barcode.lspgatensi.id/{$barcodeUuid}");
+        $qrBase64 = null;
 
-        // Convert SVG to PNG image
-        $qrImage = $this->convertSvgToPng($qrSvg);
+        if ($withTtd) {
+            $barcodeUuid = (string) \Ramsey\Uuid\Uuid::uuid4();
+            $qrSvg = QrCode::margin(1)->size(120)
+                ->generate("https://barcode.lspgatensi.id/{$barcodeUuid}");
 
-        // Save to FTP server
-        $path = "barcodes/{$barcodeUuid}.png";
-        Storage::disk('str_moon')->put($path, $qrImage);
+            // Convert SVG to PNG image
+            $qrImage = $this->convertSvgToPng($qrSvg);
 
-        // Public image URL
-        $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+            // Convert PNG to base64 for PDF embedding
+            $qrBase64 = base64_encode($qrImage);
 
-        // Save / update DB
-        Barcode::updateOrCreate(
-            [
-                'id_user'       => auth()->id(),
-                'id_izin'       => '2220910001',
-                'jenis_dokumen' => 'SK Komtek',
-            ],
-            [
-                'id_jadwal' => $jadwalId,
-                'url_image' => $urlImage,
-                'url_ttd'   => "https://barcode.lspgatensi.id/{$barcodeUuid}",
-                'id_role'   => auth()->user()->role_id ?? null,
-            ]
-        );
+            // Save to FTP server
+            $path = "barcodes/{$barcodeUuid}.png";
+            Storage::disk('str_moon')->put($path, $qrImage);
+
+            // Public image URL
+            $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+            // Save / update DB
+            Barcode::updateOrCreate(
+                [
+                    'id_user'       => auth()->id(),
+                    'id_izin'       => '2220910001',
+                    'jenis_dokumen' => 'SK Komtek',
+                ],
+                [
+                    'id_jadwal' => $jadwalId,
+                    'url_image' => $urlImage,
+                    'url_ttd'   => "https://barcode.lspgatensi.id/{$barcodeUuid}",
+                    'id_role'   => auth()->user()->role_id ?? null,
+                ]
+            );
+        }
 
         /** ===============================
          *  5. GENERATE PDF
          *  =============================== */
-        // Convert PNG to base64 for PDF embedding
-        $qrBase64 = base64_encode($qrImage);
-
         $viewData = [
             'nomor' => $nomorSk,
             'tanggal_penetapan' => Carbon::parse($tanggalPenetapan)->isoFormat('D MMMM YYYY'),
@@ -1357,57 +1412,6 @@ class JadwalController extends Controller
             'nomor_sk' => $nomorSk,
             'url' => $fileUrl,
         ];
-    }
-
-    public function ttdSkKomtek(int $jadwalId)
-    {
-        try {
-            /** ===============================
-             *  GENERATE / REUSE SK NUMBER
-             *  =============================== */
-            $existing = SkKomtek::where('jadwal_id', $jadwalId)->first();
-
-            if ($existing) {
-                $nomorSk = $existing->no_surat;
-            } else {
-                $last = SkKomtek::latest('id')->first();
-                $noSk = $last?->no_surat ?? '0/LSP-GKK-C.003-B/I/2024';
-
-                $romawi = [
-                    1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
-                    5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII',
-                    9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
-                ];
-
-                $parts = explode('/', $noSk);
-                $year  = now()->year;
-
-                $parts[0] = ((int)($parts[3] ?? 0) === $year)
-                    ? ((int)$parts[0] + 1)
-                    : 1;
-
-                $parts[2] = $romawi[now()->month];
-                $parts[3] = (string)$year;
-
-                $nomorSk = implode('/', $parts);
-            }
-
-            $result = $this->generateSkKomtek(
-                $jadwalId,
-                $nomorSk,
-                now()->toDateString()
-            );
-
-            return response()->json([
-                'message' => 'SK Komtek generated successfully.',
-                'data' => $result
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error: ' . $e->getMessage(),
-                'data' => null
-            ], 500);
-        }
     }
 
     private function baseJadwalQuery()

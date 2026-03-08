@@ -16,7 +16,7 @@ class DirekturController extends Controller
         $ba_komtek = BaKomtek::where('jadwal_id', $id)->value('link');
         $spt_komtek = SPTKomtek::where('jadwal_id', $id)->value('link');
         $spt_asesor = SPTAsesor::where('jadwal_id', $id)->value('link');
-        $sk_pelaksanaan_uji = SkPelaksanaanUji::where('jadwal_id', $id)->value('link');
+        $sk_pelaksanaan_uji = SkPelaksanaanUji::select(['link', 'is_approved'])->where('jadwal_id', $id)->first();
         $sk_komtek = SkKomtek::where('jadwal_id', $id)->value('link');
 
         return response()->json([
@@ -27,6 +27,7 @@ class DirekturController extends Controller
                 'spt_komtek' => $spt_komtek,
                 'sk_komtek' => $sk_komtek,
                 'ba_komtek' => $ba_komtek,
+                'is_approved' => $sk_pelaksanaan_uji ? $sk_pelaksanaan_uji->is_approved : null
             ]
         ]);
     }

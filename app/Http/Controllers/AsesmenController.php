@@ -14,6 +14,8 @@ use App\Models\AsesorBnsp;
 use App\Models\Barcode;
 use App\Models\BuktiAsesmen;
 use App\Models\DimensiKompetensi;
+use App\Models\Ia3Answer;
+use App\Models\Ia3Feedback;
 use App\Models\Ia4aAnswer;
 use App\Models\Ia4bAnswer;
 use App\Models\Ia5Answer;
@@ -46,7 +48,6 @@ class AsesmenController extends Controller
 
     public function absenAkhir(Request $request, $id)
     {
-
         return $this->handleAbsen($request, $id, 'akhir');
     }
 
@@ -850,7 +851,6 @@ class AsesmenController extends Controller
             ->where('soals.id_dokumen', $dokumen->id)
             ->where('soals.tipe', 1)
             ->orderBy('soals.no', 'asc')
-            ->groupBy('soals.id')
             ->select([
                 'soals.id',
                 'soals.no',
@@ -994,6 +994,250 @@ class AsesmenController extends Controller
         BuktiAsesmen::updateOrCreate(
             ['id_izin' => $id],
             ['url_ia_05' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
+    }
+
+    private function buildIa03Data(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
+    {
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$klasifikasi) {
+            return null;
+        }
+
+        /** ✅ Shared barcode resolver */
+        $barcodes = $this->resolveDocumentBarcodes($id, 'IA03', $forPdf);
+
+        $referensis = Referensi::select(['id', 'nama'])
+            ->where('kategori', 'IA03')
+            ->get();
+
+        $dokumen = JabatanDokumen::with(['kelompoks.units.unit'])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where('kode', 'FR.IA.03')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dokumen) {
+            return [
+                'barcodes' => $barcodes,
+                'kelompok_kerja' => [],
+                'referensi_form' => $referensis,
+            ];
+        }
+
+        /** 🔹 Load saved feedback answers */
+        $ia03Answers = Ia3Answer::where('id_izin', $id)
+            ->get()
+            ->keyBy('soal_id');
+
+        /** 🔹 Load questions + inject feedback answer */
+        $questions = Soal::with(['unit', 'kuk.subunit'])
+            ->where('id_dokumen', $dokumen->id)
+            ->get()
+            ->map(function ($q) use ($ia03Answers) {
+
+                $answer = $ia03Answers->get($q->id);
+
+                $questionData = [
+                    'id'          => $q->id,
+                    'no'          => $q->no,
+                    'jenis'       => $q->jenis,
+                    'id_kelompok' => $q->id_kelompok,
+                    'soal'        => $q->soal,
+                    'tanggapan'   => $answer?->tanggapan,
+                    'pencapaian'  => $answer?->pencapaian,
+                ];
+
+                // Add unitkompetensi data if exists
+                if ($q->id_unitkompetensi) {
+                    $questionData['id_unitkompetensi'] = $q->id_unitkompetensi;
+                    $questionData['unitkompetensi'] = $q->unit ? [
+                        'id' => $q->unit->id,
+                        'kode' => $q->unit->kode,
+                    ] : null;
+                }
+
+                // Add kuk data if exists
+                if ($q->id_kuk) {
+                    $questionData['id_kuk'] = $q->id_kuk;
+                    $questionData['kuk'] = $q->kuk ? [
+                        'id' => $q->kuk->id,
+                        'kode' => $q->kuk->kode,
+                    ] : null;
+
+                    // Add subunitkompetensi data if exists (through kuk)
+                    if ($q->kuk && $q->kuk->subunit) {
+                        $questionData['id_subunitkompetensi'] = $q->kuk->id_subunitkompetensi;
+                        $questionData['subunitkompetensi'] = [
+                            'id' => $q->kuk->subunit->id,
+                            'kode' => $q->kuk->subunit->kode,
+                        ];
+                    }
+                }
+
+                return $questionData;
+            });
+
+        $kelompokKerja = [
+            'id' => $dokumen->id,
+            'kode' => $dokumen->kode,
+            'nama_dokumen' => $dokumen->nama_dokumen,
+            'kelompok_kerja' => $dokumen->kelompoks->map(function ($kelompok) use ($questions) {
+                $kelompokData = [
+                    'id' => $kelompok->id,
+                    'nama' => $kelompok->nama,
+                    'urut' => $kelompok->urut,
+                    'units' => $kelompok->units->map(function ($unit) {
+                        return [
+                            'id_unit'   => $unit->id_unit,
+                            'nama_unit' => $unit->unit?->nama,
+                            'kode_unit' => $unit->unit?->kode,
+                        ];
+                    })->values()
+                ];
+
+                // Group soal by id_kelompok
+                $kelompokData['soal'] = $questions->filter(function ($soal) use ($kelompok) {
+                    return $soal['id_kelompok'] == $kelompok->id;
+                })->values();
+
+                return $kelompokData;
+            })->values()
+        ];
+
+        $feedback = Ia3Feedback::where('id_izin', $id)->value('umpan_balik');
+
+        return [
+            'barcodes'        => $barcodes,
+            'kelompok_kerja'  => $kelompokKerja,
+            'referensi_form'  => $referensis,
+            'umpan_balik'     => $feedback
+        ];
+    }
+
+    public function getIa03($id)
+    {
+        $data = $this->buildIa03Data($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => $data,
+        ]);
+    }
+
+    public function submitIa03(Request $request, $idIzin)
+    {
+        $validated = $request->validate([
+            'dokumen_id' => 'required|integer',
+            'answers' => 'required|array',
+            'answers.*.soal_id' => 'required|integer',
+            'answers.*.tanggapan' => 'nullable|string|max:255',
+            'answers.*.pencapaian' => 'required|boolean',
+            'umpan_balik' => 'nullable|string',
+        ]);
+
+        DB::transaction(function () use ($request, $idIzin) {
+            foreach ($request->answers as $answer) {
+                Ia3Answer::updateOrCreate(
+                    [
+                        'id_izin' => $idIzin,
+                        'soal_id' => $answer['soal_id'],
+                    ],
+                    [
+                        'dokumen_id' => $request->dokumen_id,
+                        'tanggapan' => $answer['tanggapan'],
+                        'pencapaian' => $answer['pencapaian'],
+                    ]
+                );
+            }
+        });
+
+        if (!empty($validated['umpan_balik'])) {
+            Ia3Feedback::updateOrCreate(
+                ['id_izin' => $idIzin],
+                [
+                    'umpan_balik' => $validated['umpan_balik'],
+                ]
+            );
+        }
+
+        return response()->json([
+            'message' => 'IA03 answers saved successfully'
+        ]);
+    }
+
+    public function ttdIa03(Request $request, $id)
+    {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'IA03',
+            'ttd_ia03',
+            $id
+        );
+
+        $dataDokumen = $this->buildIa03Data($id, true);
+        if (!$dataDokumen) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($dataDokumen, [
+            'dokumenHeader' => $dokumenHeader,
+        ]);
+
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.ia03', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/ia03';
+
+        // unique + traceable filename
+        $filename = 'FR-IA-03-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_ia_03' => $fullUrl]
         );
 
         return response()->json([
@@ -1708,6 +1952,9 @@ class AsesmenController extends Controller
             'url_ak07',
             'url_ak04',
             'url_ak01',
+            'url_ia_01',
+            'url_ia_02',
+            'url_ia_03',
             'url_ia_04a',
             'url_ia_04b',
             'url_ia_05',
@@ -1733,6 +1980,9 @@ class AsesmenController extends Controller
                 'ak07' => $dokumen->url_ak07,
                 'ak04' => $dokumen->url_ak04,
                 'ak01' => $dokumen->url_ak01,
+                'ia01' => $dokumen->url_ia_01,
+                'ia02' => $dokumen->url_ia_02,
+                'ia03' => $dokumen->url_ia_03,
                 'ia04a' => $dokumen->url_ia_04a,
                 'ia04b' => $dokumen->url_ia_04b,
                 'ia05' => $dokumen->url_ia_05,

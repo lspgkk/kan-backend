@@ -165,8 +165,7 @@ Route::middleware(['auth:api'])->group(function () {
     });
 
     Route::prefix('dokumen')->group(function () {
-        Route::post('/sk-pelaksanaan-uji/{jadwalId}', [JadwalController::class, 'ttdSkPelaksanaanUji']);
-        Route::post('/sk-komtek/{jadwalId}', [JadwalController::class, 'ttdSkKomtek']);
+        Route::post('/sk/{jadwalId}', [JadwalController::class, 'ttdSk']);
     });
 
     Route::prefix('kegiatan')->group(function () {
@@ -223,6 +222,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/ak07', [PraAsesmenController::class, 'ttdAk07']);
         Route::post('/{id}/ak04', [PraAsesmenController::class, 'ttdAk04']);
         Route::post('/{id}/ak01', [PraAsesmenController::class, 'ttdAk01']);
+        Route::post('/{id}/ia03', [AsesmenController::class, 'ttdIa03']);
         Route::post('/{id}/ia04a', [AsesmenController::class, 'ttdIa04a']);
         Route::post('/{id}/ia04b', [AsesmenController::class, 'ttdIa04b']);
         Route::post('/{id}/ia05', [AsesmenController::class, 'ttdIa05']);
@@ -235,6 +235,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/absen-awal', [AsesmenController::class, 'absenAwal']);
         Route::post('/{id}/absen-akhir', [AsesmenController::class, 'absenAkhir']);
         Route::get('/{id}/data-dokumen', [AsesmenController::class, 'getDokumenHeader']);
+        Route::get('/{id}/ia03', [AsesmenController::class, 'getIa03']);
         Route::get('/{id}/ia04a', [AsesmenController::class, 'getIa04a']);
         Route::get('/{id}/tugas', [AsesmenController::class, 'getTugas']);
         Route::get('/{id}/ia04b', [AsesmenController::class, 'getIa04b']);
@@ -243,6 +244,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{id}/ak03', [AsesmenController::class, 'getAk03']);
         Route::get('/{id}/ak05', [AsesmenController::class, 'getAk05']);
         Route::get('/{id}/ak06', [AsesmenController::class, 'getAk06']);
+        Route::post('/{id}/ia03', [AsesmenController::class, 'submitIa03']);
         Route::post('/{id}/ia04a', [AsesmenController::class, 'submitIa04a']);
         Route::post('/{id}/tugas', [AsesmenController::class, 'uploadTugas']);
         Route::post('/{id}/ia04b', [AsesmenController::class, 'submitIa04b']);
