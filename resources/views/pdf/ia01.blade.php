@@ -26,6 +26,7 @@ h3{
     margin-bottom:12px;
     padding:0;
 }
+
 .boxi{
     border:2px solid #000;
     margin-bottom:12px;
@@ -36,6 +37,10 @@ table{
     width:100%;
     border-collapse:collapse;
     margin:0;
+}
+
+table + table{
+    margin-top:-1px;
 }
 
 td, th{
@@ -70,58 +75,85 @@ td, th{
     font-size:11px;
 }
 
-.checkbox{
-    width:14px;
-    height:14px;
-    border:1px solid #000;
-    display:inline-block;
+.checkbox {
+    width: 12px;
+    height: 12px;
+    border: 1px solid #000;
+    display: inline-block;
+    text-align: center;
+    line-height: 11px;
+    font-size: 15px;
+    font-family: "DejaVu Sans", sans-serif;
+}
+
+.checked::after {
+    content: "✔";
 }
 
 .signature-box{
     height:60px;
 }
 
+.barcode-img{
+    max-width: 80px;
+    max-height: 40px;
+}
 </style>
 </head>
 <body>
 
-<h3><b>FR.IA.01.</b> &nbsp; CL - CEKLIS OBSERVASI AKTIVITAS DI TEMPAT KERJA ATAU TEMPAT KERJA SIMULASI</h3>
+<h3><b>{{ $kelompok_kerja['kode'] }}.</b> &nbsp; {{ $kelompok_kerja['nama_dokumen'] }}</h3>
 
 <!-- IDENTITAS -->
+@if(isset($dokumenHeader))
 <div class="box">
 <table>
 <tr>
 <td width="25%" class="gray">Skema Sertifikasi<br>(KKNI/Okupasi/Klaster)</td>
 <td width="2%">:</td>
-<td>PELAKSANA LAPANGAN PEKERJAAN JALAN LEVEL 3</td>
+<td>{{ isset($dokumenHeader['jabatan_kerja']) && is_string($dokumenHeader['jabatan_kerja']) ? $dokumenHeader['jabatan_kerja'] : '-' }}</td>
 </tr>
 <tr>
 <td class="gray">Nomor</td>
 <td>:</td>
-<td>SKEMA-155/LSP-GKK/2023</td>
+<td>{{ isset($dokumenHeader['nomor_skema']) && is_string($dokumenHeader['nomor_skema']) ? $dokumenHeader['nomor_skema'] : '-' }}</td>
 </tr>
 <tr>
 <td class="gray">TUK</td>
 <td>:</td>
-<td>Sewaktu/Tempat Kerja Mandiri</td>
+<td>{{ isset($dokumenHeader['tuk']) && is_string($dokumenHeader['tuk']) ? $dokumenHeader['tuk'] : '-' }}</td>
 </tr>
+@if(isset($dokumenHeader['asesor_2']) && !empty($dokumenHeader['asesor_2']))
+<tr>
+<td class="gray">Nama Asesor 1</td>
+<td>:</td>
+<td>{{ isset($dokumenHeader['asesor_1']) && is_string($dokumenHeader['asesor_1']) ? $dokumenHeader['asesor_1'] : '-' }}</td>
+</tr>
+<tr>
+<td class="gray">Nama Asesor 2</td>
+<td>:</td>
+<td>{{ isset($dokumenHeader['asesor_2']) && is_string($dokumenHeader['asesor_2']) ? $dokumenHeader['asesor_2'] : '-' }}</td>
+</tr>
+@else
 <tr>
 <td class="gray">Nama Asesor</td>
 <td>:</td>
-<td>SALAHUDDIN</td>
+<td>{{ isset($dokumenHeader['asesor_1']) && is_string($dokumenHeader['asesor_1']) ? $dokumenHeader['asesor_1'] : '-' }}</td>
 </tr>
+@endif
 <tr>
 <td class="gray">Nama Asesi</td>
 <td>:</td>
-<td>WA ODE SUCHY FITRIYANA ARTANTI</td>
+<td>{{ isset($dokumenHeader['nama_asesi']) && is_string($dokumenHeader['nama_asesi']) ? $dokumenHeader['nama_asesi'] : '-' }}</td>
 </tr>
 <tr>
 <td class="gray">Tanggal</td>
 <td>:</td>
-<td>2025-12-11</td>
+<td>{{ isset($dokumenHeader['tanggal_uji']) && is_string($dokumenHeader['tanggal_uji']) ? $dokumenHeader['tanggal_uji'] : '-' }}</td>
 </tr>
 </table>
 </div>
+@endif
 
 <!-- PANDUAN -->
 <div class="boxi">
@@ -130,48 +162,55 @@ td, th{
 <ul>
 <li>Lengkapi nama unit kompetensi, elemen, dan kriteria unjuk kerja sesuai kolom dalam tabel.</li>
 <li>Isi standar industri atau tempat kerja.</li>
-<li>Beri tanda centang (✓) pada kolom “YA” jika asesi kompeten, dan “Tidak” jika sebaliknya.</li>
+<li>Beri tanda centang (✓) pada kolom "YA" jika asesi kompeten, dan "Tidak" jika sebaliknya.</li>
 <li>Penilaian lanjut diisi bila hasil belum dapat disimpulkan.</li>
 <li>Isi kolom KUK sesuai SKKNI.</li>
 </ul>
 </div>
 </div>
 
-<!-- KELOMPOK PEKERJAAN -->
+@foreach($kelompok_kerja['kelompok_kerja'] as $kelompok)
+<!-- KELOMPOK PEKERJAAN {{ $kelompok['urut'] }} -->
 <div class="box">
 <table>
 <tr>
-<th class="red" width="20%">Kelompok Pekerjaan 1</th>
+<th class="red" width="20%">Kelompok Pekerjaan {{ $kelompok['urut'] }}</th>
 <th class="red" width="5%">No</th>
 <th class="red" width="20%">Kode Unit</th>
 <th class="red">Judul Unit</th>
 </tr>
+
+@php
+    $totalUnits = count($kelompok['units']);
+@endphp
+
+@foreach($kelompok['units'] as $index => $unit)
 <tr>
-<td rowspan="2"></td>
-<td class="center">1</td>
-<td>F.421110.001.04</td>
-<td>Menerapkan Keselamatan dan Kesehatan Kerja dan Lingkungan (K3-L)</td>
+@if($index == 0)
+    <td rowspan="{{ $totalUnits }}"></td>
+@endif
+<td class="center">{{ $index + 1 }}</td>
+<td>{{ $unit['kode_unit'] ?? '' }}</td>
+<td>{{ $unit['nama_unit'] ?? '' }}</td>
 </tr>
-<tr>
-<td class="center">2</td>
-<td>F.421110.002.04</td>
-<td>Menerapkan Komunikasi dan Kerjasama di Tempat Kerja</td>
-</tr>
+@endforeach
 </table>
 </div>
 
+@foreach($unit['subunits'] as $index => $subunit)
 <!-- UNIT KOMPETENSI -->
 <div class="box">
 <table>
 <tr>
-<td width="20%" class="gray">Unit Kompetensi 1</td>
+<td rowspan="2" width="25%">Unit Kompetensi {{ $index + 1 }}</td>
+<td class="gray" width="20%">Kode</td>
 <td width="2%">:</td>
-<td>F.421110.001.04</td>
+<td colspan="2">{{ $unit['kode_unit'] }}</td>
 </tr>
 <tr>
 <td class="gray">Judul Unit</td>
 <td>:</td>
-<td>Menerapkan Keselamatan dan Kesehatan Kerja dan Lingkungan (K3-L)</td>
+<td colspan="2">{{ $unit['nama_unit'] }}</td>
 </tr>
 </table>
 </div>
@@ -181,8 +220,7 @@ td, th{
 <table>
 <tr>
 <th class="red" width="5%" rowspan="2">No</th>
-<th class="red" width="20%" rowspan="2">Elemen</th>
-<th class="red" width="30%" rowspan="2">Kriteria Unjuk Kerja</th>
+<th class="red" width="20%" rowspan="2">Kriteria Unjuk Kerja</th>
 <th class="red" width="15%" rowspan="2">Standar Industri / Tempat Kerja</th>
 <th class="red" colspan="2">Pencapaian</th>
 <th class="red" width="15%" rowspan="2">Penilaian Lanjut</th>
@@ -193,22 +231,32 @@ td, th{
 <th class="red" width="7%">Tidak</th>
 </tr>
 
+@foreach($subunit['soal'] as $soal)
 <tr>
-<td class="center">1</td>
-<td>Mengidentifikasi potensi bahaya dan risiko kecelakaan kerja</td>
-<td>
-1.1 Kondisi dan situasi lingkungan diamati secara teliti.<br><br>
-1.2 Potensi bahaya kecelakaan kerja dan pencemaran lingkungan dievaluasi.<br><br>
-1.3 Program untuk mengatasi kemungkinan bahaya dirancang.
+<td class="center">{{ $soal['no'] ?? '' }}</td>
+<td>{{ $soal['kuk']['nama'] ?? '' }}</td>
+<td class="center">SKKNI</td>
+<td class="center">
+    @if(isset($soal['pencapaian']) && $soal['pencapaian'] === true)
+        <div class="checkbox checked"></div>
+    @else
+        <div class="checkbox"></div>
+    @endif
 </td>
-<td class="center">SKKNI 373 - 2013</td>
-<td class="center"><div class="checkbox">✓</div></td>
-<td class="center"><div class="checkbox"></div></td>
-<td></td>
+<td class="center">
+    @if(isset($soal['pencapaian']) && $soal['pencapaian'] === false)
+        <div class="checkbox checked"></div>
+    @else
+        <div class="checkbox"></div>
+    @endif
+</td>
+<td>{{ isset($soal['penilaian_lanjut']) && is_string($soal['penilaian_lanjut']) ? $soal['penilaian_lanjut'] : '' }}</td>
 </tr>
+@endforeach
 
 </table>
 </div>
+@endforeach
 
 <!-- UMPAN BALIK -->
 <div class="box">
@@ -216,10 +264,17 @@ td, th{
 <tr>
 <td height="70"><b>Umpan Balik untuk asesi:</b></td>
 </tr>
+@if(isset($kelompok['umpan_balik']) && !empty($kelompok['umpan_balik']) && is_string($kelompok['umpan_balik']))
+<tr>
+<td>{{ $kelompok['umpan_balik'] }}</td>
+</tr>
+@endif
 </table>
 </div>
+@endforeach
 
 <!-- REKOMENDASI & TTD -->
+@if(isset($dokumenHeader))
 <div class="box">
 <table>
 <tr>
@@ -245,30 +300,69 @@ Asesi belum memenuhi pencapaian seluruh kriteria unjuk kerja, direkomendasikan <
 
 </td>
 <td width="15%">Nama</td>
-<td width="35%">: WA ODE SUCHY FITRIYANA ARTANTI</td>
+<td width="35%">: {{ isset($dokumenHeader['nama_asesi']) && is_string($dokumenHeader['nama_asesi']) ? $dokumenHeader['nama_asesi'] : '-' }}</td>
 </tr>
 <tr>
 
 <td width="15%">Tanda tangan / Tanggal</td>
-<td width="35%">: 2025-12-11<div class="signature-box"></div></td>
+<td width="35%">:
+    @if(isset($barcodes['asesi']['url']) && !empty($barcodes['asesi']['url']))
+        <img src="{{ $barcodes['asesi']['url'] }}" class="barcode-img" alt="Barcode Asesi">
+    @else
+        {{ isset($dokumenHeader['tanggal_uji']) && is_string($dokumenHeader['tanggal_uji']) ? $dokumenHeader['tanggal_uji'] : '-' }}
+    @endif
+    <div class="signature-box"></div>
+</td>
 </tr>
 <tr>
 <td class="gray" colspan="2"><b>Asesor</b></td>
 </tr>
 <tr>
 <td width="15%">Nama</td>
-<td width="35%">: SALAHUDDIN</td>
+<td width="35%">: {{ isset($dokumenHeader['asesor_1']) && is_string($dokumenHeader['asesor_1']) ? $dokumenHeader['asesor_1'] : '-' }}</td>
 </tr>
 <tr>
 <td width="15%">No. Reg</td>
-<td width="35%">: MET.000.003417 2025</td>
+<td width="35%">: {{ isset($dokumenHeader['noreg_asesor_1']) && is_string($dokumenHeader['noreg_asesor_1']) ? $dokumenHeader['noreg_asesor_1'] : '-' }}</td>
 </tr>
 <tr>
 <td width="15%">Tanda tangan / Tanggal</td>
-<td width="35%">: 2025-12-11<div class="signature-box"></div></td>
+<td width="35%">:
+    @if(isset($barcodes['asesor1']['url']) && !empty($barcodes['asesor1']['url']))
+        <img src="{{ $barcodes['asesor1']['url'] }}" class="barcode-img" alt="Barcode Asesor 1">
+    @else
+        {{ isset($dokumenHeader['tanggal_uji']) && is_string($dokumenHeader['tanggal_uji']) ? $dokumenHeader['tanggal_uji'] : '-' }}
+    @endif
+    <div class="signature-box"></div>
+</td>
 </tr>
+@if(isset($dokumenHeader['asesor_2']) && !empty($dokumenHeader['asesor_2']))
+<tr>
+<td width="15%" class="gray" colspan="2"><b>Asesor 2</b></td>
+</tr>
+<tr>
+<td width="15%">Nama</td>
+<td width="35%">: {{ isset($dokumenHeader['asesor_2']) && is_string($dokumenHeader['asesor_2']) ? $dokumenHeader['asesor_2'] : '-' }}</td>
+</tr>
+<tr>
+<td width="15%">No. Reg</td>
+<td width="35%">: {{ isset($dokumenHeader['noreg_asesor_2']) && is_string($dokumenHeader['noreg_asesor_2']) ? $dokumenHeader['noreg_asesor_2'] : '-' }}</td>
+</tr>
+<tr>
+<td width="15%">Tanda tangan / Tanggal</td>
+<td width="35%">:
+    @if(isset($barcodes['asesor2']['url']) && !empty($barcodes['asesor2']['url']))
+        <img src="{{ $barcodes['asesor2']['url'] }}" class="barcode-img" alt="Barcode Asesor 2">
+    @else
+        {{ isset($dokumenHeader['tanggal_uji']) && is_string($dokumenHeader['tanggal_uji']) ? $dokumenHeader['tanggal_uji'] : '-' }}
+    @endif
+    <div class="signature-box"></div>
+</td>
+</tr>
+@endif
 </table>
 </div>
+@endif
 
 </body>
 </html>
