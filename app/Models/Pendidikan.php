@@ -39,4 +39,14 @@ class Pendidikan extends Model
     {
         return $this->belongsTo(Personal::class, 'id_izin');
     }
+
+    public function province()
+    {
+        return $this->belongsTo(Province::class, 'propinsi', 'id_provinsi_dagri');
+    }
+
+    public function city()
+    {
+        return $this->belongsTo(City::class, 'kabupaten', 'kode_kabupaten_dagri');
+    }
 }

@@ -162,6 +162,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/list-asesi-create', [JadwalController::class, 'listAsesiCreateJadwal']);
         Route::post('/create-jadwal', [JadwalController::class, 'store']);
         Route::get('/{id}', [JadwalController::class, 'show']);
+        Route::put('/{jadwal_id}', [JadwalController::class, 'updateJadwal']);
     });
 
     Route::prefix('dokumen')->group(function () {
@@ -260,6 +261,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/ak03', [AsesmenController::class, 'submitAk03']);
         Route::post('/{id}/ak05', [AsesmenController::class, 'submitAk05']);
         Route::post('/{id}/ak06', [AsesmenController::class, 'submitAk06']);
+        Route::delete('/{id_izin}', [PraAsesmenController::class, 'deleteAsesmenData']);
     });
 
     Route::post('/verifikasi/{id_izin}', [HitStatusController::class, 'hitVerifikasi']);

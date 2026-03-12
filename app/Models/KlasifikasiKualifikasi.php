@@ -63,4 +63,8 @@ class KlasifikasiKualifikasi extends Model
     {
         return $this->belongsTo(Asosiasi::class, 'asosiasi', 'id');
     }
+
+    protected $casts = [
+        'lsp' => 'integer'
+    ];
 }

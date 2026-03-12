@@ -617,6 +617,34 @@ class JadwalController extends Controller
         ], 201);
     }
 
+    public function updateJadwal(Request $request, $jadwal_id)
+    {
+        $validated = $request->validate([
+            'tanggal_uji' => ['required', 'date'],
+        ]);
+
+        $jadwal = Jadwal::where('jadwal_id', $jadwal_id)->first();
+
+        if (!$jadwal) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Jadwal not found',
+            ], 404);
+        }
+
+        $jadwal->update([
+            'tanggal_uji' => $validated['tanggal_uji'],
+            'tahap' => 0,
+            'started_at' => null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Jadwal successfully updated',
+            'data' => $jadwal,
+        ]);
+    }
+
     private function generateAndSendSptAsesor(
         int $jadwalId,
         bool $withTtd = true

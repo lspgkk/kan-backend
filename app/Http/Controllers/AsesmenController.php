@@ -2393,7 +2393,14 @@ class AsesmenController extends Controller
 
         $dokumen = BuktiAsesmen::select($fields)
             ->where('id_izin', $id)
-            ->firstOrFail();
+            ->first();
+
+        if (!$dokumen) {
+            return response()->json([
+                'message' => 'Dokumen asesmen not found',
+                'data' => null,
+            ], 404);
+        }
 
         return response()->json([
             'message' => 'Success',

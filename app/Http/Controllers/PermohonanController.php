@@ -16,6 +16,8 @@ use App\Models\KlasifikasiKualifikasi;
 use App\Models\Kualifikasi;
 use App\Models\Subklasifikasi;
 use App\Models\MyTuk;
+use App\Models\Province;
+use App\Models\City;
 
 ini_set('max_execution_time', 12000);
 
@@ -29,7 +31,7 @@ class PermohonanController extends Controller
 
     public function detailPermohonan(string $id)
     {
-        $personals = Personal::where('id_izin', $id)->get();
+        $personals = Personal::with(['province', 'city'])->where('id_izin', $id)->get();
 
         if ($personals->isEmpty()) {
             return response()->json([
@@ -61,9 +63,33 @@ class PermohonanController extends Controller
          * Related data
          * ===============================
          */
-        $pendidikans = Pendidikan::where('id_izin', $id)->get();
+        $pendidikans = Pendidikan::with(['province', 'city'])->where('id_izin', $id)->get();
         $proyeks = Proyek::where('id_izin', $id)->get();
         $pelatihans = Pelatihan::where('id_izin', $id)->get();
+
+        /**
+         * ===============================
+         * Transform personals to include province and city names
+         * ===============================
+         */
+        $personals->transform(function ($item) {
+            $item->propinsi_nama = $item->province ? $item->province->nama : null;
+            $item->kabupaten_nama = $item->city ? $item->city->nama_kabupaten_dagri : null;
+            unset($item->province, $item->city);
+            return $item;
+        });
+
+        /**
+         * ===============================
+         * Transform pendidikans to include province and city names
+         * ===============================
+         */
+        $pendidikans->transform(function ($item) {
+            $item->propinsi_nama = $item->province ? $item->province->nama : null;
+            $item->kabupaten_nama = $item->city ? $item->city->nama_kabupaten_dagri : null;
+            unset($item->province, $item->city);
+            return $item;
+        });
         $sertifikatsukets = SertifikatSuket::where('id_izin', $id)->get();
         $klasifikasikualifikasis = KlasifikasiKualifikasi::with(['tuk', 'asosiasiRel'])->where('id_izin', $id)->get();
 
@@ -201,6 +227,7 @@ class PermohonanController extends Controller
                 'selected' => $asesiTuk,
                 'list' => $allTuk,
             ],
+            'is_validated' => $personal->status === '10',
         ]);
     }
 

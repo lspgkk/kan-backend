@@ -71,19 +71,21 @@
             }
 
             .radio {
-                width: 12px;
-                height: 12px;
+                width: 14px;
+                height: 14px;
                 border: 1px solid #000;
                 border-radius: 50%;
                 display: inline-block;
                 text-align: center;
-                line-height: 10px;
+                line-height: 15px;
                 font-size: 10px;
             }
 
             .radio.checked::after {
                 content: "•";
-                font-size: 14px;
+                font-size: 40px;
+                display: block;
+                margin-top: 7px;
             }
         </style>
     </head>

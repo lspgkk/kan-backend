@@ -3,8 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ak1Answer;
+use App\Models\Ak2Answer;
+use App\Models\Ak2Feedback;
+use App\Models\Ak3Answer;
+use App\Models\Ak3Note;
 use App\Models\Ak4Answer;
 use App\Models\Ak4Reason;
+use App\Models\Ak5Answer;
+use App\Models\Ak6Answer;
+use App\Models\Ak6Feedback;
 use App\Models\Ak7Answer;
 use App\Models\Apl1Answer;
 use App\Models\Apl2Answer;
@@ -14,6 +21,15 @@ use App\Models\AsesiJadwal;
 use App\Models\AsesorBnsp;
 use App\Models\Barcode;
 use App\Models\BuktiAsesmen;
+use App\Models\Ia1Answer;
+use App\Models\Ia1Feedback;
+use App\Models\Ia1Recommendation;
+use App\Models\Ia3Answer;
+use App\Models\Ia3Feedback;
+use App\Models\Ia4aAnswer;
+use App\Models\Ia4bAnswer;
+use App\Models\Ia5Answer;
+use App\Models\Ia5Feedback;
 use App\Models\ImpBukti;
 use App\Models\JabatanConfigA;
 use App\Models\JabatanDokumen;
@@ -474,8 +490,7 @@ class PraAsesmenController extends Controller
 
     public function ttdApl01(Request $request, $id)
     {
-        $data = $this->generateTtdBarcode(
-            $request,
+        $data = $this->generateTtdBarcodeWithoutJadwal(
             'APL01',
             'ttd_apl01',
             $id
@@ -1086,7 +1101,7 @@ class PraAsesmenController extends Controller
                                                     if ($kelompok->id == 1) {
                                                         if ($kategori?->id == 1) {
                                                             $checked = $isPengalaman
-                                                                ? $item->id == 84
+                                                                ? $item->id == 85
                                                                 : $item->id == 82;
                                                         } elseif ($kategori?->id == 2) {
                                                             $checked = $item->id == 87;
@@ -1114,6 +1129,8 @@ class PraAsesmenController extends Controller
                     ],
                 ];
             });
+
+        $jabatanConfig = JabatanConfigA::where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
 
         return [
             'kelompok_kerja' => $kelompokKerja,
@@ -1404,7 +1421,7 @@ class PraAsesmenController extends Controller
                                                 ];
                                             }
 
-                                            if ($isPengalaman && $item->id == 117) {
+                                            if ($isPengalaman && $item->id == 118) {
                                                 return [
                                                     'id' => $item->id,
                                                     'nama' => $item->nama,
@@ -1531,10 +1548,10 @@ class PraAsesmenController extends Controller
     public function submitAk07(Request $request, $id)
     {
         $request->validate([
-            'answers' => 'required|array',
-            'answers.*.referensi_id' => 'required|integer|exists:referensis,id',
-            'answers.*.kelompok_id' => 'required|integer|exists:referensi_kelompoks,id',
-            'answers.*.value' => 'required'
+            'answers' => 'nullable|array',
+            'answers.*.referensi_id' => 'nullable|integer|exists:referensis,id',
+            'answers.*.kelompok_id' => 'nullable|integer|exists:referensi_kelompoks,id',
+            'answers.*.value' => 'nullable'
         ]);
 
         DB::transaction(function () use ($request, $id) {
@@ -1818,7 +1835,12 @@ class PraAsesmenController extends Controller
                 DB::raw('IFNULL(a.jawaban, 0) as jawaban')
             ])
             ->map(function ($row) {
-                $row->jawaban = (bool) $row->jawaban;
+                // Automatically set jawaban to true for referensi id 60 and 62
+                if (in_array($row->id, [60, 62])) {
+                    $row->jawaban = true;
+                } else {
+                    $row->jawaban = (bool) $row->jawaban;
+                }
                 return $row;
             });
 
@@ -2112,5 +2134,106 @@ class PraAsesmenController extends Controller
             'url_image' => $urlImage,
             'url_ttd'   => $urlTtd,
         ];
+    }
+
+    private function generateTtdBarcodeWithoutJadwal(
+        string $docType,
+        string $filePrefix,
+        string $izinId
+    ) {
+        // 1️⃣ Generate UUID & URL TTD
+        $uuid = (string) Uuid::uuid4();
+        $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
+
+        // 2️⃣ Generate filename
+        $filename = "{$filePrefix}_" . Str::uuid() . '.png';
+
+        // 3️⃣ Generate QR image
+        $qrImage = QrCode::format('png')
+            ->size(300)
+            ->margin(1)
+            ->generate($urlTtd);
+
+        // 4️⃣ FTP path
+        $path = "barcodes/{$filename}";
+
+        // 5️⃣ Upload to FTP
+        Storage::disk('str_moon')->put($path, $qrImage);
+
+        // 6️⃣ Public image URL
+        $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        // 7️⃣ Save / update DB (without id_jadwal)
+        Barcode::updateOrCreate(
+            [
+                'id_user'       => auth()->user()->id,
+                'id_izin'       => $izinId,
+                'jenis_dokumen' => $docType,
+            ],
+            [
+                'url_image' => $urlImage,
+                'url_ttd'   => $urlTtd,
+                'id_role'   => auth()->user()->role_id,
+            ]
+        );
+
+        return [
+            'url_image' => $urlImage,
+            'url_ttd'   => $urlTtd,
+        ];
+    }
+
+    public function deleteAsesmenData($id_izin)
+    {
+        DB::transaction(function () use ($id_izin) {
+            // Delete AK (Asesmen Kompetensi) related data
+            Ak1Answer::where('id_izin', $id_izin)->delete();
+            Ak2Answer::where('id_izin', $id_izin)->delete();
+            Ak2Feedback::where('id_izin', $id_izin)->delete();
+            Ak3Answer::where('id_izin', $id_izin)->delete();
+            Ak3Note::where('id_izin', $id_izin)->delete();
+            Ak4Answer::where('id_izin', $id_izin)->delete();
+            Ak4Reason::where('id_izin', $id_izin)->delete();
+            Ak5Answer::where('id_izin', $id_izin)->delete();
+            Ak6Answer::where('id_izin', $id_izin)->delete();
+            Ak6Feedback::where('id_izin', $id_izin)->delete();
+            Ak7Answer::where('id_izin', $id_izin)->delete();
+
+            // Delete APL (Application) related data
+            Apl1Answer::where('id_izin', $id_izin)->delete();
+            Apl2Answer::where('id_izin', $id_izin)->delete();
+
+            // Delete pivot table for Apl2 files
+            DB::table('apl2_answer_files')
+                ->whereIn('apl2_answer_id', function ($query) use ($id_izin) {
+                    $query->select('id')
+                        ->from('apl2_answers')
+                        ->where('id_izin', $id_izin);
+                })
+                ->delete();
+
+            Apl2File::where('id_izin', $id_izin)->delete();
+            Apl2Submission::where('id_izin', $id_izin)->delete();
+
+            // Delete IA (Instrument Asesmen) related data
+            Ia1Answer::where('id_izin', $id_izin)->delete();
+            Ia1Feedback::where('id_izin', $id_izin)->delete();
+            Ia1Recommendation::where('id_izin', $id_izin)->delete();
+            Ia3Answer::where('id_izin', $id_izin)->delete();
+            Ia3Feedback::where('id_izin', $id_izin)->delete();
+            Ia4aAnswer::where('id_izin', $id_izin)->delete();
+            Ia4bAnswer::where('id_izin', $id_izin)->delete();
+            Ia5Answer::where('id_izin', $id_izin)->delete();
+            Ia5Feedback::where('id_izin', $id_izin)->delete();
+
+            // Delete other related data
+            Barcode::where('id_izin', $id_izin)->delete();
+            BuktiAsesmen::where('id_izin', $id_izin)->delete();
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'All asesmen data successfully deleted',
+        ]);
     }
 }
