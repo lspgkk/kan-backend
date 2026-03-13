@@ -143,39 +143,19 @@ class JadwalController extends Controller
          *  2️⃣ RESOLVE SKEMA IDS
          *  =============================== */
         $authData = DB::table('b_n_s_p_auths')->value('x_authorization');
-        $allSkemaIds = [];
+        $skemaResult = $this->resolveBnspSkemaIdsFromIdIzinList($validated['all_id_izin'], $authData);
 
-        $jabatanKerjaList = KlasifikasiKualifikasi::whereIn('id_izin', $validated['all_id_izin'])
-            ->pluck('jabatan_kerja')
-            ->unique()
-            ->toArray();
-
-        foreach ($jabatanKerjaList as $jabatanKerja) {
-            try {
-                $response = Http::withHeaders([
-                    'Content-Type'    => 'application/json',
-                    'x-authorization' => $authData,
-                ])->get("https://konstruksi.bnsp.go.id/api/v1/skema?kode_lpjk={$jabatanKerja}");
-
-                $data = $response->json();
-
-                if (($data['code'] ?? null) !== 'ERR') {
-                    $allSkemaIds[] = $data['data']['id'];
-                    continue;
-                }
-
-                // fallback
-                if ($jabatanKerja === 'SI101015') $allSkemaIds[] = 63566;
-                if ($jabatanKerja === 'SI013041') $allSkemaIds[] = 63538;
-
-            } catch (\Throwable $e) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Gagal mengambil skema dari BNSP',
-                    'error'   => $e->getMessage(),
-                ], 500);
-            }
+        if (!$skemaResult['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil skema dari BNSP',
+                'error'   => $skemaResult['error'],
+            ], 500);
         }
+
+        $allSkemaIds = $skemaResult['skema_ids'];
+        $skemaSorted = $allSkemaIds;
+        sort($skemaSorted);
 
         /** ===============================
          *  3️⃣ RESOLVE TUK
@@ -191,49 +171,83 @@ class JadwalController extends Controller
         }
 
         /** ===============================
-         *  4️⃣ CREATE JADWAL BNSP
+         *  4️⃣ IDEMPOTENCY CHECK
          *  =============================== */
-        try {
-            $client = new \GuzzleHttp\Client();
+        $requestHash = hash('sha256', json_encode([
+            'tuk_id' => (string)$idTuk,
+            'nama_jadwal' => (string)$validated['nama_jadwal'],
+            'subklasifikasi' => (string)$validated['subklasifikasi'],
+            'kualifikasi' => (string)$validated['kualifikasi'],
+            'tanggal_mulai' => (string)$validated['tanggal_mulai'],
+            'tanggal_selesai' => (string)$validated['tanggal_selesai'],
+            'skema_ids' => $skemaSorted,
+        ], JSON_UNESCAPED_UNICODE));
 
-            $response = $client->post('https://konstruksi.bnsp.go.id/api/v1/jadwal', [
-                'headers' => [
-                    'Authorization'   => $request->header('Authorization'),
-                    'x-authorization' => $authData,
-                    'Content-Type'    => 'application/json',
-                    'Accept'          => 'application/json',
-                ],
-                'json' => [
-                    "tuk_id"            => $idTuk,
-                    "jenis_jadwal"      => 6,
-                    "jenis_anggaran"    => $validated['jenis_anggaran'],
-                    "nama_jadwal"       => $validated['nama_jadwal'],
-                    "klasifikasi_id"    => $validated['kualifikasi'],
-                    "subklasifikasi_id" => $validated['subklasifikasi'],
-                    "tanggal_mulai"     => $validated['tanggal_mulai'],
-                    "tanggal_selesai"   => $validated['tanggal_selesai'],
-                    "keterangan"        => "",
-                    "jabker_id"         => $allSkemaIds,
-                ],
-            ]);
+        $lockKey = 'jadwal:' . substr($requestHash, 0, 32);
+        $locked = DB::selectOne("SELECT GET_LOCK(?, 10) AS l", [$lockKey])->l ?? 0;
 
-            $responseData = json_decode($response->getBody()->getContents(), true);
-            $jadwalId = (int) ($responseData['data']['jadwal_id'] ?? 0);
-
-            if ($jadwalId <= 0) {
-                throw new \Exception('Jadwal ID tidak valid');
-            }
-
-        } catch (\Throwable $e) {
+        if ((int)$locked !== 1) {
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal membuat jadwal di BNSP',
-                'error'   => $e->getMessage(),
-            ], 500);
+                'message' => 'Sistem sibuk, coba ulang.',
+            ], 429);
+        }
+
+        $jadwalId = null;
+
+        try {
+            $existing = DB::table('jadwals')
+                ->where('request_hash', $requestHash)
+                ->whereNotNull('jadwal_id')
+                ->first();
+
+            if ($existing) {
+                $jadwalId = (int)$existing->jadwal_id;
+
+                Log::info('STORE JADWAL: reuse existing jadwal', [
+                    'request_hash' => $requestHash,
+                    'jadwal_id' => $jadwalId,
+                    'tuk_id' => $idTuk,
+                ]);
+            } else {
+                /** ===============================
+                 *  5️⃣ CREATE JADWAL BNSP
+                 *  =============================== */
+                $bnspResult = $this->pushJadwalToBnsp($request, $validated, $idTuk, $allSkemaIds, $authData);
+
+                if (!$bnspResult['success']) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Gagal membuat jadwal di BNSP',
+                        'error'   => $bnspResult['error'],
+                    ], 500);
+                }
+
+                $jadwalId = $this->extractBnspJadwalId($bnspResult['data'] ?? []);
+
+                if (!$jadwalId) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Jadwal dibuat, tapi jadwal_id tidak ditemukan.',
+                    ], 500);
+                }
+
+                // Create a placeholder jadwal record with request_hash for idempotency
+                DB::table('jadwals')->insertOrIgnore([
+                    'request_hash' => $requestHash,
+                    'jadwal_id' => $jadwalId,
+                    'nama_kegiatan' => $validated['nama_jadwal'],
+                    'status' => 'sinkronisasi-bnsp',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        } finally {
+            DB::select("SELECT RELEASE_LOCK(?)", [$lockKey]);
         }
 
         /** ===============================
-         *  5️⃣ GENERATE & SEND SPT ASESOR
+         *  6️⃣ GENERATE & SEND SPT ASESOR
          *  =============================== */
         try {
             $this->generateAndSendSptAsesor($jadwalId);
@@ -245,7 +259,7 @@ class JadwalController extends Controller
         }
 
         /** ===============================
-         *  6️⃣ ADD PESERTA (COLLECT ERRORS)
+         *  7️⃣ ADD PESERTA (COLLECT ERRORS)
          *  =============================== */
         $errors = [];
 
@@ -269,10 +283,9 @@ class JadwalController extends Controller
                 $klasifikasi = KlasifikasiKualifikasi::where('id_izin', $id_izin)->select(['jabatan_kerja', 'tuk'])->first();
                 $jabker = JabatanKerja::where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->orderBy('InputDate', 'desc')->pluck('jabatan_kerja')->first();
                 $normalizedJabker = strtoupper(trim($jabker));
-                $skema_id = DB::connection('mygatensi')->table('myskemabnsp')->whereRaw("UPPER(TRIM(REPLACE(nama, '`', ''))) = ?", [$normalizedJabker])->orderBy('id', 'desc')->pluck('id')->first();
+                $skema_id = DB::table('skema')->whereRaw("UPPER(TRIM(REPLACE(nama, '`', ''))) = ?", [$normalizedJabker])->orderBy('id', 'desc')->pluck('id')->first();
                 if (!$skema_id) {
-                    $similarSkema = DB::connection('mygatensi')
-                        ->table('myskemabnsp')
+                    $similarSkema = DB::table('skema')
                         ->whereRaw("UPPER(nama) LIKE ?", ["%{$normalizedJabker}%"])
                         ->limit(5)
                         ->pluck('nama');
@@ -284,14 +297,13 @@ class JadwalController extends Controller
                         'saran_skema' => $similarSkema->isEmpty()
                             ? 'Tidak ada skema yang mirip. Silakan cek list skema yang tersedia.'
                             : $similarSkema,
-                        'total_skema_tersedia' => DB::connection('mygatensi')
-                            ->table('myskemabnsp')
+                        'total_skema_tersedia' => DB::table('skema')
                             ->count()
                     ], 404);
                 }
 
                 $tuk = MyTuk::select(['nama_tuk'])->where('id', $klasifikasi->tuk)->first();
-                $tuk_id = MyTukBnsp::select('ID')->where('Nama', $tuk->nama_tuk)->first();
+                $tuk_id = MyTukBnsp::select('id')->where('Nama', $tuk->nama_tuk)->first();
 
                 // Retrieve values from the "pendidikans" table
                 $pendidikansData = Pendidikan::where('id_izin', $id_izin)->select('program_studi', 'no_ijazah', 'tahun_lulus', 'propinsi', 'jenjang', 'kabupaten', 'nama_sekolah_perguruan_tinggi', 'scan_surat_keterangan', 'scan_ijazah_legalisir')->first();
@@ -330,7 +342,7 @@ class JadwalController extends Controller
 
                 $apiData = [
                     "jadwal_id" => $jadwal_id,
-                    "tuk_id" => $tuk_id->ID,
+                    "tuk_id" => $tuk_id->id,
                     "asesor_id" => $asesor_id,
                     "asesor2_id" => $asesor2_id,
                     "is_fg" => 0,
@@ -375,7 +387,6 @@ class JadwalController extends Controller
                 try {
                     $response = $httpClient->request('POST', $apiEndpoint, [
                         'headers' => [
-                            'Authorization' => $request->header('Authorization'),
                             'x-authorization' => $authData,
                             'Content-Type' => 'application/json',
                             'Accept' => 'application/json',
@@ -385,6 +396,74 @@ class JadwalController extends Controller
 
                     $responseBody = $response->getBody()->getContents();
                     $responseData = json_decode($responseBody, true);
+
+                    // API call successful - create or update Jadwal (once per jadwal_id)
+                    $jadwal = Jadwal::where('jadwal_id', $apiData['jadwal_id'])->first();
+
+                    if (!$jadwal) {
+                        // Create Jadwal only once per jadwal_id
+                        $jadwal = Jadwal::create([
+                            "jadwal_id" => $apiData['jadwal_id'],
+                            "admin_id" => $validated['admin_tuk'],
+                            "tuk_id" => $apiData['tuk_id'],
+                            "asesor_id" => $apiData['asesor_id'],
+                            "asesor2_id" => $asesor2_id,
+                            "is_fg" => $apiData['is_fg'],
+                            "jenis_mohon" => $apiData['jenis_mohon'],
+                            "skema_id" => $apiData['skema_id'] ?? null,
+                            "keterangan" => $apiData['keterangan'],
+                            "jenjang_id" => $apiData['jenjang_id'],
+                            "komtek1" => $request->input("komtek1"),
+                            "komtek2" => $request->input("komtek2"),
+                            "komtek3" => $request->input("komtek3"),
+                            "ketua_lsp" => $validated['ketua_lsp'],
+                            "mgr_sertif" => $validated['manajer_sertifikasi'],
+                            "status" => "sinkronisasi-bnsp",
+                            "tahap" => 0,
+                        ]);
+                    } elseif (!$jadwal->asesor_id || !$jadwal->tuk_id) {
+                        // Update only if jadwal is missing critical data (from insertOrIgnore)
+                        $jadwal->update([
+                            "admin_id" => $validated['admin_tuk'],
+                            "tuk_id" => $apiData['tuk_id'],
+                            "asesor_id" => $apiData['asesor_id'],
+                            "asesor2_id" => $asesor2_id,
+                            "is_fg" => $apiData['is_fg'],
+                            "jenis_mohon" => $apiData['jenis_mohon'],
+                            "skema_id" => $apiData['skema_id'] ?? null,
+                            "keterangan" => $apiData['keterangan'],
+                            "jenjang_id" => $apiData['jenjang_id'],
+                            "komtek1" => $request->input("komtek1"),
+                            "komtek2" => $request->input("komtek2"),
+                            "komtek3" => $request->input("komtek3"),
+                            "ketua_lsp" => $validated['ketua_lsp'],
+                            "mgr_sertif" => $validated['manajer_sertifikasi'],
+                        ]);
+                    }
+
+                    // Generate random account and password for this AsesiJadwal
+                    $account = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 8));
+                    $password = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 8));
+
+                    // Create AsesiJadwal for each asesi
+                    AsesiJadwal::create([
+                        "jadwal_id" => $apiData['jadwal_id'],
+                        "id_izin" => $id_izin,
+                        "account" => $account,
+                        "password_plain" => $password,
+                        "kompeten" => "BK",
+                        "is_started" => false,
+                    ]);
+
+                    // Create User with email and hashed password
+                    User::create([
+                        "name" => $personalsData->nama,
+                        "email" => $account,
+                        "phone" => $personalsData->telepon ?? null,
+                        "password" => bcrypt($password),
+                        "address" => $personalsData->alamat ?? null,
+                        "role_id" => 8, // Asesi role
+                    ]);
                 } catch (RequestException $e) {
                     if ($e->hasResponse()) {
                         $response = $e->getResponse();
@@ -393,93 +472,42 @@ class JadwalController extends Controller
                         $responseData = json_decode($responseBody, true);
 
                         if ($responseData['message'] == 'Data Peserta tidak boleh duplikat') {
-                            $jadwalBnsp = Jadwal::where('id_izin', $id_izin)->first();
+                            // Check if Jadwal exists by jadwal_id
+                            $jadwal = Jadwal::where('jadwal_id', $apiData['jadwal_id'])->first();
 
-                            if ($jadwalBnsp) {
-                                $jadwalBnsp->id_izin = $id_izin;
-                                $jadwalBnsp->jadwal_id = $apiData['jadwal_id'];
-                                $jadwalBnsp->tuk_id = $apiData['tuk_id'];
-                                $jadwalBnsp->asesor_id = $apiData['asesor_id'];
-                                $jadwalBnsp->asesor2_id = $asesor2_id;
-                                $jadwalBnsp->is_fg = $apiData['is_fg'];
-                                $jadwalBnsp->nik = $apiData['nik'];
-                                $jadwalBnsp->nib = $apiData['nib'];
-                                $jadwalBnsp->nama = $apiData['nama'];
-                                $jadwalBnsp->tempat_lahir = $apiData['tempat_lahir'];
-                                $jadwalBnsp->tanggal_lahir = $apiData['tanggal_lahir'];
-                                $jadwalBnsp->jenis_kelamin = $apiData['jenis_kelamin'];
-                                $jadwalBnsp->alamat = $apiData['alamat'] ?? null;
-                                $jadwalBnsp->kota_id = $apiData['kota_id'];
-                                $jadwalBnsp->provinsi_id = $apiData['provinsi_id'];
-                                $jadwalBnsp->negara_id = $apiData['negara_id'];
-                                $jadwalBnsp->telepon = $apiData['telepon'];
-                                $jadwalBnsp->email = $apiData['email'];
-                                $jadwalBnsp->jenis_mohon = $apiData['jenis_mohon'];
-                                $jadwalBnsp->skema_id = $apiData['skema_id'] ?? null;
-                                $jadwalBnsp->keterangan = $apiData['keterangan'];
-                                $jadwalBnsp->jenjang_id = $apiData['jenjang_id'];
-                                $jadwalBnsp->prodi = $apiData['prodi'];
-                                $jadwalBnsp->no_ijasah = $apiData['no_ijasah'];
-                                // $jadwalBnsp->tanggal_ijazah = $apiData['tanggal_ijazah'];
-                                $jadwalBnsp->tahun_lulus = $apiData['tahun_lulus'];
-                                $jadwalBnsp->kota_sekolah = $apiData['kota_sekolah'];
-                                $jadwalBnsp->prov_sekolah = $apiData['prov_sekolah'];
-                                $jadwalBnsp->negara_sekolah = $apiData['negara_sekolah'];
-                                $jadwalBnsp->nama_sekolah = $apiData['nama_sekolah'];
-                                $jadwalBnsp->pekerjaan = $apiData['pekerjaan'];
-                                $jadwalBnsp->instansi_pekerjaan = $apiData['instansi_pekerjaan'];
-                                $jadwalBnsp->jabatan_pekerjaan = $apiData['jabatan_pekerjaan'];
-                                $jadwalBnsp->kompeten = "BK";
-                                $jadwalBnsp->file_foto = $apiData['file_foto'];
-                                $jadwalBnsp->file_ktp = $apiData['file_ktp'];
-                                $jadwalBnsp->file_nib = $apiData['file_nib'];
-                                $jadwalBnsp->file_ijazah = $apiData['file_ijazah'];
-                                $jadwalBnsp->komtek1 = $request->input("komtek1");
-                                $jadwalBnsp->komtek2 = $request->input("komtek2");
-                                $jadwalBnsp->komtek3 = $request->input("komtek3");
-                                $jadwalBnsp->ketua_lsp = $validated['ketua_lsp'];
-                                $jadwalBnsp->mgr_sertif = $validated['manajer_sertifikasi'];
-                                $jadwalBnsp->save();
-                            } else {
-                                Jadwal::create([
-                                    "id_izin" => $id_izin,
+                            if (!$jadwal) {
+                                // Create Jadwal only once per jadwal_id
+                                $jadwal = Jadwal::create([
                                     "jadwal_id" => $apiData['jadwal_id'],
+                                    "admin_id" => $validated['admin_tuk'],
                                     "tuk_id" => $apiData['tuk_id'],
                                     "asesor_id" => $apiData['asesor_id'],
                                     "asesor2_id" => $asesor2_id,
                                     "is_fg" => $apiData['is_fg'],
-                                    "nik" => $apiData['nik'] ?? $nik,
-                                    "nib" => $apiData['nib'],
-                                    "nama" => $apiData['nama'],
-                                    "tempat_lahir" => $apiData['tempat_lahir'],
-                                    "tanggal_lahir" => $apiData['tanggal_lahir'],
-                                    "jenis_kelamin" => $apiData['jenis_kelamin'],
-                                    "alamat" => $apiData['alamat'] ?? null,
-                                    "kota_id" => $apiData['kota_id'],
-                                    "provinsi_id" => $apiData['provinsi_id'],
-                                    "negara_id" => $apiData['negara_id'],
-                                    "telepon" => $apiData['telepon'],
-                                    "email" => $apiData['email'],
                                     "jenis_mohon" => $apiData['jenis_mohon'],
                                     "skema_id" => $apiData['skema_id'] ?? null,
                                     "keterangan" => $apiData['keterangan'],
                                     "jenjang_id" => $apiData['jenjang_id'],
-                                    "prodi" => $apiData['prodi'],
-                                    "no_ijasah" => $apiData['no_ijasah'],
-                                    "kompeten" => "BK",
-                                    //"tanggal_ijazah" => $apiData['tanggal_ijazah'],
-                                    "tahun_lulus" => $apiData['tahun_lulus'],
-                                    "kota_sekolah" => $apiData['kota_sekolah'],
-                                    "prov_sekolah" => $apiData['prov_sekolah'],
-                                    "negara_sekolah" => $apiData['negara_sekolah'],
-                                    "nama_sekolah" => $apiData['nama_sekolah'],
-                                    "pekerjaan" => $apiData['pekerjaan'],
-                                    "instansi_pekerjaan" => $apiData['instansi_pekerjaan'],
-                                    "jabatan_pekerjaan" => $apiData['jabatan_pekerjaan'],
-                                    "file_foto" => $apiData['file_foto'],
-                                    "file_ktp" => $apiData['file_ktp'],
-                                    "file_nib" => $apiData['file_nib'],
-                                    "file_ijazah" => $apiData['file_ijazah'],
+                                    "komtek1" => $request->input("komtek1"),
+                                    "komtek2" => $request->input("komtek2"),
+                                    "komtek3" => $request->input("komtek3"),
+                                    "ketua_lsp" => $validated['ketua_lsp'],
+                                    "mgr_sertif" => $validated['manajer_sertifikasi'],
+                                    "status" => "draft",
+                                    "tahap" => 0,
+                                ]);
+                            } elseif (!$jadwal->asesor_id || !$jadwal->tuk_id) {
+                                // Update only if jadwal is missing critical data (from insertOrIgnore)
+                                $jadwal->update([
+                                    "admin_id" => $validated['admin_tuk'],
+                                    "tuk_id" => $apiData['tuk_id'],
+                                    "asesor_id" => $apiData['asesor_id'],
+                                    "asesor2_id" => $asesor2_id,
+                                    "is_fg" => $apiData['is_fg'],
+                                    "jenis_mohon" => $apiData['jenis_mohon'],
+                                    "skema_id" => $apiData['skema_id'] ?? null,
+                                    "keterangan" => $apiData['keterangan'],
+                                    "jenjang_id" => $apiData['jenjang_id'],
                                     "komtek1" => $request->input("komtek1"),
                                     "komtek2" => $request->input("komtek2"),
                                     "komtek3" => $request->input("komtek3"),
@@ -487,115 +515,44 @@ class JadwalController extends Controller
                                     "mgr_sertif" => $validated['manajer_sertifikasi'],
                                 ]);
                             }
+
+                            // Check if AsesiJadwal already exists for this id_izin
+                            $existingAsesi = AsesiJadwal::where('jadwal_id', $apiData['jadwal_id'])
+                                ->where('id_izin', $id_izin)
+                                ->first();
+
+                            if (!$existingAsesi) {
+                                // Generate random account and password for AsesiJadwal
+                                $account = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 8));
+                                $password = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 8));
+
+                                // Create AsesiJadwal with account and password
+                                AsesiJadwal::create([
+                                    "jadwal_id" => $apiData['jadwal_id'],
+                                    "id_izin" => $id_izin,
+                                    "account" => $account,
+                                    "password_plain" => $password,
+                                    "kompeten" => "BK",
+                                    "is_started" => false,
+                                ]);
+
+                                // Create User with email and hashed password
+                                User::create([
+                                    "name" => $personalsData->nama,
+                                    "email" => $account,
+                                    "phone" => $personalsData->telepon ?? null,
+                                    "password" => bcrypt($password),
+                                    "address" => $personalsData->alamat ?? null,
+                                    "role_id" => 8, // Asesi role
+                                ]);
+                            }
+
                             array_push($errors, ['id_izin' => $id_izin, 'msg' => $responseData['message']]);
                             continue;
                         }
                         // dd($responseData, $apiData);
                         array_push($errors, ['id_izin' => $id_izin, 'msg' => $responseData['message']]);
                     }
-                }
-                // }
-
-                try {
-                    $jadwalBnsp = Jadwal::where('id_izin', $id_izin)->first();
-
-                    if ($jadwalBnsp) {
-                        $jadwalBnsp->id_izin = $id_izin;
-                        $jadwalBnsp->jadwal_id = $apiData['jadwal_id'];
-                        $jadwalBnsp->tuk_id = $apiData['tuk_id'];
-                        $jadwalBnsp->asesor_id = $apiData['asesor_id'];
-                        $jadwalBnsp->asesor2_id = $asesor2_id;
-                        $jadwalBnsp->is_fg = $apiData['is_fg'];
-                        $jadwalBnsp->nik = $apiData['nik'];
-                        $jadwalBnsp->nib = $apiData['nib'];
-                        $jadwalBnsp->nama = $apiData['nama'];
-                        $jadwalBnsp->tempat_lahir = $apiData['tempat_lahir'];
-                        $jadwalBnsp->tanggal_lahir = $apiData['tanggal_lahir'];
-                        $jadwalBnsp->jenis_kelamin = $apiData['jenis_kelamin'];
-                        $jadwalBnsp->alamat = $apiData['alamat'];
-                        $jadwalBnsp->kota_id = $apiData['kota_id'];
-                        $jadwalBnsp->provinsi_id = $apiData['provinsi_id'];
-                        $jadwalBnsp->negara_id = $apiData['negara_id'];
-                        $jadwalBnsp->telepon = $apiData['telepon'];
-                        $jadwalBnsp->email = $apiData['email'];
-                        $jadwalBnsp->jenis_mohon = $apiData['jenis_mohon'];
-                        $jadwalBnsp->skema_id = $apiData['skema_id'];
-                        $jadwalBnsp->keterangan = $apiData['keterangan'];
-                        $jadwalBnsp->jenjang_id = $apiData['jenjang_id'];
-                        $jadwalBnsp->prodi = $apiData['prodi'];
-                        $jadwalBnsp->no_ijasah = $apiData['no_ijasah'];
-                        // $jadwalBnsp->tanggal_ijazah = $apiData['tanggal_ijazah'];
-                        $jadwalBnsp->tahun_lulus = $apiData['tahun_lulus'];
-                        $jadwalBnsp->kota_sekolah = $apiData['kota_sekolah'];
-                        $jadwalBnsp->prov_sekolah = $apiData['prov_sekolah'];
-                        $jadwalBnsp->negara_sekolah = $apiData['negara_sekolah'];
-                        $jadwalBnsp->nama_sekolah = $apiData['nama_sekolah'];
-                        $jadwalBnsp->pekerjaan = $apiData['pekerjaan'];
-                        $jadwalBnsp->instansi_pekerjaan = $apiData['instansi_pekerjaan'];
-                        $jadwalBnsp->jabatan_pekerjaan = $apiData['jabatan_pekerjaan'];
-                        $jadwalBnsp->kompeten = "BK";
-                        $jadwalBnsp->file_foto = $apiData['file_foto'];
-                        $jadwalBnsp->file_ktp = $apiData['file_ktp'];
-                        $jadwalBnsp->file_nib = $apiData['file_nib'];
-                        $jadwalBnsp->file_ijazah = $apiData['file_ijazah'];
-                        $jadwalBnsp->komtek1 = $request->input("komtek1");
-                        $jadwalBnsp->komtek2 = $request->input("komtek2");
-                        $jadwalBnsp->komtek3 = $request->input("komtek3");
-                        $jadwalBnsp->ketua_lsp = $validated['ketua_lsp'];
-                        $jadwalBnsp->mgr_sertif = $validated['manajer_sertifikasi'];
-                        $jadwalBnsp->save();
-                    } else {
-                        Jadwal::create([
-                            "id_izin" => $id_izin,
-                            "jadwal_id" => $apiData['jadwal_id'],
-                            "tuk_id" => $apiData['tuk_id'],
-                            "asesor_id" => $apiData['asesor_id'],
-                            "asesor2_id" => $asesor2_id,
-                            "is_fg" => $apiData['is_fg'],
-                            "nik" => $apiData['nik'],
-                            "nib" => $apiData['nib'],
-                            "nama" => $apiData['nama'],
-                            "tempat_lahir" => $apiData['tempat_lahir'],
-                            "tanggal_lahir" => $apiData['tanggal_lahir'],
-                            "jenis_kelamin" => $apiData['jenis_kelamin'],
-                            "alamat" => $apiData['alamat'],
-                            "kota_id" => $apiData['kota_id'],
-                            "provinsi_id" => $apiData['provinsi_id'],
-                            "negara_id" => $apiData['negara_id'],
-                            "telepon" => $apiData['telepon'],
-                            "email" => $apiData['email'],
-                            "jenis_mohon" => $apiData['jenis_mohon'],
-                            "skema_id" => $apiData['skema_id'],
-                            "keterangan" => $apiData['keterangan'],
-                            "jenjang_id" => $apiData['jenjang_id'],
-                            "prodi" => $apiData['prodi'],
-                            "no_ijasah" => $apiData['no_ijasah'],
-                            "kompeten" => "BK",
-                            //"tanggal_ijazah" => $apiData['tanggal_ijazah'],
-                            "tahun_lulus" => $apiData['tahun_lulus'],
-                            "kota_sekolah" => $apiData['kota_sekolah'],
-                            "prov_sekolah" => $apiData['prov_sekolah'],
-                            "negara_sekolah" => $apiData['negara_sekolah'],
-                            "nama_sekolah" => $apiData['nama_sekolah'],
-                            "pekerjaan" => $apiData['pekerjaan'],
-                            "instansi_pekerjaan" => $apiData['instansi_pekerjaan'],
-                            "jabatan_pekerjaan" => $apiData['jabatan_pekerjaan'],
-                            "file_foto" => $apiData['file_foto'],
-                            "file_ktp" => $apiData['file_ktp'],
-                            "file_nib" => $apiData['file_nib'],
-                            "file_ijazah" => $apiData['file_ijazah'],
-                            "komtek1" => $request->input("komtek1"),
-                            "komtek2" => $request->input("komtek2"),
-                            "komtek3" => $request->input("komtek3"),
-                            "ketua_lsp" => $validated['ketua_lsp'],
-                            "mgr_sertif" => $validated['manajer_sertifikasi'],
-                        ]);
-                    }
-                } catch (QueryException $e) {
-                    continue;
-                    // DB::rollBack();
-                    $errorMessage = 'Error putting data into the database: ' . $e->getMessage();
-                    return response()->json(['error' => $errorMessage], 500);
                 }
             } catch (\Throwable $e) {
                 $errors[] = [
@@ -704,9 +661,8 @@ class JadwalController extends Controller
          *  =============================== */
         $jadwal = Jadwal::where('jadwal_id', $jadwalId)->firstOrFail();
 
-        $asesor1 = DB::connection('mygatensi')
-            ->table('myasesorbnsp')
-            ->where('ID', $jadwal->asesor_id)
+        $asesor1 = DB::table('asesor_bnsp')
+            ->where('id', $jadwal->asesor_id)
             ->first();
 
         if (!$asesor1) {
@@ -715,14 +671,12 @@ class JadwalController extends Controller
 
         $asesor2 = null;
         if ($jadwal->asesor2_id) {
-            $asesor2 = DB::connection('mygatensi')
-                ->table('myasesorbnsp')
-                ->where('ID', $jadwal->asesor2_id)
+            $asesor2 = DB::table('asesor_bnsp')
+                ->where('id', $jadwal->asesor2_id)
                 ->first();
         }
 
-        $tuk = DB::connection('mygatensi')
-            ->table('mytukbnsp')
+        $tuk = DB::table('mytukbnsp')
             ->where('Kode', $responseJadwal['dataJadwal']['kode_tuk'])
             ->first();
 
@@ -1730,5 +1684,169 @@ class JadwalController extends Controller
         $image->clear();
 
         return $pngImage;
+    }
+
+    /**
+     * Resolve BNSP skema IDs from id_izin list
+     */
+    private function resolveBnspSkemaIdsFromIdIzinList(array $idIzinList, string $authData): array
+    {
+        $allSkemaIds = [];
+
+        $jabatanKerjaList = KlasifikasiKualifikasi::whereIn('id_izin', $idIzinList)
+            ->pluck('jabatan_kerja')
+            ->unique()
+            ->toArray();
+
+        foreach ($jabatanKerjaList as $jabatanKerja) {
+            try {
+                $response = Http::withHeaders([
+                    'Content-Type'    => 'application/json',
+                    'x-authorization' => $authData,
+                ])->get("https://konstruksi.bnsp.go.id/api/v1/skema?kode_lpjk={$jabatanKerja}");
+
+                $data = $response->json();
+
+                if (($data['code'] ?? null) !== 'ERR') {
+                    $allSkemaIds[] = $data['data']['id'];
+                    continue;
+                }
+
+                // fallback
+                if ($jabatanKerja === 'SI101015') $allSkemaIds[] = 63566;
+                if ($jabatanKerja === 'SI013041') $allSkemaIds[] = 63538;
+
+            } catch (\Throwable $e) {
+                return [
+                    'success' => false,
+                    'error' => $e->getMessage(),
+                    'skema_ids' => [],
+                ];
+            }
+        }
+
+        return [
+            'success' => true,
+            'skema_ids' => $allSkemaIds,
+        ];
+    }
+
+    /**
+     * Push jadwal to BNSP API
+     */
+    private function pushJadwalToBnsp(Request $request, array $validated, int $idTuk, array $allSkemaIds, string $authData): array
+    {
+        $traceId = (string) \Illuminate\Support\Str::uuid();
+        $apiEndpoint = 'https://konstruksi.bnsp.go.id/api/v1/jadwal';
+
+        $apiData = [
+            "tuk_id"            => $idTuk,
+            "jenis_jadwal"      => 6,
+            "jenis_anggaran"    => $validated['jenis_anggaran'],
+            "nama_jadwal"       => $validated['nama_jadwal'],
+            "klasifikasi_id"    => "SI",
+            "subklasifikasi_id" => str_replace('SI', '', $validated['subklasifikasi']),
+            "tanggal_mulai"     => \Carbon\Carbon::parse($validated['tanggal_mulai'])->format('Y-m-d'),
+            "tanggal_selesai"   => \Carbon\Carbon::parse($validated['tanggal_selesai'])->format('Y-m-d'),
+            "keterangan"        => "",
+            "jabker_id"         => $allSkemaIds,
+        ];
+
+        Log::info('BNSP CREATE JADWAL: request prepared', [
+            'trace_id' => $traceId,
+            'endpoint' => $apiEndpoint,
+            'payload'  => $apiData,
+        ]);
+
+        $client = new \GuzzleHttp\Client([
+            'timeout' => 30,
+            'connect_timeout' => 10,
+        ]);
+
+        try {
+            $response = $client->post($apiEndpoint, [
+                'headers' => [
+                    'x-authorization' => $authData,
+                    'Accept'          => 'application/json',
+                    'Content-Type'    => 'application/json',
+                ],
+                'json' => $apiData,
+            ]);
+
+            $statusCode = $response->getStatusCode();
+            $rawBody    = (string) $response->getBody();
+            $jsonBody   = json_decode($rawBody, true);
+
+            Log::info('BNSP CREATE JADWAL: success', [
+                'trace_id' => $traceId,
+                'status'   => $statusCode,
+                'endpoint' => $apiEndpoint,
+                'payload'  => $apiData,
+                'raw_body' => $rawBody,
+                'json'     => $jsonBody,
+            ]);
+
+            return [
+                'success'  => true,
+                'trace_id' => $traceId,
+                'status'   => $statusCode,
+                'data'     => $jsonBody,
+                'raw'      => $rawBody,
+                'payload'  => $apiData,
+            ];
+        } catch (\GuzzleHttp\Exception\RequestException $e) {
+            $statusCode = null;
+            $rawBody    = null;
+            $jsonBody   = null;
+
+            if ($e->hasResponse()) {
+                $res        = $e->getResponse();
+                $statusCode = $res->getStatusCode();
+                $rawBody    = (string) $res->getBody();
+                $jsonBody   = json_decode($rawBody, true);
+            }
+
+            Log::error('BNSP CREATE JADWAL: failed', [
+                'trace_id' => $traceId,
+                'status'   => $statusCode,
+                'endpoint' => $apiEndpoint,
+                'payload'  => $apiData,
+                'raw_body' => $rawBody,
+                'json'     => $jsonBody,
+                'error'    => $e->getMessage(),
+            ]);
+
+            return [
+                'success'  => false,
+                'trace_id' => $traceId,
+                'status'   => $statusCode,
+                'data'     => $jsonBody,
+                'raw'      => $rawBody,
+                'payload'  => $apiData,
+                'error'    => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Extract jadwal_id from BNSP response
+     */
+    private function extractBnspJadwalId(array $bnspData): ?int
+    {
+        $candidates = [
+            $bnspData['data']['jadwal_id'] ?? null,
+            $bnspData['data']['id_jadwal'] ?? null,
+            $bnspData['data']['id'] ?? null,
+            $bnspData['jadwal_id'] ?? null,
+            $bnspData['id'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_numeric($candidate) && (int)$candidate > 0) {
+                return (int)$candidate;
+            }
+        }
+
+        return null;
     }
 }

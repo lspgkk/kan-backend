@@ -550,7 +550,7 @@ class InvoiceController extends Controller
                 ob_end_clean();
 
                 $filename_invoice = "invoice_" . Carbon::now()->setTimezone('Asia/Jakarta')->format('Ymd_His') . '.xlsx';
-                $result_save = Storage::disk("sertif_ftp")->put("/baru/invoice/" . $filename_invoice, $content);
+                $result_save = Storage::disk("str_moon")->put("/invoice/" . $filename_invoice, $content);
 
                 /* =====================================================
                 * 6. PDF GENERATION (OUTSIDE TRANSACTION)
@@ -610,7 +610,7 @@ class InvoiceController extends Controller
                     'tgl_uji'        => $validatedData['tanggal_uji'],
                     'input_by'       => Auth::user()->email,
                     'inv_link'       => $invoice_pdf,
-                    'inv_excel'      => "https://moon.lspgatensi.id/files/new_gatensi/baru/invoice/" . $filename_invoice,
+                    'inv_excel'      => "https://moon.lspgatensi.id/files/new_gatensi/invoice/" . $filename_invoice,
                 ]);
 
                 foreach ($data_asesi_beserta_harga as $asesi) {
@@ -710,7 +710,7 @@ class InvoiceController extends Controller
                 while (true) {
                     error_log("try again");
 
-                    $api_url = "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi->ID_Ijin;
+                    $api_url = "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi->id_izin;
 
                     $status31 = [
                         "kd_status" => "31",
@@ -728,7 +728,7 @@ class InvoiceController extends Controller
                         $responseData = $response_post_bnsp->json();
 
                         if ($responseData['status'] == "success") {
-                            Personal::where('id_izin', $asesi->ID_Ijin)
+                            Personal::where('id_izin', $asesi->id_izin)
                                 ->update(['status' => 31]);
                             break;
 
@@ -753,7 +753,7 @@ class InvoiceController extends Controller
                         $errorMessage = $response_post_bnsp->json()['message'] ?? null;
 
                         if ($errorMessage === 'tidak dapat mengirim kode status 31, kode status saat ini 31') {
-                            Personal::where('id_izin', $asesi->ID_Ijin)
+                            Personal::where('id_izin', $asesi->id_izin)
                                 ->update(['status' => 31]);
                             break;
                         }

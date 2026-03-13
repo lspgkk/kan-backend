@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(cd \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\" && php artisan migrate:status | grep -i jadwal)",
+      "Bash(cd \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\" && php artisan migrate:status)",
+      "Bash(cd \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\" && php artisan make:migration add_request_hash_to_jadwals_table --table=jadwals)"
     ]
   }
 }

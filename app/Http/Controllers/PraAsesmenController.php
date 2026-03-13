@@ -31,6 +31,8 @@ use App\Models\Ia4bAnswer;
 use App\Models\Ia5Answer;
 use App\Models\Ia5Feedback;
 use App\Models\ImpBukti;
+use App\Models\ImpBuktiAdministrasi;
+use App\Models\ImpBuktiPersyaratan;
 use App\Models\JabatanConfigA;
 use App\Models\JabatanDokumen;
 use App\Models\JabatanKerja;
@@ -323,18 +325,12 @@ class PraAsesmenController extends Controller
         $kualifikasi = JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)->value('jabatan_kerja');
         $unitKompetensi = UnitKompetensi::select(['kode', 'nama'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->get();
         $jenjang = Pendidikan::where('id_izin', $id)->orderBy('created_at', 'desc')->value('jenjang');
-        $persyaratan = ImpBukti::select(['no', 'bukti'])
+        $persyaratan = ImpBuktiPersyaratan::select(['no', 'bukti'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
-            ->whereNotLike('bukti', 'Syarat Administrasi%')
-            ->whereNotLike('bukti', 'Bukti Keanggotaan%')
             ->orderBy('no', 'asc')
             ->get();
-        $administratif = ImpBukti::select(['no', 'bukti'])
+        $administratif = ImpBuktiAdministrasi::select(['no', 'bukti'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
-            ->where(function ($q) {
-                $q->whereLike('bukti', 'Syarat Administrasi%')
-                ->orWhereLike('bukti', 'Bukti Keanggotaan%');
-            })
             ->orderBy('no', 'asc')
             ->get();
         $barcodeByRole = Barcode::with('user:id,name')
@@ -1129,8 +1125,6 @@ class PraAsesmenController extends Controller
                     ],
                 ];
             });
-
-        $jabatanConfig = JabatanConfigA::where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
 
         return [
             'kelompok_kerja' => $kelompokKerja,

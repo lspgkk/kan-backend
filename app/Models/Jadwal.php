@@ -7,9 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 class Jadwal extends Model
 {
     protected $fillable = ([
-        'id_izin',
+        'request_hash',
         'jadwal_id',
         'tuk_id',
+        'admin_id',
         'asesor_id',
         'asesor2_id',
         'is_fg',
@@ -59,6 +60,15 @@ class Jadwal extends Model
             KomtekRecommendation::class,
             'id_izin',
             'id_izin'
+        );
+    }
+
+    public function asesiJadwals()
+    {
+        return $this->hasMany(
+            AsesiJadwal::class,
+            'jadwal_id',
+            'jadwal_id'
         );
     }
 }

@@ -8,7 +8,7 @@ class MyTukBnsp extends Model
 {
     protected $table = 'mytukbnsp';
 
-    protected $primaryKey = 'ID';
+    protected $primaryKey = 'id';
 
     public $incrementing = true;
 

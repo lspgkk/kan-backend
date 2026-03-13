@@ -10,14 +10,14 @@ class AsesiJadwal extends Model
         'jadwal_id',
         'id_izin',
         'account',
-        'password',
+        'password_plain',
         'kompeten',
         'is_started',
         'started_at'
     ];
 
     protected $hidden = [
-        'password',
+        'password_plain',
     ];
     
     protected $casts = [
@@ -30,6 +30,15 @@ class AsesiJadwal extends Model
             Personal::class,
             'id_izin',   // foreign key on asesijadwal
             'id_izin'    // primary key on personals
+        );
+    }
+
+    public function jadwal()
+    {
+        return $this->belongsTo(
+            Jadwal::class,
+            'jadwal_id',
+            'jadwal_id'
         );
     }
 }
