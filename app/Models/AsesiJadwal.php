@@ -13,11 +13,9 @@ class AsesiJadwal extends Model
         'password_plain',
         'kompeten',
         'is_started',
+        'is_fg',
+        'is_konstruksi',
         'started_at'
-    ];
-
-    protected $hidden = [
-        'password_plain',
     ];
     
     protected $casts = [

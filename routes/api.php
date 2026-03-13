@@ -22,6 +22,7 @@ use App\Http\Controllers\KebenaranDataController;
 use App\Http\Controllers\KomtekController;
 use App\Http\Controllers\KualifikasiController;
 use App\Http\Controllers\MigrationController;
+use App\Http\Controllers\PenerbitanSertifikatController;
 use App\Http\Controllers\PraAsesmenController;
 use App\Http\Controllers\ProvinceController;
 use App\Http\Controllers\SesiController;
@@ -268,4 +269,9 @@ Route::middleware(['auth:api'])->group(function () {
     Route::post('/validasi/lengkap/{id_izin}', [HitStatusController::class, 'hitLengkap']);
     Route::post('/validasi/tidak-lengkap/{id_izin}', [HitStatusController::class, 'hitTidakLengkap']);
     Route::post('/tolak/{id_izin}', [HitStatusController::class, 'hitTolak']);
+
+    // --- Penerbitan Sertifikat ---
+    Route::prefix('penerbitan-sertifikat')->group(function () {
+        Route::post('/cetak/{jadwal_id}', [PenerbitanSertifikatController::class, 'storePenerbitan']);
+    });
 });

@@ -97,11 +97,64 @@ class JadwalController extends Controller
 
     public function show($id)
     {
-        $jadwal = Jadwal::where('id', $id)->first();
+        $jadwal = Jadwal::where('id', $id)
+            ->with(['sptAsesor', 'sptKomtek', 'asesiJadwals.personal'])
+            ->select([
+                'id',
+                'jadwal_id',
+                'tuk_id',
+                'admin_id',
+                'asesor_id',
+                'asesor2_id',
+                'is_fg',
+                'jenis_mohon',
+                'skema_id',
+                'keterangan',
+                'jenjang_id',
+                'komtek1',
+                'komtek2',
+                'komtek3',
+                'ketua_lsp',
+                'mgr_sertif',
+                'tanggal_uji',
+                'sesi',
+                'jenis_kelas',
+                'jenis_anggaran',
+                'tanggal_selesai',
+                'subklasifikasi',
+                'kualifikasi',
+                'nama_kegiatan',
+                'started_at'
+            ])
+            ->first();
+
+        if (!$jadwal) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Jadwal not found'
+            ], 404);
+        }
+
+        // Transform to only include links from SPT relationships
+        $data = $jadwal->toArray();
+        unset($data['asesi_jadwals']); // Remove the full asesi_jadwals relationship
+        $data['spt_asesor'] = $jadwal->sptAsesor ? $jadwal->sptAsesor->link : null;
+        $data['spt_komtek'] = $jadwal->sptKomtek ? $jadwal->sptKomtek->link : null;
+
+        // Add list of asesi
+        $data['asesi'] = $jadwal->asesiJadwals->map(function ($asesi) {
+            return [
+                'id_izin' => $asesi->id_izin,
+                'account' => $asesi->account,
+                'kompeten' => $asesi->kompeten,
+                'nama' => $asesi->personal ? $asesi->personal->nama : null,
+            ];
+        })->values();
 
         return response()->json([
+            'success' => true,
             'message' => 'Jadwal retrieved successfully',
-            'data' => $jadwal
+            'data' => $data
         ]);
     }
     
@@ -418,6 +471,12 @@ class JadwalController extends Controller
                             "komtek3" => $request->input("komtek3"),
                             "ketua_lsp" => $validated['ketua_lsp'],
                             "mgr_sertif" => $validated['manajer_sertifikasi'],
+                            "sesi" => $validated['sesi'],
+                            "jenis_kelas" => $validated['jenis_kelas'],
+                            "jenis_anggaran" => $validated['jenis_anggaran'],
+                            "tanggal_selesai" => $validated['tanggal_selesai'],
+                            "subklasifikasi" => $validated['subklasifikasi'],
+                            "kualifikasi" => $validated['kualifikasi'],
                             "status" => "sinkronisasi-bnsp",
                             "tahap" => 0,
                         ]);
@@ -438,12 +497,18 @@ class JadwalController extends Controller
                             "komtek3" => $request->input("komtek3"),
                             "ketua_lsp" => $validated['ketua_lsp'],
                             "mgr_sertif" => $validated['manajer_sertifikasi'],
+                            "sesi" => $validated['sesi'],
+                            "jenis_kelas" => $validated['jenis_kelas'],
+                            "jenis_anggaran" => $validated['jenis_anggaran'],
+                            "tanggal_selesai" => $validated['tanggal_selesai'],
+                            "subklasifikasi" => $validated['subklasifikasi'],
+                            "kualifikasi" => $validated['kualifikasi'],
                         ]);
                     }
 
                     // Generate random account and password for this AsesiJadwal
-                    $account = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 8));
-                    $password = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 8));
+                    $account = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 8));
+                    $password = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 8));
 
                     // Create AsesiJadwal for each asesi
                     AsesiJadwal::create([
@@ -493,6 +558,12 @@ class JadwalController extends Controller
                                     "komtek3" => $request->input("komtek3"),
                                     "ketua_lsp" => $validated['ketua_lsp'],
                                     "mgr_sertif" => $validated['manajer_sertifikasi'],
+                                    "sesi" => $validated['sesi'],
+                                    "jenis_kelas" => $validated['jenis_kelas'],
+                                    "jenis_anggaran" => $validated['jenis_anggaran'],
+                                    "tanggal_selesai" => $validated['tanggal_selesai'],
+                                    "subklasifikasi" => $validated['subklasifikasi'],
+                                    "kualifikasi" => $validated['kualifikasi'],
                                     "status" => "draft",
                                     "tahap" => 0,
                                 ]);
@@ -513,6 +584,12 @@ class JadwalController extends Controller
                                     "komtek3" => $request->input("komtek3"),
                                     "ketua_lsp" => $validated['ketua_lsp'],
                                     "mgr_sertif" => $validated['manajer_sertifikasi'],
+                                    "sesi" => $validated['sesi'],
+                                    "jenis_kelas" => $validated['jenis_kelas'],
+                                    "jenis_anggaran" => $validated['jenis_anggaran'],
+                                    "tanggal_selesai" => $validated['tanggal_selesai'],
+                                    "subklasifikasi" => $validated['subklasifikasi'],
+                                    "kualifikasi" => $validated['kualifikasi'],
                                 ]);
                             }
 

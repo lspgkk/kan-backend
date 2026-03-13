@@ -13,7 +13,6 @@ class Jadwal extends Model
         'admin_id',
         'asesor_id',
         'asesor2_id',
-        'is_fg',
         'jenis_mohon',
         'skema_id',
         'keterangan',
@@ -24,6 +23,12 @@ class Jadwal extends Model
         'ketua_lsp',
         'mgr_sertif',
         'tanggal_uji',
+        'sesi',
+        'jenis_kelas',
+        'jenis_anggaran',
+        'tanggal_selesai',
+        'subklasifikasi',
+        'kualifikasi',
         'nama_kegiatan',
         'status',
         'is_started_praasesmen',
@@ -31,6 +36,25 @@ class Jadwal extends Model
         'tahap',
         'started_at'
     ]);
+
+    protected $casts = [
+        'tuk_id' => 'integer',
+        'admin_id' => 'integer',
+        'asesor_id' => 'integer',
+        'asesor2_id' => 'integer',
+        'skema_id' => 'integer',
+        'jenjang_id' => 'integer',
+        'komtek1' => 'integer',
+        'komtek2' => 'integer',
+        'komtek3' => 'integer',
+        'ketua_lsp' => 'integer',
+        'mgr_sertif' => 'integer',
+        'sesi' => 'integer',
+        'tahap' => 'integer',
+        'jenis_mohon' => 'integer',
+        'is_started_praasesmen' => 'boolean',
+        'is_started' => 'boolean',
+    ];
 
     /* ================= RELATIONS ================= */
 
@@ -67,6 +91,24 @@ class Jadwal extends Model
     {
         return $this->hasMany(
             AsesiJadwal::class,
+            'jadwal_id',
+            'jadwal_id'
+        );
+    }
+
+    public function sptAsesor()
+    {
+        return $this->hasOne(
+            SPTAsesor::class,
+            'jadwal_id',
+            'jadwal_id'
+        );
+    }
+
+    public function sptKomtek()
+    {
+        return $this->hasOne(
+            SPTKomtek::class,
             'jadwal_id',
             'jadwal_id'
         );
