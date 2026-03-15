@@ -62,34 +62,44 @@ class BuktiController extends Controller
             ],
         ]);
 
-        $image = $request->file('image');
+        // Increase execution time for file uploads
+        set_time_limit(300); // 5 minutes
 
-        $filename = (string) Str::uuid() . '.' . $image->getClientOriginalExtension();
-        $path = "dok_asesmen/foto/{$filename}";
+        try {
+            $image = $request->file('image');
 
-        $uploaded = Storage::disk('str_moon')->putFileAs(
-            'dok_asesmen/foto',
-            $image,
-            $filename
-        );
+            $filename = (string) Str::uuid() . '.' . $image->getClientOriginalExtension();
+            $path = "dok_asesmen/foto/{$filename}";
 
-        if (!$uploaded) {
+            $uploaded = Storage::disk('str_moon')->putFileAs(
+                'dok_asesmen/foto',
+                $image,
+                $filename
+            );
+
+            if (!$uploaded) {
+                return response()->json([
+                    'message' => 'Upload failed - Server tidak merespon',
+                ], 503);
+            }
+
+            $fullImageUrl = 'https://moon.lspgatensi.id/files/new_gatensi' . '/' . $path;
+
+            BuktiAsesmen::updateOrCreate(
+                ['id_izin' => $id],
+                ['url_docs_asesmen' => $fullImageUrl]
+            );
+
             return response()->json([
-                'message' => 'Upload failed',
-            ], 500);
+                'message' => 'success',
+                'url' => $fullImageUrl,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Upload error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Upload gagal: ' . $e->getMessage(),
+            ], 503);
         }
-
-        $fullImageUrl = 'https://moon.lspgatensi.id/files/new_gatensi' . '/' . $path;
-
-        BuktiAsesmen::updateOrCreate(
-            ['id_izin' => $id],
-            ['url_docs_asesmen' => $fullImageUrl]
-        );
-
-        return response()->json([
-            'message' => 'success',
-            'url' => $fullImageUrl,
-        ]);
     }
 
     public function uploadBuktiKegiatan(Request $request, $id)
@@ -97,59 +107,76 @@ class BuktiController extends Controller
         $request->validate([
             'foto_bersama' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
 
-            'ttd_asesi_asesmen'  => 'nullable|image|mimes:jpg,jpeg,png,webp,pdf|max:2048',
-            'ttd_asesi_pra'      => 'nullable|file|mimes:jpg,jpeg,png,webppdf|max:2048',
-            'ttd_asesor_asesmen' => 'nullable|file|mimes:jpg,jpeg,png,webppdf|max:2048',
-            'ttd_asesor_pra'     => 'nullable|file|mimes:jpg,jpeg,png,webppdf|max:2048',
+            'ttd_asesi_asesmen'  => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:2048',
+            'ttd_asesi_pra'      => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:2048',
+            'ttd_asesor_asesmen' => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:2048',
+            'ttd_asesor_pra'     => 'nullable|file|mimes:jpg,jpeg,png,webp,pdf|max:2048',
         ]);
 
         $baseUrl = 'https://moon.lspgatensi.id/files/new_gatensi';
         $data = [];
 
+        // Increase execution time for file uploads
+        set_time_limit(300); // 5 minutes
+
         /* =========================
         * OPTIONAL FOTO BERSAMA
         * ========================= */
         if ($request->hasFile('foto_bersama')) {
-            $image = $request->file('foto_bersama');
-            $imageName = Str::uuid() . '.' . $image->getClientOriginalExtension();
-            $imagePath = "dok_asesmen/foto/{$imageName}";
+            try {
+                $image = $request->file('foto_bersama');
+                $imageName = Str::uuid() . '.' . $image->getClientOriginalExtension();
+                $imagePath = "dok_asesmen/foto/{$imageName}";
 
-            $uploaded = Storage::disk('str_moon')->putFileAs(
-                'dok_asesmen/foto',
-                $image,
-                $imageName
-            );
+                $uploaded = Storage::disk('str_moon')->putFileAs(
+                    'dok_asesmen/foto',
+                    $image,
+                    $imageName
+                );
 
-            if (!$uploaded) {
-                return response()->json(['message' => 'Upload foto gagal'], 500);
+                if (!$uploaded) {
+                    return response()->json(['message' => 'Upload foto gagal - Server tidak merespon'], 503);
+                }
+
+                $data['url_foto_bersama'] = "{$baseUrl}/{$imagePath}";
+            } catch (\Exception $e) {
+                \Log::error('Upload foto error: ' . $e->getMessage());
+                return response()->json(['message' => 'Upload foto gagal: ' . $e->getMessage()], 503);
             }
-
-            $data['url_foto_bersama'] = "{$baseUrl}/{$imagePath}";
         }
 
         /* =========================
-        * OPTIONAL PDF UPLOADS
+        * OPTIONAL FILE UPLOADS
         * ========================= */
-        $pdfFields = [
+        $fileFields = [
             'ttd_asesi_asesmen'  => 'url_ttd_asesi_asesmen',
             'ttd_asesi_pra'      => 'url_ttd_asesi_pra',
             'ttd_asesor_asesmen' => 'url_ttd_asesor_asesmen',
             'ttd_asesor_pra'     => 'url_ttd_asesor_pra',
         ];
 
-        foreach ($pdfFields as $input => $column) {
+        foreach ($fileFields as $input => $column) {
             if ($request->hasFile($input)) {
-                $pdf = $request->file($input);
-                $pdfName = Str::uuid() . '.pdf';
-                $pdfPath = "dok_asesmen/ttd/{$pdfName}";
+                try {
+                    $file = $request->file($input);
+                    $fileName = Str::uuid() . '.' . $file->getClientOriginalExtension();
+                    $filePath = "dok_asesmen/ttd/{$fileName}";
 
-                Storage::disk('str_moon')->putFileAs(
-                    'dok_asesmen/ttd',
-                    $pdf,
-                    $pdfName
-                );
+                    $uploaded = Storage::disk('str_moon')->putFileAs(
+                        'dok_asesmen/ttd',
+                        $file,
+                        $fileName
+                    );
 
-                $data[$column] = "{$baseUrl}/{$pdfPath}";
+                    if (!$uploaded) {
+                        return response()->json(['message' => "Upload {$input} gagal - Server tidak merespon"], 503);
+                    }
+
+                    $data[$column] = "{$baseUrl}/{$filePath}";
+                } catch (\Exception $e) {
+                    \Log::error("Upload {$input} error: " . $e->getMessage());
+                    return response()->json(['message' => "Upload {$input} gagal: " . $e->getMessage()], 503);
+                }
             }
         }
 
@@ -157,10 +184,15 @@ class BuktiController extends Controller
         * SAVE (ONLY IF SOMETHING EXISTS)
         * ========================= */
         if (!empty($data)) {
-            BuktiKegiatan::updateOrCreate(
-                ['id_jadwal' => $id],
-                $data
-            );
+            try {
+                BuktiKegiatan::updateOrCreate(
+                    ['id_jadwal' => $id],
+                    $data
+                );
+            } catch (\Exception $e) {
+                \Log::error('Database error: ' . $e->getMessage());
+                return response()->json(['message' => 'Gagal menyimpan data: ' . $e->getMessage()], 500);
+            }
         }
 
         return response()->json([

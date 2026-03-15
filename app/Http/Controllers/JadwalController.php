@@ -474,6 +474,7 @@ class JadwalController extends Controller
                             "sesi" => $validated['sesi'],
                             "jenis_kelas" => $validated['jenis_kelas'],
                             "jenis_anggaran" => $validated['jenis_anggaran'],
+                            "tanggal_uji" => $validated['tanggal_mulai'],
                             "tanggal_selesai" => $validated['tanggal_selesai'],
                             "subklasifikasi" => $validated['subklasifikasi'],
                             "kualifikasi" => $validated['kualifikasi'],
@@ -500,6 +501,7 @@ class JadwalController extends Controller
                             "sesi" => $validated['sesi'],
                             "jenis_kelas" => $validated['jenis_kelas'],
                             "jenis_anggaran" => $validated['jenis_anggaran'],
+                            "tanggal_uji" => $validated['tanggal_mulai'],
                             "tanggal_selesai" => $validated['tanggal_selesai'],
                             "subklasifikasi" => $validated['subklasifikasi'],
                             "kualifikasi" => $validated['kualifikasi'],
@@ -561,6 +563,7 @@ class JadwalController extends Controller
                                     "sesi" => $validated['sesi'],
                                     "jenis_kelas" => $validated['jenis_kelas'],
                                     "jenis_anggaran" => $validated['jenis_anggaran'],
+                                    "tanggal_uji" => $validated['tanggal_mulai'],
                                     "tanggal_selesai" => $validated['tanggal_selesai'],
                                     "subklasifikasi" => $validated['subklasifikasi'],
                                     "kualifikasi" => $validated['kualifikasi'],
@@ -587,6 +590,7 @@ class JadwalController extends Controller
                                     "sesi" => $validated['sesi'],
                                     "jenis_kelas" => $validated['jenis_kelas'],
                                     "jenis_anggaran" => $validated['jenis_anggaran'],
+                                    "tanggal_uji" => $validated['tanggal_mulai'],
                                     "tanggal_selesai" => $validated['tanggal_selesai'],
                                     "subklasifikasi" => $validated['subklasifikasi'],
                                     "kualifikasi" => $validated['kualifikasi'],
@@ -1725,6 +1729,9 @@ class JadwalController extends Controller
             ->from('klasifikasi_kualifikasis')
             ->where('tuk', $validated['tuk_id'])
             ->where('subklasifikasi', $validated['subklasifikasi_id']);
+        })->whereNotIn('id_izin', function ($q) {
+            $q->select('id_izin')
+            ->from('asesi_jadwals');
         })->select([
             'id_izin',
             'nama',

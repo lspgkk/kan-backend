@@ -23,14 +23,8 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class BlankoController extends Controller
 {
-    public function submitHasilUji(Request $request)
+    public function submitHasilUji(Request $request, $jadwal_id)
     {
-        // Validation
-        $request->validate([
-            "jadwal_id" => ['required'],
-        ]);
-        $jadwal_id = trim($request->input('jadwal_id'));
-
         // Get all asesi from AsesiJadwal for this jadwal_id
         $allAsesiJadwal = AsesiJadwal::where('jadwal_id', $jadwal_id)->get();
 
@@ -496,8 +490,8 @@ class BlankoController extends Controller
         ];
         $pdf = PDF::loadView('template-surat.ba_komteks', $result);
         $pdfContent_BA = $pdf->output();
-        Storage::disk("sertif_ftp")->put("/baru/ba_komtek/" . trim($jadwal_id) . ".pdf", $pdfContent_BA);
-        $full_url_file_ba = 'https://lspgatensi.id/files/baru/ba_komtek/' . trim($jadwal_id) . ".pdf";
+        Storage::disk("str_moon")->put("/ba_komtek/" . trim($jadwal_id) . ".pdf", $pdfContent_BA);
+        $full_url_file_ba = 'https://lspgatensi.id/files/ba_komtek/' . trim($jadwal_id) . ".pdf";
 
 
 
@@ -553,9 +547,9 @@ class BlankoController extends Controller
 
         $pdf_sk = PDF::loadView('template-surat.permohonan_blanko', $result);
         $pdfContent_sk = $pdf_sk->output();
-        Storage::disk("sertif_ftp")->put("/baru/surat_blanko/" . trim($jadwal_id) . ".pdf", $pdfContent_sk);
+        Storage::disk("str_moon")->put("/surat_blanko/" . trim($jadwal_id) . ".pdf", $pdfContent_sk);
 
-        $full_url_file_blanko = 'https://lspgatensi.id/files/baru/surat_blanko/' . trim($jadwal_id) . ".pdf";
+        $full_url_file_blanko = 'https://lspgatensi.id/files/surat_blanko/' . trim($jadwal_id) . ".pdf";
 
 
         // SK Ketua
@@ -612,9 +606,9 @@ class BlankoController extends Controller
 
         $pdf_sk = PDF::loadView('template-surat.sk_ketua', $result);
         $pdfContent_sk = $pdf_sk->output();
-        Storage::disk("sertif_ftp")->put("/baru/sk_ketua/" . trim($jadwal_id) . ".pdf", $pdfContent_sk);
+        Storage::disk("str_moon")->put("/sk_ketua/" . trim($jadwal_id) . ".pdf", $pdfContent_sk);
 
-        $full_url_file_sk = 'https://lspgatensi.id/files/baru/sk_ketua/' . trim($jadwal_id) . ".pdf";
+        $full_url_file_sk = 'https://lspgatensi.id/files/sk_ketua/' . trim($jadwal_id) . ".pdf";
         try {
             // Hit api
             $url = 'https://konstruksi.bnsp.go.id/api/v1/jadwal/blanko';

@@ -421,9 +421,9 @@ class PenerbitanSertifikatController extends Controller
         $pdf_rekom = PDF::loadView('template-surat.rekom_asesor', $result);
         $pdfContent_rekom = $pdf_rekom->output();
         $filename_rekom_asesor = str(trim($request->input("jadwal_id"))) . '.pdf';
-        Storage::disk("sertif_ftp")->put("/baru/rekom_asesor/" . $filename_rekom_asesor, $pdfContent_rekom);
+        Storage::disk("str_moon")->put("rekom_asesor/" . $filename_rekom_asesor, $pdfContent_rekom);
 
-        $full_url_file_ra = 'https://lspgatensi.id/files/baru/rekom_asesor/' . $filename_rekom_asesor;
+        $full_url_file_ra = 'https://lspgatensi.id/filesrekom_asesor/' . $filename_rekom_asesor;
 
         RekomAsesor::updateOrCreate(["jadwal_id" => trim(str($request->jadwal_id))], [
             "jadwal_id" => trim(str($request->jadwal_id)),
@@ -551,7 +551,7 @@ class PenerbitanSertifikatController extends Controller
 
             $headers = [
                 'Content-Type' => 'application/json',
-                'token' => 'f3332337ac671c33262198340c2f7b579f7843775ecc425107f086956cbb2b1a9e96b0cc6f643d24'
+                'token' => env('SIKI_TOKEN'),
             ];
 
             $response_post_bnsp = Http::withHeaders($headers)->timeout(30)->connectTimeout(30)->post($url, $request_api_asesor);
@@ -728,8 +728,8 @@ class PenerbitanSertifikatController extends Controller
         $pdf = PDF::loadView('template-surat.spt_komtek', $result);
         $pdfContent_sptkomtek = $pdf->output();
         $filename_spt_komtek = str(trim($request->input("jadwal_id"))) . '.pdf';
-        Storage::disk("sertif_ftp")->put("/baru/spt_komtek/" . $filename_spt_komtek, $pdfContent_sptkomtek);
-        $full_url_file_sptkomtek = 'https://lspgatensi.id/files/baru/spt_komtek/' . $filename_spt_komtek;
+        Storage::disk("str_moon")->put("spt_komtek/" . $filename_spt_komtek, $pdfContent_sptkomtek);
+        $full_url_file_sptkomtek = 'https://lspgatensi.id/filesspt_komtek/' . $filename_spt_komtek;
 
         SPTKomtek::updateOrCreate(["jadwal_id" => trim(str($request->jadwal_id))], [
             "jadwal_id" => trim(str($request->jadwal_id)),
@@ -784,7 +784,7 @@ class PenerbitanSertifikatController extends Controller
             // return redirect()->back()->with('error', 'Error storing data.');
         }
 
-        $full_url_file_sptkomtek = 'https://lspgatensi.id/files/baru/spt_komtek/' . $filename_spt_komtek;
+        $full_url_file_sptkomtek = 'https://lspgatensi.id/filesspt_komtek/' . $filename_spt_komtek;
         $komtekMapping = [
             '0010' => 'MET.000.003411 2025',
             '0011' => 'MET.000.003408 2025',
@@ -828,7 +828,7 @@ class PenerbitanSertifikatController extends Controller
 
             $headers = [
                 'Content-Type' => 'application/json',
-                'token' => 'f3332337ac671c33262198340c2f7b579f7843775ecc425107f086956cbb2b1a9e96b0cc6f643d24'
+                'token' => env('SIKI_TOKEN'),
             ];
 
             $response_post_bnsp = Http::withHeaders($headers)->timeout(30)->connectTimeout(30)->post($url, $request_api_komtek);
@@ -875,7 +875,7 @@ class PenerbitanSertifikatController extends Controller
 
             $headers = [
                 'Content-Type' => 'application/json',
-                'token' => 'f3332337ac671c33262198340c2f7b579f7843775ecc425107f086956cbb2b1a9e96b0cc6f643d24'
+                'token' => env('SIKI_TOKEN'),
             ];
 
             $request_api_asesor = array(
@@ -992,7 +992,7 @@ class PenerbitanSertifikatController extends Controller
                     // $nama_file = (string) Uuid::uuid4();
                     $nama_file = strtolower($dataPencatatan->nomor_blangko_bnsp);
                     $html = view('certificate.sertifikat', $result)->render();
-                    Storage::disk("sertif_ftp")->put("/reguler/sertifikat/" . $nama_file . ".html", $html);
+                    Storage::disk("str_moon")->put("/reguler/sertifikat/" . $nama_file . ".html", $html);
 
                     DataPencatatan::where("nomor_blangko_bnsp", $dataPencatatan->nomor_blangko_bnsp)->update([
                         "link_e_sertifikat" => "https://lspgatensi.id/files/reguler/sertifikat/" . $nama_file . ".html",

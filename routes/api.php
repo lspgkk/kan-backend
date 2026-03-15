@@ -5,7 +5,9 @@ use App\Http\Controllers\AsesorController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BarcodeController;
+use App\Http\Controllers\BlankoController;
 use App\Http\Controllers\BuktiController;
+use App\Http\Controllers\core\CetakJadwalController;
 use App\Http\Controllers\CityController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\DashboardController;
@@ -273,5 +275,7 @@ Route::middleware(['auth:api'])->group(function () {
     // --- Penerbitan Sertifikat ---
     Route::prefix('penerbitan-sertifikat')->group(function () {
         Route::post('/cetak/{jadwal_id}', [PenerbitanSertifikatController::class, 'storePenerbitan']);
+        Route::post('/create-blanko/{jadwal_id}', [BlankoController::class, 'submitHasilUji']);
+        Route::post('/close/{jadwal_id}', [CetakJadwalController::class, 'storeCetakJadwal']);
     });
 });
