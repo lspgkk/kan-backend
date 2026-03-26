@@ -596,15 +596,15 @@
             </tr>
             <tr>
                 <td>
-                    <span class="checkbox {{ $konfirmasi['manajer_sertifikasi'] ?? false ? 'checked' : '' }}"></span>
+                    <span class="checkbox {{ $orang_relevan['manajer_sertifikasi_lsp'] ? 'checked' : '' }}"></span>
                     Manajer sertifikasi
                 </td>
-                <td></td>
+                <td>Ir. Akhmadi Hafid</td>
                 <td></td>
             </tr>
             <tr>
                 <td>
-                    <span class="checkbox {{ $konfirmasi['master_assessor'] ?? false ? 'checked' : '' }}"></span>
+                    <span class="checkbox {{ $orang_relevan['master_assessor_lsp'] ? 'checked' : '' }}"></span>
                     Master Assessor / Master Trainer / Asesor Utama kompetensi
                 </td>
                 <td></td>
@@ -612,7 +612,7 @@
             </tr>
             <tr>
                 <td>
-                    <span class="checkbox {{ $konfirmasi['manajer_pelatihan'] ?? false ? 'checked' : '' }}"></span>
+                    <span class="checkbox {{ $orang_relevan['manajer_pelatihan_lsp'] ? 'checked' : '' }}"></span>
                     Manajer pelatihan Lembaga Training terakreditasi / Lembaga Training terdaftar
                 </td>
                 <td></td>
@@ -620,7 +620,7 @@
             </tr>
             <tr>
                 <td>
-                    <span class="checkbox {{ $konfirmasi['lainnya'] ?? false ? 'checked' : '' }}"></span>
+                    <span class="checkbox {{ $orang_relevan['lainnya'] ? 'checked' : '' }}"></span>
                     Lainnya:
                 </td>
                 <td></td>

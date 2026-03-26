@@ -387,9 +387,9 @@
     </tr>
     <tr>
         <td height=60 valign=top>Tanda tangan/ Tanggal</td>
-        @if($barcodes['asesi']['base64'] ?? null)
+        @if($barcodes['asesi']['base64'] ?? $barcodes['asesi']['url'] ?? null)
             <td>
-                <img src="{{ $barcodes['asesi']['base64'] }}" width="80" height="80"><br>
+                <img src="{{ $barcodes['asesi']['base64'] ?? $barcodes['asesi']['url'] }}" width="80" height="80"><br>
                 {{ \Carbon\Carbon::parse($barcodes['asesi']['tanggal'])->translatedFormat('d F Y') }}
             </td>
         @else
@@ -402,7 +402,7 @@
     </tr>
     <tr>
         <td>Nama</td>
-        <td>{{ $barcodes['admin']['nama'] ?? null }}</td>
+        <td>{{ $barcodes['admin']['user']['name'] ?? $barcodes['admin']['nama'] ?? null }}</td>
     </tr>
     <tr>
         <td>No Reg</td>
@@ -410,8 +410,8 @@
     </tr>
     <tr>
         <td height=60 valign=top>Tanda tangan/ Tanggal</td>
-        @if($barcodes['admin']['url'] ?? null)
-        <td><img src="{{ $barcodes['admin']['url'] }}" style="width: 80px; height: 80px;" /><br>{{ $barcodes['admin']['tanggal'] ? \Carbon\Carbon::parse($barcodes['admin']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}</td>
+        @if($barcodes['admin']['base64'] ?? $barcodes['admin']['url'] ?? null)
+        <td><img src="{{ $barcodes['admin']['base64'] ?? $barcodes['admin']['url'] }}" style="width: 80px; height: 80px;" /><br>{{ $barcodes['admin']['tanggal'] ? \Carbon\Carbon::parse($barcodes['admin']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}</td>
         @else
         <td></td>
         @endif

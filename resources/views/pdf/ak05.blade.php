@@ -2,7 +2,7 @@
 <html lang="id">
     <head>
         <meta charset="UTF-8" />
-        <title>FR.AK.06 - MENINJAU PROSES ASESMEN</title>
+        <title>FR.AK.05 - LAPORAN ASESMEN</title>
         <style>
             @font-face {
                 font-family: "Open Sans";
