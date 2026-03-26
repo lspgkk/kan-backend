@@ -177,4 +177,49 @@ class BarcodeController extends Controller
             'data'    => $data,
         ]);
     }
+
+    public function getBarcodeByUrlTtd(Request $request)
+    {
+        $request->validate([
+            'url_ttd' => 'required|string'
+        ]);
+
+        // Extract UUID from full URL if needed
+        $urlTtd = $request->url_ttd;
+
+        // If full URL is provided, extract just the UUID
+        if (filter_var($urlTtd, FILTER_VALIDATE_URL)) {
+            $path = parse_url($urlTtd, PHP_URL_PATH);
+            $uuid = basename($path);
+        } else {
+            // Assume it's just the UUID
+            $uuid = $urlTtd;
+        }
+
+        // Build the full URL to match what's stored in database
+        $fullUrl = "https://barcode.lspgatensi.id/ttd/{$uuid}";
+
+        // Query barcode with user and role relationships
+        $barcode = Barcode::with(['user:id,name', 'role:id,name'])
+            ->where('url_ttd', $fullUrl)
+            ->first();
+
+        if (!$barcode) {
+            return response()->json([
+                'message' => 'Barcode not found',
+                'data' => null
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => [
+                'user_name' => $barcode->user?->name,
+                'role_name' => $barcode->role?->name,
+                'created_at' => $barcode->created_at,
+                'url_ttd' => $barcode->url_ttd,
+                'url_image' => $barcode->url_image,
+            ]
+        ]);
+    }
 }

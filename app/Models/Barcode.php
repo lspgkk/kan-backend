@@ -20,4 +20,9 @@ class Barcode extends Model
     {
         return $this->belongsTo(User::class, 'id_user');
     }
+
+    public function role()
+    {
+        return $this->belongsTo(Role::class, 'id_role');
+    }
 }
