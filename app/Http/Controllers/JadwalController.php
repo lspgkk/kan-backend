@@ -106,7 +106,6 @@ class JadwalController extends Controller
                 'admin_id',
                 'asesor_id',
                 'asesor2_id',
-                'is_fg',
                 'jenis_mohon',
                 'skema_id',
                 'keterangan',
@@ -146,6 +145,7 @@ class JadwalController extends Controller
             return [
                 'id_izin' => $asesi->id_izin,
                 'account' => $asesi->account,
+                'password' => $asesi->password_plain,
                 'kompeten' => $asesi->kompeten,
                 'nama' => $asesi->personal ? $asesi->personal->nama : null,
             ];
@@ -461,7 +461,6 @@ class JadwalController extends Controller
                             "tuk_id" => $apiData['tuk_id'],
                             "asesor_id" => $apiData['asesor_id'],
                             "asesor2_id" => $asesor2_id,
-                            "is_fg" => $apiData['is_fg'],
                             "jenis_mohon" => $apiData['jenis_mohon'],
                             "skema_id" => $apiData['skema_id'] ?? null,
                             "keterangan" => $apiData['keterangan'],
@@ -488,7 +487,6 @@ class JadwalController extends Controller
                             "tuk_id" => $apiData['tuk_id'],
                             "asesor_id" => $apiData['asesor_id'],
                             "asesor2_id" => $asesor2_id,
-                            "is_fg" => $apiData['is_fg'],
                             "jenis_mohon" => $apiData['jenis_mohon'],
                             "skema_id" => $apiData['skema_id'] ?? null,
                             "keterangan" => $apiData['keterangan'],
@@ -550,7 +548,6 @@ class JadwalController extends Controller
                                     "tuk_id" => $apiData['tuk_id'],
                                     "asesor_id" => $apiData['asesor_id'],
                                     "asesor2_id" => $asesor2_id,
-                                    "is_fg" => $apiData['is_fg'],
                                     "jenis_mohon" => $apiData['jenis_mohon'],
                                     "skema_id" => $apiData['skema_id'] ?? null,
                                     "keterangan" => $apiData['keterangan'],
@@ -577,7 +574,6 @@ class JadwalController extends Controller
                                     "tuk_id" => $apiData['tuk_id'],
                                     "asesor_id" => $apiData['asesor_id'],
                                     "asesor2_id" => $asesor2_id,
-                                    "is_fg" => $apiData['is_fg'],
                                     "jenis_mohon" => $apiData['jenis_mohon'],
                                     "skema_id" => $apiData['skema_id'] ?? null,
                                     "keterangan" => $apiData['keterangan'],
@@ -1554,7 +1550,7 @@ class JadwalController extends Controller
             })
             ->where('tahap', '!=', 0)
             ->whereDate('tanggal_uji', today())
-            ->first();
+            ->get();
 
         return response()->json([
             'message' => 'Kegiatan Asesor retrieved successfully.',

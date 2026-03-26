@@ -10,9 +10,23 @@ class TukController extends Controller
 {
     public function allTukSiki(Request $request)
     {
+        $query = MyTuk::leftJoin('tuk_discounts', 'tuk_discounts.id_tuk_lpjk', '=', 'mytuk.id')
+            ->select(['mytuk.id', 'mytuk.kode_tuk', 'mytuk.nama_tuk', 'mytuk.alamat', 'mytuk.latitude', 'mytuk.longitude', 'tuk_discounts.kategori'])
+            ->where('id_lsp', 16);
+
+        // Search functionality
+        if ($request->has('search')) {
+            $searchTerm = $request->query('search');
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('mytuk.kode_tuk', 'like', "%{$searchTerm}%")
+                    ->orWhere('mytuk.nama_tuk', 'like', "%{$searchTerm}%")
+                    ->orWhere('mytuk.alamat', 'like', "%{$searchTerm}%");
+            });
+        }
+
         // If frontend explicitly asks for all data
         if ($request->boolean('all')) {
-            $tuks = MyTuk::where('id_lsp', 16)->get();
+            $tuks = $query->get();
 
             return response()->json([
                 'status' => 'success',
@@ -28,7 +42,7 @@ class TukController extends Controller
         $perPage = (int) $request->query('per_page', 10);
         $perPage = min(max($perPage, 1), 100);
 
-        $tuks = MyTuk::where('id_lsp', 16)->paginate($perPage);
+        $tuks = $query->paginate($perPage);
 
         return response()->json([
             'status' => 'success',
@@ -38,9 +52,20 @@ class TukController extends Controller
 
     public function allTukBnsp(Request $request)
     {
+        $query = MyTukBnsp::select(['id', 'kode', 'nama']);
+
+        // Search functionality
+        if ($request->has('search')) {
+            $searchTerm = $request->query('search');
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('kode', 'like', "%{$searchTerm}%")
+                    ->orWhere('nama', 'like', "%{$searchTerm}%");
+            });
+        }
+
         // If frontend explicitly asks for all data
         if ($request->boolean('all')) {
-            $tuks = MyTukBnsp::all();
+            $tuks = $query->get();
 
             return response()->json([
                 'status' => 'success',
@@ -56,7 +81,7 @@ class TukController extends Controller
         $perPage = (int) $request->query('per_page', 10);
         $perPage = min(max($perPage, 1), 100);
 
-        $tuks = MyTukBnsp::paginate($perPage);
+        $tuks = $query->paginate($perPage);
 
         return response()->json([
             'status' => 'success',

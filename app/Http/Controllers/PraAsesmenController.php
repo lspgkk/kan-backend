@@ -18,6 +18,8 @@ use App\Models\Apl2Answer;
 use App\Models\Apl2File;
 use App\Models\Apl2Submission;
 use App\Models\AsesiJadwal;
+use App\Events\Apl02Updated;
+use App\Events\Apl02AsesorUpdated;
 use App\Models\AsesorBnsp;
 use App\Models\Barcode;
 use App\Models\BuktiAsesmen;
@@ -325,10 +327,50 @@ class PraAsesmenController extends Controller
         $kualifikasi = JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)->value('jabatan_kerja');
         $unitKompetensi = UnitKompetensi::select(['kode', 'nama'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->get();
         $jenjang = Pendidikan::where('id_izin', $id)->orderBy('created_at', 'desc')->value('jenjang');
+
+        // Map jenjang to education level keywords
+        $educationMapping = [
+            'SD' => ['1', '2'],
+            'SMP' => ['2'],
+            'SMA' => ['3'],
+            'D1' => ['4', '16'],
+            'D2' => ['5'],
+            'D3' => ['6'],
+            'D4' => ['7', '12'],
+            'S1' => ['8', '13'],
+            'S2' => ['9', '14', '18'],
+            'S3' => ['10', '15', '19'],
+            'profesi' => ['11'],
+            'Non' => ['99']
+        ];
+
+        // Determine matching education levels for the asesi's jenjang
+        $matchedEducationLevels = [];
+        foreach ($educationMapping as $level => $jenjangs) {
+            if (in_array($jenjang, $jenjangs)) {
+                $matchedEducationLevels[] = $level;
+                $matchedEducationLevels[] = ucfirst($level); // Add capitalized version
+            }
+        }
+
         $persyaratan = ImpBuktiPersyaratan::select(['no', 'bukti'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->orderBy('no', 'asc')
-            ->get();
+            ->get()
+            ->map(function ($item) use ($matchedEducationLevels) {
+                $checked = false;
+                foreach ($matchedEducationLevels as $level) {
+                    if (stripos($item->bukti, $level) !== false) {
+                        $checked = true;
+                        break;
+                    }
+                }
+                return [
+                    'no' => $item->no,
+                    'bukti' => $item->bukti,
+                    'checked' => $checked
+                ];
+            });
         $administratif = ImpBuktiAdministrasi::select(['no', 'bukti'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->orderBy('no', 'asc')
@@ -526,14 +568,53 @@ class PraAsesmenController extends Controller
         * BUKTI
         * ========================= */
 
-        $persyaratan = ImpBukti::select(['no', 'bukti'])
+        // Map jenjang to education level keywords
+        $educationMapping = [
+            'SD' => ['1', '2'],
+            'SMP' => ['2'],
+            'SMA' => ['3'],
+            'D1' => ['4', '16'],
+            'D2' => ['5'],
+            'D3' => ['6'],
+            'D4' => ['7', '12'],
+            'S1' => ['8', '13'],
+            'S2' => ['9', '14', '18'],
+            'S3' => ['10', '15', '19'],
+            'profesi' => ['11'],
+            'Non' => ['99']
+        ];
+
+        // Determine matching education levels for the asesi's jenjang
+        $matchedEducationLevels = [];
+        foreach ($educationMapping as $level => $jenjangs) {
+            if (in_array($jenjang, $jenjangs)) {
+                $matchedEducationLevels[] = $level;
+                $matchedEducationLevels[] = ucfirst($level); // Add capitalized version
+            }
+        }
+
+        $persyaratan = ImpBuktiPersyaratan::select(['no', 'bukti'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->whereNotLike('bukti', 'Syarat Administrasi%')
             ->whereNotLike('bukti', 'Bukti Keanggotaan%')
             ->orderBy('no')
-            ->get();
+            ->get()
+            ->map(function ($item) use ($matchedEducationLevels) {
+                $checked = false;
+                foreach ($matchedEducationLevels as $level) {
+                    if (stripos($item->bukti, $level) !== false) {
+                        $checked = true;
+                        break;
+                    }
+                }
+                return [
+                    'no' => $item->no,
+                    'bukti' => $item->bukti,
+                    'checked' => $checked
+                ];
+            });
 
-        $administratif = ImpBukti::select(['no', 'bukti'])
+        $administratif = ImpBuktiAdministrasi::select(['no', 'bukti'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->where(function ($q) {
                 $q->whereLike('bukti', 'Syarat Administrasi%')
@@ -822,6 +903,27 @@ class PraAsesmenController extends Controller
             }
         });
 
+        // Get asesor IDs from the relationship
+        $asesiJadwal = AsesiJadwal::where('id_izin', $id)->first();
+        $asesorIds = [];
+
+        if ($asesiJadwal && $asesiJadwal->jadwal) {
+            $jadwal = $asesiJadwal->jadwal;
+            if ($jadwal->asesor_id) {
+                $asesorIds[] = $jadwal->asesor_id;
+            }
+            if ($jadwal->asesor2_id) {
+                $asesorIds[] = $jadwal->asesor2_id;
+            }
+        }
+
+        // Get the updated data for broadcasting
+        $submission = Apl2Submission::where('id_izin', $id)->first();
+        $answers = Apl2Answer::where('id_izin', $id)->with('files')->get();
+
+        // Broadcast the event to asesor(s) in real-time
+        broadcast(new Apl02Updated($id, $submission, $answers, $asesorIds));
+
         return response()->json([
             'message' => 'APL-02 successfully submitted'
         ]);
@@ -979,9 +1081,32 @@ class PraAsesmenController extends Controller
             ['url_apl_02' => $fullUrl]
         );
 
+        /* =========================
+        * BROADCAST REAL-TIME UPDATE
+        * ========================= */
+
+        // Get the authenticated asesor ID
+        $asesorId = auth()->id();
+
+        // Broadcast the signature update to the asesi
+        broadcast(new Apl02AsesorUpdated(
+            $id,
+            'signature',
+            [
+                'document_type' => 'APL02',
+                'pdf_url' => $fullUrl,
+                'filename' => $filename,
+                'barcode_data' => $data,
+                'signed_by' => $asesorId,
+                'signed_at' => now()->toISOString(),
+            ],
+            $asesorId
+        ));
+
         return response()->json([
             'message' => 'Success',
             'data'    => $data,
+            'broadcasted' => true,
         ]);
     }
 
@@ -2228,6 +2353,69 @@ class PraAsesmenController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'All asesmen data successfully deleted',
+        ]);
+    }
+
+    /**
+     * Test WebSocket Broadcasting
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function testBroadcast(Request $request)
+    {
+        $validated = $request->validate([
+            'id_izin' => 'required|string',
+        ]);
+
+        // Create a test APL-02 update
+        $testSubmission = new Apl2Submission([
+            'metode' => 'test',
+            'is_dilanjutkan' => true,
+            'submitted_at' => now(),
+        ]);
+
+        $testAnswers = collect([
+            (object) [
+                'subunit_id' => 999,
+                'kompeten' => true,
+                'files' => collect([]),
+            ]
+        ]);
+
+        // Get asesor IDs for this asesi
+        $asesiJadwal = AsesiJadwal::where('id_izin', $validated['id_izin'])->first();
+        $asesorIds = [];
+
+        if ($asesiJadwal && $asesiJadwal->jadwal) {
+            $jadwal = $asesiJadwal->jadwal;
+            if ($jadwal->asesor_id) {
+                $asesorIds[] = $jadwal->asesor_id;
+            }
+            if ($jadwal->asesor2_id) {
+                $asesorIds[] = $jadwal->asesor2_id;
+            }
+        }
+
+        // Broadcast test event
+        broadcast(new Apl02Updated(
+            $validated['id_izin'],
+            $testSubmission,
+            $testAnswers,
+            $asesorIds
+        ));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Test broadcast sent successfully',
+            'data' => [
+                'id_izin' => $validated['id_izin'],
+                'asesor_ids' => $asesorIds,
+                'channels' => array_merge(
+                    array_map(fn($id) => "private:asesor.{$id}", $asesorIds),
+                    ["private:apl02.{$validated['id_izin']}"]
+                ),
+            ],
         ]);
     }
 }

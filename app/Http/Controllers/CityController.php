@@ -12,16 +12,27 @@ class CityController extends Controller
      */
     public function index(Request $request)
     {
+        $query = City::select(['kode_kabupaten_bps as kode', 'nama_kabupaten_bps as nama']);
+
+        // Search functionality
+        if ($request->has('search')) {
+            $searchTerm = $request->query('search');
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('nama_kabupaten_bps', 'like', "%{$searchTerm}%")
+                    ->orWhere('kode_kabupaten_bps', 'like', "%{$searchTerm}%");
+            });
+        }
+
         // If frontend explicitly asks for all data
         if ($request->boolean('all')) {
-            $jenis_anggaran = City::select(['kode_kabupaten_bps', 'nama_kabupaten_bps'])->get();
+            $city = $query->get();
 
             return response()->json([
                 'status' => 'success',
-                'data' => $jenis_anggaran,
+                'data' => $city,
                 'meta' => [
                     'all' => true,
-                    'total' => $jenis_anggaran->count(),
+                    'total' => $city->count(),
                 ],
             ]);
         }
@@ -30,11 +41,11 @@ class CityController extends Controller
         $perPage = (int) $request->query('per_page', 10);
         $perPage = min(max($perPage, 1), 100);
 
-        $jenis_anggaran = City::select(['kode_kabupaten_bps', 'nama_kabupaten_bps'])->paginate($perPage);
+        $city = $query->paginate($perPage);
 
         return response()->json([
             'status' => 'success',
-            'data' => $jenis_anggaran,
+            'data' => $city,
         ]);
     }
 

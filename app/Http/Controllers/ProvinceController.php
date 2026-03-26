@@ -12,16 +12,28 @@ class ProvinceController extends Controller
      */
     public function index(Request $request)
     {
+        $query = Province::select(['id_provinsi', 'id_provinsi_dagri', 'nama']);
+
+        // Search functionality
+        if ($request->has('search')) {
+            $searchTerm = $request->query('search');
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('nama', 'like', "%{$searchTerm}%")
+                    ->orWhere('id_provinsi', 'like', "%{$searchTerm}%")
+                    ->orWhere('id_provinsi_dagri', 'like', "%{$searchTerm}%");
+            });
+        }
+
         // If frontend explicitly asks for all data
         if ($request->boolean('all')) {
-            $jenis_anggaran = Province::select(['id_provinsi', 'nama'])->get();
+            $province = $query->get();
 
             return response()->json([
                 'status' => 'success',
-                'data' => $jenis_anggaran,
+                'data' => $province,
                 'meta' => [
                     'all' => true,
-                    'total' => $jenis_anggaran->count(),
+                    'total' => $province->count(),
                 ],
             ]);
         }
@@ -30,11 +42,11 @@ class ProvinceController extends Controller
         $perPage = (int) $request->query('per_page', 10);
         $perPage = min(max($perPage, 1), 100);
 
-        $jenis_anggaran = Province::select(['id_provinsi', 'nama'])->paginate($perPage);
+        $province = $query->paginate($perPage);
 
         return response()->json([
             'status' => 'success',
-            'data' => $jenis_anggaran,
+            'data' => $province,
         ]);
     }
 

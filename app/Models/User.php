@@ -33,6 +33,7 @@ class User extends Authenticatable implements JWTSubject
         'is_deleted',
         'deleted_at',
         'deleted_by',
+        'noreg'
     ];
 
     /**

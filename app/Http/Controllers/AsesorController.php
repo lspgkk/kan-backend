@@ -9,9 +9,21 @@ class AsesorController extends Controller
 {
     public function index(Request $request)
     {
+        $query = AsesorBnsp::select(['id', 'noreg', 'nama', 'nik']);
+
+        // Search functionality
+        if ($request->has('search')) {
+            $searchTerm = $request->query('search');
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('nama', 'like', "%{$searchTerm}%")
+                    ->orWhere('noreg', 'like', "%{$searchTerm}%")
+                    ->orWhere('nik', 'like', "%{$searchTerm}%");
+            });
+        }
+
         // If frontend explicitly asks for all data
         if ($request->boolean('all')) {
-            $asesors = AsesorBnsp::select(['id', 'nama'])->get();
+            $asesors = $query->get();
 
             return response()->json([
                 'status' => 'success',
@@ -27,7 +39,7 @@ class AsesorController extends Controller
         $perPage = (int) $request->query('per_page', 10);
         $perPage = min(max($perPage, 1), 100);
 
-        $asesors = AsesorBnsp::select(['id', 'nama'])->paginate($perPage);
+        $asesors = $query->paginate($perPage);
 
         return response()->json([
             'status' => 'success',

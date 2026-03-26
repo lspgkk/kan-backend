@@ -12,9 +12,20 @@ class JenisKelasController extends Controller
      */
     public function index(Request $request)
     {
+        $query = JenisKelas::select(['id', 'nama_kelas']);
+
+        // Search functionality
+        if ($request->has('search')) {
+            $searchTerm = $request->query('search');
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('nama_kelas', 'like', "%{$searchTerm}%")
+                    ->orWhere('id', 'like', "%{$searchTerm}%");
+            });
+        }
+
         // If frontend explicitly asks for all data
         if ($request->boolean('all')) {
-            $jenis_kelas = JenisKelas::select(['id', 'nama_kelas'])->get();
+            $jenis_kelas = $query->get();
 
             return response()->json([
                 'status' => 'success',
@@ -30,7 +41,7 @@ class JenisKelasController extends Controller
         $perPage = (int) $request->query('per_page', 10);
         $perPage = min(max($perPage, 1), 100);
 
-        $jenis_kelas = JenisKelas::select(['id', 'nama_kelas'])->paginate($perPage);
+        $jenis_kelas = $query->paginate($perPage);
 
         return response()->json([
             'status' => 'success',

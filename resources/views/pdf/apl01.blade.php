@@ -320,9 +320,52 @@
     </tr>
     @foreach ($bukti_persyaratan as $b)
     <tr>
-        <td valign=top>{{ $b->no }}</td>
-        <td>{{ $b->bukti }}</td>
-        <td align=center><span class="checkbox checked"></span></td>
+        <td valign=top>{{ $b['no'] }}</td>
+        <td>{{ $b['bukti'] }}</td>
+        <td align=center>
+            @if ($b['checked'])
+                <span class="checkbox checked"></span>
+            @else
+                <span class="checkbox"></span>
+            @endif
+        </td>
+        <td align=center></td>
+        <td align=center></td>
+    </tr>
+    @endforeach
+</table><br>
+<table width=100% cellpadding=5 cellspacing=0 align=center class="noborder">
+    <tr>
+        <td class="noborder" height=20>
+            Bukti Administratif
+        </td>
+    </tr>
+</table>
+<table width=100% cellpadding=5 bgcolor="#fff" cellspacing=0 align=center>
+    <tr>
+        <td class=hd-dok width=5% class="hd-dok no-bottom-a" align=center>No</td>
+        <td class=hd-dok width=56% class="hd-dok no-bottom-a" align=center>Bukti Administratif</td>
+        <td class=hd-dok colspan=2 align=center>Ada</td>
+        <td class=hd-dok width=13% class="hd-dok no-bottom-a" align=center>Tidak Ada</td>
+    </tr>
+    <tr>
+        <td class="hd-dok no-top-a"></td>
+        <td class="hd-dok no-top-a"></td>
+        <td class=hd-dok width=13% align=center>Memenuhi syarat</td>
+        <td class=hd-dok width=13% align=center>Tidak Memenuhi syarat</td>
+        <td class="hd-dok no-top-a"></td>
+    </tr>
+    @foreach ($bukti_administratif as $b)
+    <tr>
+        <td valign=top>{{ $b['no'] }}</td>
+        <td>{{ $b['bukti'] }}</td>
+        <td align=center>
+            @if ($b['checked'])
+                <span class="checkbox checked"></span>
+            @else
+                <span class="checkbox"></span>
+            @endif
+        </td>
         <td align=center></td>
         <td align=center></td>
     </tr>

@@ -177,7 +177,7 @@
                             </td>
                             @if(isset($items[$idx + 1]))
                             <td style="border: none;">
-                                <span class="checkbox @if($bukti->jawaban) checked @endif"></span>
+                                <span class="checkbox @if($items[$idx + 1]->jawaban) checked @endif"></span>
                                 {{ $items[$idx + 1]->nama }}
                             </td>
                             @else
@@ -200,7 +200,7 @@
             <tr>
                 <td style="font-weight: bold;">Waktu</td>
                 <td style="text-align: center; font-weight: bold;">:</td>
-                <td>{{ \Carbon\Carbon::parse($dokumenHeader['tanggal_uji'])->locale('id')->translatedFormat('d F Y')}} - Selesai</td>
+                <td>{{ \Carbon\Carbon::parse($dokumenHeader['tanggal_uji'])->format('H:i')}} - Selesai</td>
             </tr>
             <tr>
                 <td style="font-weight: bold;">TUK</td>

@@ -12,16 +12,28 @@ class JenjangController extends Controller
      */
     public function index(Request $request)
     {
+        $query = Jenjang::select(['id_siki', 'id_bnsp', 'nama']);
+
+        // Search functionality
+        if ($request->has('search')) {
+            $searchTerm = $request->query('search');
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('nama', 'like', "%{$searchTerm}%")
+                    ->orWhere('id_siki', 'like', "%{$searchTerm}%")
+                    ->orWhere('id_bnsp', 'like', "%{$searchTerm}%");
+            });
+        }
+
         // If frontend explicitly asks for all data
         if ($request->boolean('all')) {
-            $jenis_anggaran = Jenjang::select(['id_siki', 'id_bnsp', 'nama'])->get();
+            $jenjang = $query->get();
 
             return response()->json([
                 'status' => 'success',
-                'data' => $jenis_anggaran,
+                'data' => $jenjang,
                 'meta' => [
                     'all' => true,
-                    'total' => $jenis_anggaran->count(),
+                    'total' => $jenjang->count(),
                 ],
             ]);
         }
@@ -30,11 +42,11 @@ class JenjangController extends Controller
         $perPage = (int) $request->query('per_page', 10);
         $perPage = min(max($perPage, 1), 100);
 
-        $jenis_anggaran = Jenjang::select(['id_siki', 'id_bnsp', 'nama'])->paginate($perPage);
+        $jenjang = $query->paginate($perPage);
 
         return response()->json([
             'status' => 'success',
-            'data' => $jenis_anggaran,
+            'data' => $jenjang,
         ]);
     }
 

@@ -985,7 +985,7 @@ class AsesmenController extends Controller
 
         $dokumen = JabatanDokumen::with(['kelompoks.units.unit'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
-            ->where('kode', 'FR.IA.04')
+            ->where('kode', 'FR.IA.04.A')
             ->where('is_active', true)
             ->first();
 

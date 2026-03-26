@@ -14,7 +14,7 @@ class JenisAnggaranController extends Controller
     {
         // If frontend explicitly asks for all data
         if ($request->boolean('all')) {
-            $jenis_anggaran = JenisAnggaran::select(['id', 'nama_anggaran'])->get();
+            $jenis_anggaran = JenisAnggaran::select(['id', 'nama_anggaran', 'status'])->get();
 
             return response()->json([
                 'status' => 'success',
@@ -30,7 +30,7 @@ class JenisAnggaranController extends Controller
         $perPage = (int) $request->query('per_page', 10);
         $perPage = min(max($perPage, 1), 100);
 
-        $jenis_anggaran = JenisAnggaran::select(['id', 'nama_anggaran'])->paginate($perPage);
+        $jenis_anggaran = JenisAnggaran::select(['id', 'nama_anggaran', 'status'])->paginate($perPage);
 
         return response()->json([
             'status' => 'success',

@@ -12,9 +12,9 @@ class Subklasifikasi extends Model
     protected $primaryKey = 'id';
 
     protected $fillable = [
-        'kualifikasi_id',
-        'kualifikasi',
-        'kualifikasi_en',
+        'id_klasifikasi',
+        'kode_subklasifikasi',
+        'deskripsi_subklasifikasi',
     ];
 
     public $timestamps = true;

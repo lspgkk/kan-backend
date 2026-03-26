@@ -16,6 +16,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermohonanController;
 use App\Http\Controllers\HitStatusController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\JabatanKerjaController;
 use App\Http\Controllers\JadwalController;
 use App\Http\Controllers\JenisAnggaranController;
 use App\Http\Controllers\JenisKelasController;
@@ -50,6 +51,9 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware(['auth:api'])->group(function () {
+
+    // --- WebSocket Test Endpoint ---
+    Route::post('/test-broadcast', [PraAsesmenController::class, 'testBroadcast']);
 
     // --- Auth & Users ---
     Route::post('/auth/logout', [AuthController::class, 'logout']);
@@ -104,6 +108,10 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/', [SubklasifikasiController::class, 'index']);
     });
 
+    Route::prefix('jabatan-kerja')->group(function () {
+        Route::get('/', [JabatanKerjaController::class, 'index']);
+    });
+
     Route::prefix('kualifikasi')->group(function () {
         Route::get('/', [KualifikasiController::class, 'index']);
     });
@@ -139,7 +147,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/', [JenjangController::class, 'index']);
     });
 
-    Route::prefix('city')->group(function () {
+    Route::prefix('kabupaten')->group(function () {
         Route::get('/', [CityController::class, 'index']);
     });
 
