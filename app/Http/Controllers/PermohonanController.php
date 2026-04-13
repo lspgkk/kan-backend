@@ -342,6 +342,36 @@ class PermohonanController extends Controller
         ]);
     }
 
+    public function syncSinglePermohonan(Request $request)
+    {
+        $validated = $request->validate([
+            'id_izin' => 'required|string',
+            'type' => 'required|string|in:reguler,balai,fg',
+            'base_url' => 'nullable|string',
+        ]);
+
+        $id_izin = $validated['id_izin'];
+        $type = $validated['type'];
+        $baseUrl = $validated['base_url'] ?? 'https://siki.pu.go.id/siki-api/v1';
+        $endpoint = self::SKK_TYPES[$type];
+
+        try {
+            $this->syncSinglePermohonanData($id_izin, $type, $endpoint, $baseUrl);
+
+            return response()->json([
+                'message' => 'Single permohonan synced successfully',
+                'id_izin' => $id_izin,
+                'type' => $type,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Failed to sync single permohonan',
+                'id_izin' => $id_izin,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     private function syncPermohonanByType(string $type)
     {
         $endpoint = self::SKK_TYPES[$type];
@@ -379,7 +409,7 @@ class PermohonanController extends Controller
             }
 
             try {
-                $this->syncSinglePermohonan($id_izin, $type, $endpoint, $baseUrl);
+                $this->syncSinglePermohonanData($id_izin, $type, $endpoint, $baseUrl);
                 $success_id_izin++;
             } catch (\Throwable $e) {
                 $error_id_izin[] = [
@@ -395,7 +425,7 @@ class PermohonanController extends Controller
         ]);
     }
 
-    private function syncSinglePermohonan(
+    private function syncSinglePermohonanData(
         string $id_izin,
         string $type,
         string $endpoint,
@@ -477,7 +507,7 @@ class PermohonanController extends Controller
                     'scan_surat_keterangan' => $d['scan_surat_keterangan'],
                     'sertifikat_pemberian_kompetensi_tambahan' => $d['sertifikat_pemberian_kompetensi_tambahan'] ?? null,
                     'sertifikat_sibima' => $d['sertifikat_sibima'] ?? null,
-                    'tanggal_lulus' => $d['tanggal_lulus'] ?? null
+                    'tanggal_lulus' => $this->formatDate($d['tanggal_lulus'] ?? null)
                 ])
             );
 
@@ -494,10 +524,10 @@ class PermohonanController extends Controller
                     'data_id' => $d['data_id'],
                     'nama_proyek' => $d['nama_proyek'],
                     'lokasi_proyek' => $d['lokasi_proyek'],
-                    'tanggal_awal' => $d['tanggal_awal'],
-                    'tanggal_akhir' => $d['tanggal_akhir'],
+                    'tanggal_awal' => $this->formatDate($d['tanggal_awal'] ?? null),
+                    'tanggal_akhir' => $this->formatDate($d['tanggal_akhir'] ?? null),
                     'jabatan' => $d['jabatan'],
-                    'nilai_proyek' => $d['nilai_proyek'],
+                    'nilai_proyek' => $this->formatNumeric($d['nilai_proyek'] ?? null),
                     'surat_referensi' => $d['surat_referensi'],
                     'jenis_pengalaman' => $d['jenis_pengalaman'],
                     'pemberi_kerja' => $d['pemberi_kerja'],
@@ -517,10 +547,10 @@ class PermohonanController extends Controller
                     'creator' => $d['creator'],
                     'data_id' => $d['data_id'],
                     'nama_pelatihan' => $d['nama_pelatihan'],
-                    'tanggal_awal' => $d['tanggal_awal'],
-                    'tanggal_akhir' => $d['tanggal_akhir'],
-                    'jumlah_jp' => $d['jumlah_jp'],
-                    'jumlah_hari' => $d['jumlah_hari'],
+                    'tanggal_awal' => $this->formatDate($d['tanggal_awal'] ?? null),
+                    'tanggal_akhir' => $this->formatDate($d['tanggal_akhir'] ?? null),
+                    'jumlah_jp' => $this->formatNumeric($d['jumlah_jp'] ?? null),
+                    'jumlah_hari' => $this->formatNumeric($d['jumlah_hari'] ?? null),
                     'file_sertifikat' => $d['file_sertifikat']
                 ])
             );
@@ -537,8 +567,8 @@ class PermohonanController extends Controller
                     'creator' => $d['creator'],
                     'nama_sertifikat_surket' => $d['nama_sertifikat_surket'],
                     'penerbit' => $d['penerbit'],
-                    'tanggal_mulai' => $d['tanggal_mulai'],
-                    'tanggal_selesai' => $d['tanggal_selesai'],
+                    'tanggal_mulai' => $this->formatDate($d['tanggal_mulai'] ?? null),
+                    'tanggal_selesai' => $this->formatDate($d['tanggal_selesai'] ?? null),
                     'file_sertifikat' => $d['file_sertifikat'],
                 ])
             );
@@ -635,5 +665,21 @@ class PermohonanController extends Controller
                 $tuk->where('nama_tuk', 'like', "{$search}%"); // 🔥 prefix search
             });
         });
+    }
+
+    private function formatDate($date)
+    {
+        if (empty($date) || $date === '0000-00-00' || $date === '0000-00-00 00:00:00') {
+            return null;
+        }
+        return $date;
+    }
+
+    private function formatNumeric($value)
+    {
+        if (empty($value) || $value === '' || $value === null) {
+            return null;
+        }
+        return is_numeric($value) ? $value : null;
     }
 }

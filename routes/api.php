@@ -50,6 +50,10 @@ Route::middleware('guest')->group(function () {
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 });
 
+// --- Public Barcode Verification ---
+Route::get('/barcode/verify', [BarcodeController::class, 'getBarcodeByUrlTtd']);
+Route::get('/barcode/penyusun-validator/verify', [BarcodeController::class, 'getPenyusunValidatorByUrl']);
+
 Route::middleware(['auth:api'])->group(function () {
 
     // --- WebSocket Test Endpoint ---
@@ -96,6 +100,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/validasi/balai', [PermohonanController::class, 'skkValidasiBalaiList']);
         Route::get('/validasi/fg', [PermohonanController::class, 'skkValidasiFgList']);
         Route::get('/sync/permohonan', [PermohonanController::class, 'syncPermohonan']);
+        Route::post('/sync/single', [PermohonanController::class, 'syncSinglePermohonan']);
         Route::get('/{id}', [PermohonanController::class, 'detailPermohonan']);
     });
 

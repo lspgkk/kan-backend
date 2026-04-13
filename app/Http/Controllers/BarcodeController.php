@@ -222,4 +222,64 @@ class BarcodeController extends Controller
             ]
         ]);
     }
+
+    public function getPenyusunValidatorByUrl(Request $request)
+    {
+        $request->validate([
+            'url' => 'required|string'
+        ]);
+
+        // Extract UUID from full URL if needed
+        $url = $request->url;
+
+        // If full URL is provided, extract just the UUID
+        if (filter_var($url, FILTER_VALIDATE_URL)) {
+            $path = parse_url($url, PHP_URL_PATH);
+            $uuid = basename($path);
+        } else {
+            // Assume it's just the UUID
+            $uuid = $url;
+        }
+
+        // Build the full URL to match what's stored in database
+        $fullUrl = "https://barcode.lspgatensi.id/penyusun-validator/{$uuid}";
+
+        // Query JabatanConfigA by penyusun_url or validator_url
+        $jabatanConfig = JabatanConfigA::where('penyusun_url', $fullUrl)
+            ->orWhere('validator_url', $fullUrl)
+            ->first();
+
+        if (!$jabatanConfig) {
+            return response()->json([
+                'message' => 'Barcode not found',
+                'data' => null
+            ], 404);
+        }
+
+        // Determine if it's penyusun or validator based on URL match
+        $isPenyusun = $jabatanConfig->penyusun_url === $fullUrl;
+        $userId = $isPenyusun ? $jabatanConfig->penyusun_id : $jabatanConfig->validator_id;
+        $jabatan = $isPenyusun ? 'Penyusun' : 'Validator';
+        $tanggal = $isPenyusun ? $jabatanConfig->penyusun_tgl : $jabatanConfig->validator_tgl;
+
+        // Get user information
+        $user = User::find($userId);
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'User not found',
+                'data' => null
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => [
+                'user_name' => $user->name,
+                'jabatan' => $jabatan,
+                'tanggal' => $tanggal,
+                'url' => $fullUrl,
+            ]
+        ]);
+    }
 }
