@@ -379,7 +379,7 @@
                 <td rowspan="5" style="vertical-align: top;">Tolak ukur asesmen</td>
                 <td colspan="3">
                     <span class="checkbox {{ $tolak_ukur['skkni'] ? 'checked' : '' }}"></span>
-                    Standar Kompetensi
+                    Standar Kompetensi {{ $skkni }}
                 </td>
             </tr>
             <tr>

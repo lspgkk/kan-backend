@@ -25,7 +25,6 @@ class MyTuk extends Model
         'alamat',
         'InputDate',
         'InputBy',
-        'SinServer',
     ];
 
     protected $casts = [

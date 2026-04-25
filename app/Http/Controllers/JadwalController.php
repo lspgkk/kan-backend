@@ -265,7 +265,18 @@ class JadwalController extends Controller
             } else {
                 /** ===============================
                  *  5️⃣ CREATE JADWAL BNSP
+                 *  🚨 TEMPORARILY DISABLED - Using mock ID instead
                  *  =============================== */
+                // TEMPORARY: Skip BNSP API call and use random ID
+                $jadwalId = rand(100000, 999999); // Generate random 6-digit ID
+
+                Log::info('STORE JADWAL: TEMPORARY - Using mock jadwal_id', [
+                    'mock_jadwal_id' => $jadwalId,
+                    'request_hash' => $requestHash,
+                ]);
+
+                // Original BNSP logic (commented out temporarily):
+                /*
                 $bnspResult = $this->pushJadwalToBnsp($request, $validated, $idTuk, $allSkemaIds, $authData);
 
                 if (!$bnspResult['success']) {
@@ -284,6 +295,7 @@ class JadwalController extends Controller
                         'message' => 'Jadwal dibuat, tapi jadwal_id tidak ditemukan.',
                     ], 500);
                 }
+                */
 
                 // Create a placeholder jadwal record with request_hash for idempotency
                 DB::table('jadwals')->insertOrIgnore([
@@ -432,7 +444,9 @@ class JadwalController extends Controller
                     "file_ijazah" => $file_ijazah
                 ];
 
+                // 🚨 TEMPORARY: Skip BNSP participant API call, directly create local records
                 // if(App::environment() == "production") {
+                /*
                 $httpClient = new \GuzzleHttp\Client();
                 $authData = DB::table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
                 $apiEndpoint = 'https://konstruksi.bnsp.go.id/api/v1/jadwal/peserta';
@@ -449,9 +463,15 @@ class JadwalController extends Controller
 
                     $responseBody = $response->getBody()->getContents();
                     $responseData = json_decode($responseBody, true);
+                */
 
-                    // API call successful - create or update Jadwal (once per jadwal_id)
-                    $jadwal = Jadwal::where('jadwal_id', $apiData['jadwal_id'])->first();
+                Log::info('STORE JADWAL: TEMPORARY - Skipping BNSP participant API', [
+                    'jadwal_id' => $apiData['jadwal_id'],
+                    'id_izin' => $id_izin,
+                ]);
+
+                // API call successful - create or update Jadwal (once per jadwal_id)
+                $jadwal = Jadwal::where('jadwal_id', $apiData['jadwal_id'])->first();
 
                     if (!$jadwal) {
                         // Create Jadwal only once per jadwal_id
@@ -529,7 +549,10 @@ class JadwalController extends Controller
                         "address" => $personalsData->alamat ?? null,
                         "role_id" => 8, // Asesi role
                     ]);
+
                 } catch (RequestException $e) {
+                    // 🚨 TEMPORARY: BNSP error handling disabled
+                    /*
                     if ($e->hasResponse()) {
                         $response = $e->getResponse();
                         $statusCode = $response->getStatusCode();
@@ -630,6 +653,11 @@ class JadwalController extends Controller
                         // dd($responseData, $apiData);
                         array_push($errors, ['id_izin' => $id_izin, 'msg' => $responseData['message']]);
                     }
+                    */
+                    Log::error('STORE JADWAL: RequestException (BNSP call disabled)', [
+                        'id_izin' => $id_izin,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             } catch (\Throwable $e) {
                 $errors[] = [

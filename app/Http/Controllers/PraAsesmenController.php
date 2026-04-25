@@ -1124,6 +1124,10 @@ class PraAsesmenController extends Controller
 
         $isPengalaman = Proyek::where('id_izin', $id)->exists();
 
+        $jabatanKerja = JabatanKerja::select(['jabatan_kerja', 'acuan'])
+            ->where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)
+            ->first();
+
         $dokumen = JabatanDokumen::with(['kelompoks.units.unit'])
             ->select(['id', 'kode', 'nama_dokumen'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
@@ -1253,6 +1257,7 @@ class PraAsesmenController extends Controller
         return [
             'kelompok_kerja' => $kelompokKerja,
             'referensi_form' => $dataReferensi,
+            'skkni' => $jabatanKerja->acuan,
         ];
     }
 
