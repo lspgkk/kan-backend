@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('ak6_dimensi_kompetensi', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('id_izin');
+            $table->string('id_izin');
             $table->string('task_skills')->nullable();
             $table->string('task_management_skills')->nullable();
             $table->string('contingency_management_skills')->nullable();

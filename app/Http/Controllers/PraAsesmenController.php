@@ -298,7 +298,6 @@ class PraAsesmenController extends Controller
             'tanggal_uji'     => $jadwal->tanggal_uji,
             'tanggal_selesai' => $jadwal->tanggal_selesai,
             'jenis_kelas'     => $jadwal->jenis_kelas,
-            'waktu'           => Ak1Answer::where('id_izin', $id)->value('waktu') ?? \Carbon\Carbon::parse($jadwal->tanggal_uji)->format('H:i') . ' - Selesai',
 
             'nama_penyusun' => $penyusun_validator->penyusun?->name,
             'nama_validator' => $penyusun_validator->validator?->name,
@@ -1993,9 +1992,12 @@ class PraAsesmenController extends Controller
                 return $row;
             });
 
+        $waktu = Ak1Answer::where('id_izin', $id)->value('waktu');
+
         return [
             'barcodes' => $barcodes,
             'items'    => $ak01,
+            'waktu'    => $waktu,
         ];
     }
 
