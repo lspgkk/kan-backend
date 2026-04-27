@@ -9,6 +9,7 @@ use App\Models\Ak3Note;
 use App\Models\Ak5Answer;
 use App\Models\Ak6Answer;
 use App\Models\Ak6Feedback;
+use App\Models\Ak6DimensiKompetensi;
 use App\Models\AsesiJadwal;
 use App\Models\AsesorBnsp;
 use App\Models\Barcode;
@@ -2217,7 +2218,7 @@ class AsesmenController extends Controller
             ]);
 
         /** 🔹 Dimensi Kompetensi */
-        $dimensiKompetensi = DimensiKompetensi::get();
+        $dimensiKompetensi = Ak6DimensiKompetensi::getByIzinId($id);
 
         $barcodes = $this->resolveDocumentBarcodes($id, 'AK06', $forPdf);
 
@@ -2229,7 +2230,13 @@ class AsesmenController extends Controller
                 'catatan_asesor1' => $feedback->catatan_asesor1 ?? null,
                 'catatan_asesor2' => $feedback->catatan_asesor2 ?? null,
             ],
-            'dimensi_kompetensi' => $dimensiKompetensi,
+            'dimensi_kompetensi' => [
+                'task_skills' => $dimensiKompetensi->task_skills ?? 'L/DIT<br/> T/DPT',
+                'task_management_skills' => $dimensiKompetensi->task_management_skills ?? 'L/DIT<br/> T/DPT',
+                'contingency_management_skills' => $dimensiKompetensi->contingency_management_skills ?? 'L/DIT<br/> T/DPT',
+                'job_role_environment_skills' => $dimensiKompetensi->job_role_environment_skills ?? 'L/DIT<br/> T/DPT',
+                'transfer_skills' => $dimensiKompetensi->transfer_skills ?? 'L/DIT<br/> T/DPT',
+            ],
             'barcodes' => $barcodes
         ];
     }
@@ -2264,6 +2271,12 @@ class AsesmenController extends Controller
             'rekomendasi2' => 'nullable|string',
             'catatan_asesor1' => 'nullable|string',
             'catatan_asesor2' => 'nullable|string',
+            'dimensi_kompetensi' => 'nullable|array',
+            'dimensi_kompetensi.task_skills' => 'nullable|string',
+            'dimensi_kompetensi.task_management_skills' => 'nullable|string',
+            'dimensi_kompetensi.contingency_management_skills' => 'nullable|string',
+            'dimensi_kompetensi.job_role_environment_skills' => 'nullable|string',
+            'dimensi_kompetensi.transfer_skills' => 'nullable|string',
         ]);
 
         DB::transaction(function () use ($validated, $id) {
@@ -2297,6 +2310,24 @@ class AsesmenController extends Controller
                     ['id_izin' => $id],
                     $noteData
                 );
+            }
+
+            /** 🔹 Save dimensi kompetensi */
+            if (!empty($validated['dimensi_kompetensi'])) {
+                $dimensiData = array_filter([
+                    'task_skills' => $validated['dimensi_kompetensi']['task_skills'] ?? null,
+                    'task_management_skills' => $validated['dimensi_kompetensi']['task_management_skills'] ?? null,
+                    'contingency_management_skills' => $validated['dimensi_kompetensi']['contingency_management_skills'] ?? null,
+                    'job_role_environment_skills' => $validated['dimensi_kompetensi']['job_role_environment_skills'] ?? null,
+                    'transfer_skills' => $validated['dimensi_kompetensi']['transfer_skills'] ?? null,
+                ], fn ($v) => !is_null($v));
+
+                if (!empty($dimensiData)) {
+                    Ak6DimensiKompetensi::updateOrCreate(
+                        ['id_izin' => $id],
+                        $dimensiData
+                    );
+                }
             }
         });
 

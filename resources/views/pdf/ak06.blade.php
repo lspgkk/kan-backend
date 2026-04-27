@@ -244,11 +244,11 @@
                     <b>Konsistensi keputusan asesmen</b><br />
                     Bukti dari berbagai asesmen diperiksa untuk konsistensi dimensi kompetensi
                 </td>
-                <td style="text-align: center;">L/DIT<br/> T/DPT</td>
-                <td style="text-align: center;">L/DIT<br/> T/DPT</td>
-                <td style="text-align: center;">L/DIT<br/> T/DPT</td>
-                <td style="text-align: center;">L/DIT<br/> T/DPT</td>
-                <td style="text-align: center;">L/DIT<br/> T/DPT</td>
+                <td style="text-align: center;">{!! $dimensi_kompetensi['task_skills'] !!}</td>
+                <td style="text-align: center;">{!! $dimensi_kompetensi['task_management_skills'] !!}</td>
+                <td style="text-align: center;">{!! $dimensi_kompetensi['contingency_management_skills'] !!}</td>
+                <td style="text-align: center;">{!! $dimensi_kompetensi['job_role_environment_skills'] !!}</td>
+                <td style="text-align: center;">{!! $dimensi_kompetensi['transfer_skills'] !!}</td>
             </tr>
             <tr>
                 <td colspan="6">

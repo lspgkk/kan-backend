@@ -12,6 +12,7 @@ class Ak1Answer extends Model
         'id_izin',
         'id_referensi',
         'jawaban',
+        'waktu',
     ];
 
     protected $casts = [

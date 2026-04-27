@@ -200,12 +200,18 @@
             <tr>
                 <td style="font-weight: bold;">Waktu</td>
                 <td style="text-align: center; font-weight: bold;">:</td>
-                <td>{{ \Carbon\Carbon::parse($dokumenHeader['tanggal_uji'])->format('H:i')}} - Selesai</td>
+                <td>{{ $dokumenHeader['waktu'] }}</td>
             </tr>
             <tr>
                 <td style="font-weight: bold;">TUK</td>
                 <td style="text-align: center; font-weight: bold;">:</td>
                 <td>{{ $dokumenHeader['tuk'] }}</td>
+            </tr>
+            <tr>
+                <td colspan="4">
+                    <span style="font-weight: bold;">Asesi :</span><br /><br />
+                    Bahwa saya telah mendapatkan penjelasan terkait hak dan prosedur banding asesmen dari asesor.
+                </td>
             </tr>
             <tr>
                 <td colspan="4">

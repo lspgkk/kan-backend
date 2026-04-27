@@ -298,6 +298,7 @@ class PraAsesmenController extends Controller
             'tanggal_uji'     => $jadwal->tanggal_uji,
             'tanggal_selesai' => $jadwal->tanggal_selesai,
             'jenis_kelas'     => $jadwal->jenis_kelas,
+            'waktu'           => Ak1Answer::where('id_izin', $id)->value('waktu') ?? \Carbon\Carbon::parse($jadwal->tanggal_uji)->format('H:i') . ' - Selesai',
 
             'nama_penyusun' => $penyusun_validator->penyusun?->name,
             'nama_validator' => $penyusun_validator->validator?->name,
@@ -1381,20 +1382,45 @@ class PraAsesmenController extends Controller
             })->values()
         ];
 
+        // Get MAPA01 data to determine potensi asesi
+        $mapa01Data = $this->buildMapa01Data($id);
+        $potensiAsesiIndex = 1; // Default to 1
+
+        if ($mapa01Data && isset($mapa01Data['referensi_form'])) {
+            // Find kelompok id 1, kategori id 1 (Asesi)
+            foreach ($mapa01Data['referensi_form'] as $kelompok) {
+                if ($kelompok['kelompok']['id'] == 1) {
+                    foreach ($kelompok['kelompok']['kategoris'] as $kategori) {
+                        if ($kategori['id'] == 1) {
+                            // Find the checked referensi item
+                            foreach ($kategori['subkategoris'][0]['referensis'] as $index => $referensi) {
+                                if ($referensi['value'] === true) {
+                                    $potensiAsesiIndex = $index + 1; // Convert to 1-based
+                                    break 2;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         $referensis = Referensi::select(['id', 'nama', 'kategori', 'isdefault'])
             ->whereIn('kategori', ['MAPA02-1', 'MAPA02_1'])
             ->get();
 
         $dataReferensi = $referensis
             ->groupBy('kategori')
-            ->map(function ($items, $kategori) {
+            ->map(function ($items, $kategori) use ($potensiAsesiIndex) {
                 return [
                     'kategori'   => $kategori,
-                    'referensis' => $items->map(fn ($item) => [
-                        'id'         => $item->id,
-                        'nama'       => $item->nama,
-                        'isdefault' => $item->isdefault,
-                    ])->values(),
+                    'referensis' => $items->map(function ($item) use ($potensiAsesiIndex) {
+                        return [
+                            'id'         => $item->id,
+                            'nama'       => $item->nama,
+                            'isdefault' => $potensiAsesiIndex,
+                        ];
+                    })->values(),
                 ];
             })
             ->values();
@@ -1996,6 +2022,7 @@ class PraAsesmenController extends Controller
             'answers' => 'required|array|min:1',
             'answers.*.id_referensi' => 'required|exists:referensis,id',
             'answers.*.jawaban' => 'required|boolean',
+            'waktu' => 'nullable|string|max:255',
         ]);
 
         DB::transaction(function () use ($validated, $id) {
@@ -2010,6 +2037,14 @@ class PraAsesmenController extends Controller
                         'jawaban' => $answer['jawaban'],
                     ]
                 );
+            }
+
+            // Store waktu in the first ak1_answer record for this asesi
+            if (isset($validated['waktu']) && !empty($validated['answers'])) {
+                $firstAnswerId = $validated['answers'][0]['id_referensi'];
+                Ak1Answer::where('id_izin', $id)
+                    ->where('id_referensi', $firstAnswerId)
+                    ->update(['waktu' => $validated['waktu']]);
             }
         });
 

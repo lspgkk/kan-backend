@@ -342,6 +342,51 @@ td, th{
 @endif
 </table>
 
+<!-- PENYUSUN DAN VALIDATOR -->
+<table>
+    <tr>
+        <td class="red" style="width: 20%;">Status</td>
+        <td class="red" style="width: 10%;" align="center">No</td>
+        <td class="red" style="width: 25%;" align="center">Nama</td>
+        <td class="red" style="width: 20%;">Nomor MET</td>
+        <td class="red" style="width: 25%;">Tanda Tangan dan Tanggal</td>
+    </tr>
+    <tr>
+        <td rowspan="2">Penyusun</td>
+        <td align="center">1</td>
+        <td>{{ isset($dokumenHeader['nama_penyusun']) && is_string($dokumenHeader['nama_penyusun']) ? $dokumenHeader['nama_penyusun'] : '-' }}</td>
+        <td>{{ isset($dokumenHeader['noreg_penyusun']) && is_string($dokumenHeader['noreg_penyusun']) ? $dokumenHeader['noreg_penyusun'] : '-' }}</td>
+        <td rowspan="2">
+            @if(isset($dokumenHeader['barcode_penyusun']) && !empty($dokumenHeader['barcode_penyusun']))
+            <img src="{{ $dokumenHeader['barcode_penyusun'] }}" width="80" height="80" /><br />
+            @endif
+            {{ isset($dokumenHeader['tanggal_penyusun']) && is_string($dokumenHeader['tanggal_penyusun']) ? \Carbon\Carbon::parse($dokumenHeader['tanggal_penyusun'])->locale('id')->translatedFormat('d F Y') : '-' }}
+        </td>
+    </tr>
+    <tr>
+        <td align="center">2</td>
+        <td></td>
+        <td></td>
+    </tr>
+    <tr>
+        <td rowspan="2">Validator</td>
+        <td align="center">1</td>
+        <td>{{ isset($dokumenHeader['nama_validator']) && is_string($dokumenHeader['nama_validator']) ? $dokumenHeader['nama_validator'] : '-' }}</td>
+        <td>{{ isset($dokumenHeader['noreg_validator']) && is_string($dokumenHeader['noreg_validator']) ? $dokumenHeader['noreg_validator'] : '-' }}</td>
+        <td rowspan="2">
+            @if(isset($dokumenHeader['barcode_validator']) && !empty($dokumenHeader['barcode_validator']))
+            <img src="{{ $dokumenHeader['barcode_validator'] }}" width="80" height="80" /><br />
+            @endif
+            {{ isset($dokumenHeader['tanggal_validator']) && is_string($dokumenHeader['tanggal_validator']) ? \Carbon\Carbon::parse($dokumenHeader['tanggal_validator'])->locale('id')->translatedFormat('d F Y') : '-' }}
+        </td>
+    </tr>
+    <tr>
+        <td align="center">2</td>
+        <td></td>
+        <td></td>
+    </tr>
+</table>
+
 </div>
 @endif
 
