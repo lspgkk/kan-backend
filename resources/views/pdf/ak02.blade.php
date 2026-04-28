@@ -166,7 +166,7 @@
                 <th style="width: 30%;">Unit kompetensi</th>
                 <th>Observasi demonstrasi</th>
                 <th>Portofolio</th>
-                <th>Pertanyaan wawancara</th>
+                <th>Pertanyaan pihak ketiga pertanyaan wawancara</th>
                 <th>Pertanyaan lisan</th>
                 <th>Pertanyaan tertulis</th>
                 <th>Proyek kerja</th>

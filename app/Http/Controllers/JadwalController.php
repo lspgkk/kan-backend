@@ -445,33 +445,35 @@ class JadwalController extends Controller
                 ];
 
                 // 🚨 TEMPORARY: Skip BNSP participant API call, directly create local records
+                // Original BNSP API code commented out:
                 // if(App::environment() == "production") {
-                /*
-                $httpClient = new \GuzzleHttp\Client();
-                $authData = DB::table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
-                $apiEndpoint = 'https://konstruksi.bnsp.go.id/api/v1/jadwal/peserta';
-
-                try {
-                    $response = $httpClient->request('POST', $apiEndpoint, [
-                        'headers' => [
-                            'x-authorization' => $authData,
-                            'Content-Type' => 'application/json',
-                            'Accept' => 'application/json',
-                        ],
-                        'json' => $apiData,
-                    ]);
-
-                    $responseBody = $response->getBody()->getContents();
-                    $responseData = json_decode($responseBody, true);
-                */
+                //    $httpClient = new \GuzzleHttp\Client();
+                //    $authData = DB::table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
+                //    $apiEndpoint = 'https://konstruksi.bnsp.go.id/api/v1/jadwal/peserta';
+                //    try {
+                //        $response = $httpClient->request('POST', $apiEndpoint, [
+                //            'headers' => [
+                //                'x-authorization' => $authData,
+                //                'Content-Type' => 'application/json',
+                //                'Accept' => 'application/json',
+                //            ],
+                //            'json' => $apiData,
+                //        ]);
+                //        $responseBody = $response->getBody()->getContents();
+                //        $responseData = json_decode($responseBody, true);
+                //    } catch (RequestException $e) {
+                //        // Error handling
+                //    }
+                // }
 
                 Log::info('STORE JADWAL: TEMPORARY - Skipping BNSP participant API', [
                     'jadwal_id' => $apiData['jadwal_id'],
                     'id_izin' => $id_izin,
                 ]);
 
-                // API call successful - create or update Jadwal (once per jadwal_id)
-                $jadwal = Jadwal::where('jadwal_id', $apiData['jadwal_id'])->first();
+                try {
+                    // API call successful - create or update Jadwal (once per jadwal_id)
+                    $jadwal = Jadwal::where('jadwal_id', $apiData['jadwal_id'])->first();
 
                     if (!$jadwal) {
                         // Create Jadwal only once per jadwal_id
@@ -549,117 +551,13 @@ class JadwalController extends Controller
                         "address" => $personalsData->alamat ?? null,
                         "role_id" => 8, // Asesi role
                     ]);
-
-                } catch (RequestException $e) {
-                    // 🚨 TEMPORARY: BNSP error handling disabled
-                    /*
-                    if ($e->hasResponse()) {
-                        $response = $e->getResponse();
-                        $statusCode = $response->getStatusCode();
-                        $responseBody = $response->getBody()->getContents();
-                        $responseData = json_decode($responseBody, true);
-
-                        if ($responseData['message'] == 'Data Peserta tidak boleh duplikat') {
-                            // Check if Jadwal exists by jadwal_id
-                            $jadwal = Jadwal::where('jadwal_id', $apiData['jadwal_id'])->first();
-
-                            if (!$jadwal) {
-                                // Create Jadwal only once per jadwal_id
-                                $jadwal = Jadwal::create([
-                                    "jadwal_id" => $apiData['jadwal_id'],
-                                    "admin_id" => $validated['admin_tuk'],
-                                    "tuk_id" => $apiData['tuk_id'],
-                                    "asesor_id" => $apiData['asesor_id'],
-                                    "asesor2_id" => $asesor2_id,
-                                    "jenis_mohon" => $apiData['jenis_mohon'],
-                                    "skema_id" => $apiData['skema_id'] ?? null,
-                                    "keterangan" => $apiData['keterangan'],
-                                    "jenjang_id" => $apiData['jenjang_id'],
-                                    "komtek1" => $request->input("komtek1"),
-                                    "komtek2" => $request->input("komtek2"),
-                                    "komtek3" => $request->input("komtek3"),
-                                    "ketua_lsp" => $validated['ketua_lsp'],
-                                    "mgr_sertif" => $validated['manajer_sertifikasi'],
-                                    "sesi" => $validated['sesi'],
-                                    "jenis_kelas" => $validated['jenis_kelas'],
-                                    "jenis_anggaran" => $validated['jenis_anggaran'],
-                                    "tanggal_uji" => $validated['tanggal_mulai'],
-                                    "tanggal_selesai" => $validated['tanggal_selesai'],
-                                    "subklasifikasi" => $validated['subklasifikasi'],
-                                    "kualifikasi" => $validated['kualifikasi'],
-                                    "status" => "draft",
-                                    "tahap" => 0,
-                                ]);
-                            } elseif (!$jadwal->asesor_id || !$jadwal->tuk_id) {
-                                // Update only if jadwal is missing critical data (from insertOrIgnore)
-                                $jadwal->update([
-                                    "admin_id" => $validated['admin_tuk'],
-                                    "tuk_id" => $apiData['tuk_id'],
-                                    "asesor_id" => $apiData['asesor_id'],
-                                    "asesor2_id" => $asesor2_id,
-                                    "jenis_mohon" => $apiData['jenis_mohon'],
-                                    "skema_id" => $apiData['skema_id'] ?? null,
-                                    "keterangan" => $apiData['keterangan'],
-                                    "jenjang_id" => $apiData['jenjang_id'],
-                                    "komtek1" => $request->input("komtek1"),
-                                    "komtek2" => $request->input("komtek2"),
-                                    "komtek3" => $request->input("komtek3"),
-                                    "ketua_lsp" => $validated['ketua_lsp'],
-                                    "mgr_sertif" => $validated['manajer_sertifikasi'],
-                                    "sesi" => $validated['sesi'],
-                                    "jenis_kelas" => $validated['jenis_kelas'],
-                                    "jenis_anggaran" => $validated['jenis_anggaran'],
-                                    "tanggal_uji" => $validated['tanggal_mulai'],
-                                    "tanggal_selesai" => $validated['tanggal_selesai'],
-                                    "subklasifikasi" => $validated['subklasifikasi'],
-                                    "kualifikasi" => $validated['kualifikasi'],
-                                ]);
-                            }
-
-                            // Check if AsesiJadwal already exists for this id_izin
-                            $existingAsesi = AsesiJadwal::where('jadwal_id', $apiData['jadwal_id'])
-                                ->where('id_izin', $id_izin)
-                                ->first();
-
-                            if (!$existingAsesi) {
-                                // Generate random account and password for AsesiJadwal
-                                $account = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 8));
-                                $password = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 8));
-
-                                // Create AsesiJadwal with account and password
-                                AsesiJadwal::create([
-                                    "jadwal_id" => $apiData['jadwal_id'],
-                                    "id_izin" => $id_izin,
-                                    "account" => $account,
-                                    "password_plain" => $password,
-                                    "kompeten" => "BK",
-                                    "is_started" => false,
-                                ]);
-
-                                // Create User with email and hashed password
-                                User::create([
-                                    "name" => $personalsData->nama,
-                                    "email" => $account,
-                                    "phone" => $personalsData->telepon ?? null,
-                                    "password" => bcrypt($password),
-                                    "address" => $personalsData->alamat ?? null,
-                                    "role_id" => 8, // Asesi role
-                                ]);
-                            }
-
-                            array_push($errors, ['id_izin' => $id_izin, 'msg' => $responseData['message']]);
-                            continue;
-                        }
-                        // dd($responseData, $apiData);
-                        array_push($errors, ['id_izin' => $id_izin, 'msg' => $responseData['message']]);
-                    }
-                    */
-                    Log::error('STORE JADWAL: RequestException (BNSP call disabled)', [
-                        'id_izin' => $id_izin,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            } catch (\Throwable $e) {
+                } catch (\Throwable $e) {
+                $errors[] = [
+                    'id_izin' => $id_izin,
+                    'error'   => $e->getMessage(),
+                ];
+            }
+            } catch (\Exception $e) {
                 $errors[] = [
                     'id_izin' => $id_izin,
                     'error'   => $e->getMessage(),

@@ -1417,7 +1417,8 @@ class PraAsesmenController extends Controller
                         return [
                             'id'         => $item->id,
                             'nama'       => $item->nama,
-                            'isdefault' => $potensiAsesiIndex,
+                            'isdefault' => $item->isdefault,
+                            'potensi_asesi_index' => $potensiAsesiIndex,
                         ];
                     })->values(),
                 ];

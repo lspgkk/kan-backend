@@ -5,7 +5,9 @@
       "Bash(cd \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\" && php artisan migrate:status | grep -i jadwal)",
       "Bash(cd \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\" && php artisan migrate:status)",
       "Bash(cd \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\" && php artisan make:migration add_request_hash_to_jadwals_table --table=jadwals)",
-      "Bash(php artisan:*)"
+      "Bash(php artisan:*)",
+      "Bash(php *)",
+      "Bash(awk 'NR>=161 && NR<=573 {print NR\": \"$0}' \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\app\\\\Http\\\\Controllers\\\\JadwalController.php\")"
     ]
   }
 }
