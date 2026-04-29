@@ -14,6 +14,7 @@ class Apl2File extends Model
         'path',
         'mime',
         'size',
+        'filetype',
     ];
 
     public $timestamps = true;

@@ -14,7 +14,6 @@ use App\Models\AsesiJadwal;
 use App\Models\AsesorBnsp;
 use App\Models\Barcode;
 use App\Models\BuktiAsesmen;
-use App\Models\DimensiKompetensi;
 use App\Models\Ia1Answer;
 use App\Models\Ia1Feedback;
 use App\Models\Ia1Recommendation;
@@ -184,6 +183,8 @@ class AsesmenController extends Controller
             'validator:id,name,noreg',
         ])->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'validator_id', 'validator_tgl', 'validator_img'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
 
+        $apl2Submission = \App\Models\Apl2Submission::where('id_izin', $id)->first();
+
         return response()->json([
             'message' => 'Success',
             'data' => [
@@ -209,6 +210,8 @@ class AsesmenController extends Controller
                 'barcode_validator' => $penyusun_validator->validator_img,
                 'noreg_penyusun' => $penyusun_validator->penyusun?->noreg,
                 'noreg_validator' => $penyusun_validator->validator?->noreg,
+                'metode' => $apl2Submission?->metode,
+
             ]
         ]);
     }
@@ -268,6 +271,8 @@ class AsesmenController extends Controller
             'validator:id,name,noreg',
         ])->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'validator_id', 'validator_tgl', 'validator_img'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
 
+        $apl2Submission = \App\Models\Apl2Submission::where('id_izin', $id)->first();
+
         return [
             'jabatan_kerja'   => $jabatanKerja,
             'nomor_skema'     => $jabatanConfig?->no_skema,
@@ -295,6 +300,7 @@ class AsesmenController extends Controller
             'barcode_validator' => $this->imageUrlToBase64($penyusun_validator->validator_img),
             'noreg_penyusun' => $penyusun_validator->penyusun?->noreg,
             'noreg_validator' => $penyusun_validator->validator?->noreg,
+            'metode' => $apl2Submission?->metode,
         ];
     }
 
@@ -1669,6 +1675,126 @@ class AsesmenController extends Controller
         return response()->json([
             'message' => 'Success',
             'data'    => $data,
+        ]);
+    }
+
+    private function buildIa08Data(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array {
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$klasifikasi) {
+            return null;
+        }
+
+        $jabatanDokumen = JabatanDokumen::with(['kelompoks.units.unit'])
+            ->select(['id', 'kode', 'nama_dokumen'])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where('kode', 'FR.IA.08')
+            ->where('is_active', true)
+            ->first();
+
+        $referensi = Referensi::with([
+                'kategoriRel',
+                'kelompokRel',
+                'subkategoriRel',
+            ])
+            ->select(['id', 'nama', 'id_kelompok', 'id_kategori', 'id_subkategori'])
+            ->where('kategori', 'IA08')
+            ->whereNotNull('id_kelompok')
+            ->get()
+            ->filter(fn ($r) => $r->kelompokRel !== null);
+
+        return [
+            'jabatan_dokumen' => $jabatanDokumen,
+            'referensi' => $referensi,
+        ];
+    }
+
+    public function getIa08($id)
+    {
+        $data = $this->buildIa08Data($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => $data,
+        ]);
+    }
+
+    private function buildIa09Data(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
+    {
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$klasifikasi) {
+            return null;
+        }
+
+        /** ✅ Shared barcode resolver */
+        $barcodes = $this->resolveDocumentBarcodes($id, 'IA09', $forPdf);
+
+        $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where('kode', 'FR.IA.09')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dokumen) {
+            return [
+                'barcodes' => $barcodes,
+                'dokumen' => null,
+                'soal' => [],
+            ];
+        }
+
+        $questions = Soal::query()
+            ->where('soals.id_dokumen', $dokumen->id)
+            ->orderBy('soals.no', 'asc')
+            ->select([
+                'soals.id',
+                'soals.id_dokumen',
+                'soals.soal',
+                'soals.no',
+                'soals.id_kelompok',
+            ])
+            ->get()
+            ->groupBy('id_kelompok');
+
+        return [
+            'barcodes' => $barcodes,
+            'dokumen' => $dokumen,
+            'soal' => $questions,
+        ];
+    }
+
+    public function getIa09($id)
+    {
+        $data = $this->buildIa09Data($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => $data,
         ]);
     }
 

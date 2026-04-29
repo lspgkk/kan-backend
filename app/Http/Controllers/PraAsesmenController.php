@@ -196,6 +196,8 @@ class PraAsesmenController extends Controller
             'validator:id,name,noreg',
         ])->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'validator_id', 'validator_tgl', 'validator_img'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
 
+        $apl2Submission = \App\Models\Apl2Submission::where('id_izin', $id)->first();
+
         return response()->json([
             'message' => 'Success',
             'data' => [
@@ -221,6 +223,8 @@ class PraAsesmenController extends Controller
                 'barcode_validator' => $penyusun_validator->validator_img,
                 'noreg_penyusun' => $penyusun_validator->penyusun?->noreg,
                 'noreg_validator' => $penyusun_validator->validator?->noreg,
+                'metode' => $apl2Submission?->metode,
+
             ]
         ]);
     }
@@ -280,6 +284,8 @@ class PraAsesmenController extends Controller
             'validator:id,name,noreg',
         ])->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'validator_id', 'validator_tgl', 'validator_img'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
 
+        $apl2Submission = Apl2Submission::where('id_izin', $id)->first();
+
         return [
             'jabatan_kerja'   => $jabatanKerja,
             'nomor_skema'     => $jabatanConfig?->no_skema,
@@ -307,6 +313,7 @@ class PraAsesmenController extends Controller
             'barcode_validator' => $this->imageUrlToBase64($penyusun_validator->validator_img),
             'noreg_penyusun' => $penyusun_validator->penyusun?->noreg,
             'noreg_validator' => $penyusun_validator->validator?->noreg,
+            'metode' => $apl2Submission?->metode,
         ];
     }
 
@@ -829,6 +836,7 @@ class PraAsesmenController extends Controller
                                     'id'   => $file->id,
                                     'name' => $file->original_name,
                                     'path' => $baseUrl . ltrim($file->path, '/'),
+                                    'filetype' => $file->filetype,
                                 ])->values()
                                 : [],
 
@@ -950,11 +958,15 @@ class PraAsesmenController extends Controller
                     . 'image/gif,'
                     . 'image/webp',
             ],
+            'filetypes' => 'nullable|array',
+            'filetypes.*' => 'nullable|string',
         ]);
 
         $uploaded = [];
+        $files = $request->file('files');
+        $filetypes = $request->filetypes ?? [];
 
-        foreach ($request->file('files') as $file) {
+        foreach ($files as $index => $file) {
 
             // 🔐 Optional: avoid name collision on FTP
             $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
@@ -968,13 +980,14 @@ class PraAsesmenController extends Controller
                 file_get_contents($file->getRealPath())
             );
 
-            // 💾 Save DB record
+            // 💾 Save DB record with individual filetype
             $uploaded[] = Apl2File::create([
                 'id_izin'        => $id,
                 'original_name'  => $file->getClientOriginalName(),
                 'path'           => $path,          // FTP path
                 'mime'           => $file->getMimeType(),
                 'size'           => $file->getSize(),
+                'filetype'       => $filetypes[$index] ?? null, // Individual filetype per file
             ]);
         }
 
@@ -995,6 +1008,7 @@ class PraAsesmenController extends Controller
                 'id'   => $file->id,
                 'name' => $file->original_name,
                 'path' => $baseUrl . ltrim($file->path, '/'),
+                'filetype' => $file->filetype,
             ]);
 
         return response()->json([
