@@ -260,7 +260,7 @@
                     <strong>Catatan :</strong><br>
                     {{ $answers['catatan'] }}
                 </td>
-                <td colspan=2><strong>Asesor 1</strong></td>
+                <td colspan=2><strong>Asesor</strong></td>
             </tr>
             <tr>
                 <td>Nama</td>

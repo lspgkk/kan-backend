@@ -136,7 +136,7 @@
                 </tr>
             @else
             <tr>
-                <td>Nama Asesor 1</td>
+                <td>Nama Asesor</td>
                 <td colspan="3">: {{ strtoupper($dokumenHeader['asesor_1']) }}</td>
             </tr>
             @endif

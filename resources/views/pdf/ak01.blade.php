@@ -232,7 +232,7 @@
             </tr>
             <tr>
                 <td colspan="4" style="height: 70px; vertical-align: bottom; text-align: center;">
-                    Tanda tangan Asesor 1 :<br />
+                    Tanda tangan @if($dokumenHeader['asesor_2'] ?? null)Asesor 1 @else Asesor @endif :<br />
                     @if($barcodes['asesor1']['url'] ?? null)
                     <img src="{{ $barcodes['asesor1']['url'] }}" style="height: 50px; width: 50px; object-fit: contain;" /><br />
                     <span style="font-size: 11px; font-weight: bold;">{{ strtoupper($barcodes['asesor1']['nama'] ?? '') }}</span><br />

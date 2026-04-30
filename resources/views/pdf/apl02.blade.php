@@ -326,7 +326,7 @@
     @else
     <tr>
         <td rowspan=4 valign=top><br></td>
-        <td colspan=2><strong>Asesor 1</strong></td>
+        <td colspan=2><strong>Asesor</strong></td>
     </tr>
     <tr>
         <td>Nama</td>

@@ -124,14 +124,19 @@
                 <td colspan="2"><strong>TUK</strong></td>
                 <td colspan="2">{{($dokumenHeader['tuk']) ?: 'Sewaktu/Tempat Kerja/Mandiri*' }}</td>
             </tr>
-            <tr>
-                <td colspan="2"><strong>Nama Asesor 1</strong></td>
-                <td colspan="2">{{($dokumenHeader['asesor_1']) }}{{ $dokumenHeader['noreg_asesor_1'] ? ' (' . $dokumenHeader['noreg_asesor_1'] . ')' : '' }}</td>
-            </tr>
-            @if(!empty($dokumenHeader['asesor_1']))
+            @if(!empty($dokumenHeader['asesor_2']))
+                <tr>
+                    <td colspan="2"><strong>Nama Asesor 1</strong></td>
+                    <td colspan="2">{{($dokumenHeader['asesor_1']) }}{{ $dokumenHeader['noreg_asesor_1'] ? ' (' . $dokumenHeader['noreg_asesor_1'] . ')' : '' }}</td>
+                </tr>
                 <tr>
                     <td colspan="2"><strong>Nama Asesor 2</strong></td>
                     <td colspan="2">{{($dokumenHeader['asesor_2']) }}{{ $dokumenHeader['noreg_asesor_2'] ? ' (' . $dokumenHeader['noreg_asesor_2'] . ')' : '' }}</td>
+                </tr>
+            @else
+                <tr>
+                    <td colspan="2"><strong>Nama Asesor</strong></td>
+                    <td colspan="2">{{($dokumenHeader['asesor_1']) }}{{ $dokumenHeader['noreg_asesor_1'] ? ' (' . $dokumenHeader['noreg_asesor_1'] . ')' : '' }}</td>
                 </tr>
             @endif
             <tr>
@@ -307,6 +312,7 @@
 
         <!-- Tanda Tangan -->
         <table width="100%" cellpadding="5" cellspacing="0" align="center">
+            @if(isset($barcodes['asesor2']))
             <tr>
                 <td style="width: 50%; height: 100px; vertical-align: top;">
                     <div>Nama Asesor 1 : {{($dokumenHeader['asesor_1']) }}</div>
@@ -322,22 +328,37 @@
                     @endif
                 </td>
             </tr>
-            @if(isset($barcodes['asesor2']))
-                <tr>
-                    <td style="width: 50%; height: 100px; vertical-align: top;">
-                        <div>Nama Asesor 2 : {{($dokumenHeader['asesor_2']) }}</div>
-                        @if($dokumenHeader['noreg_asesor_2'])
-                        <div>No. Reg : {{ $dokumenHeader['noreg_asesor_2'] }}</div>
-                        @endif
-                    </td>
-                    <td style="width: 50%; vertical-align: middle; text-align: center;">
-                        <div style="text-align: left; margin-bottom: 4px;">Tanggal dan Tanda Tangan Asesor :</div>
-                        @if(isset($barcodes['asesor2']['url']))
-                        <img src="{{ $barcodes['asesor2']['url'] }}" style="height: 50px; width: 50px;" /><br />
-                        <span style="font-size: 10px;">{{ \Carbon\Carbon::parse($barcodes['asesor2']['tanggal'])->locale('id')->translatedFormat('d F Y')}}</span>
-                        @endif
-                    </td>
-                </tr>
+            <tr>
+                <td style="width: 50%; height: 100px; vertical-align: top;">
+                    <div>Nama Asesor 2 : {{($dokumenHeader['asesor_2']) }}</div>
+                    @if($dokumenHeader['noreg_asesor_2'])
+                    <div>No. Reg : {{ $dokumenHeader['noreg_asesor_2'] }}</div>
+                    @endif
+                </td>
+                <td style="width: 50%; vertical-align: middle; text-align: center;">
+                    <div style="text-align: left; margin-bottom: 4px;">Tanggal dan Tanda Tangan Asesor :</div>
+                    @if(isset($barcodes['asesor2']['url']))
+                    <img src="{{ $barcodes['asesor2']['url'] }}" style="height: 50px; width: 50px;" /><br />
+                    <span style="font-size: 10px;">{{ \Carbon\Carbon::parse($barcodes['asesor2']['tanggal'])->locale('id')->translatedFormat('d F Y')}}</span>
+                    @endif
+                </td>
+            </tr>
+            @else
+            <tr>
+                <td style="width: 50%; height: 100px; vertical-align: top;">
+                    <div>Nama Asesor : {{($dokumenHeader['asesor_1']) }}</div>
+                    @if($dokumenHeader['noreg_asesor_1'])
+                    <div>No. Reg : {{ $dokumenHeader['noreg_asesor_1'] }}</div>
+                    @endif
+                </td>
+                <td style="width: 50%; vertical-align: middle; text-align: center;">
+                    <div style="text-align: left; margin-bottom: 4px;">Tanggal dan Tanda Tangan Asesor :</div>
+                    @if(isset($barcodes['asesor1']['url']))
+                    <img src="{{ $barcodes['asesor1']['url'] }}" style="height: 50px; width: 50px;" /><br />
+                    <span style="font-size: 10px;">{{ \Carbon\Carbon::parse($barcodes['asesor1']['tanggal'])->locale('id')->translatedFormat('d F Y')}}</span>
+                    @endif
+                </td>
+            </tr>
             @endif
             <tr>
                 <td style="height: 100px; vertical-align: top;">

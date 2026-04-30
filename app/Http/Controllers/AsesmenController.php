@@ -10,6 +10,7 @@ use App\Models\Ak5Answer;
 use App\Models\Ak6Answer;
 use App\Models\Ak6Feedback;
 use App\Models\Ak6DimensiKompetensi;
+use App\Models\Apl2File;
 use App\Models\AsesiJadwal;
 use App\Models\AsesorBnsp;
 use App\Models\Barcode;
@@ -1690,12 +1691,40 @@ class AsesmenController extends Controller
             return null;
         }
 
-        $jabatanDokumen = JabatanDokumen::with(['kelompoks.units.unit'])
-            ->select(['id', 'kode', 'nama_dokumen'])
+        $barcodes = $this->resolveDocumentBarcodes($id, 'IA08', $forPdf);
+
+        $files = Apl2File::where('id_izin', $id)->select(['id', 'original_name', 'path', 'filetype'])->get();
+
+        $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->where('kode', 'FR.IA.08')
             ->where('is_active', true)
             ->first();
+
+        if (!$dokumen) {
+            return [
+                'barcodes' => $barcodes,
+                'dokumen' => null,
+                'soal' => [],
+            ];
+        }
+
+        $questions = Soal::query()
+            ->with(['unit:id,kode', 'kuk:id,kode', 'subunit:id,nama'])
+            ->where('soals.id_dokumen', $dokumen->id)
+            ->orderBy('soals.no', 'asc')
+            ->select([
+                'soals.id',
+                'soals.id_dokumen',
+                'soals.id_unitkompetensi',
+                'soals.id_kuk',
+                'soals.id_subunitkompetensi',
+                'soals.soal',
+                'soals.no',
+                'soals.id_kelompok',
+            ])
+            ->get()
+            ->groupBy('id_kelompok');
 
         $referensi = Referensi::with([
                 'kategoriRel',
@@ -1709,8 +1738,9 @@ class AsesmenController extends Controller
             ->filter(fn ($r) => $r->kelompokRel !== null);
 
         return [
-            'jabatan_dokumen' => $jabatanDokumen,
+            'soal' => $questions,
             'referensi' => $referensi,
+            'files' => $files,
         ];
     }
 
@@ -1747,6 +1777,8 @@ class AsesmenController extends Controller
         /** ✅ Shared barcode resolver */
         $barcodes = $this->resolveDocumentBarcodes($id, 'IA09', $forPdf);
 
+        $files = Apl2File::where('id_izin', $id)->select(['id', 'original_name', 'path', 'filetype'])->get();
+
         $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->where('kode', 'FR.IA.09')
@@ -1778,12 +1810,58 @@ class AsesmenController extends Controller
             'barcodes' => $barcodes,
             'dokumen' => $dokumen,
             'soal' => $questions,
+            'files' => $files,
         ];
     }
 
     public function getIa09($id)
     {
         $data = $this->buildIa09Data($id);
+
+        if ($data === null) {
+            return response()->json([
+                'message' => 'Data not found',
+                'data' => null,
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => 'Success',
+            'data' => $data,
+        ]);
+    }
+
+    private function buildIa10Data(
+        int|string $id,
+        bool $forPdf = false
+    ): ?array
+    {
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$klasifikasi) {
+            return null;
+        }
+
+        /** ✅ Shared barcode resolver */
+        $barcodes = $this->resolveDocumentBarcodes($id, 'IA10', $forPdf);
+
+        $referensis = Referensi::select(['id', 'nama', 'id_kelompok', 'no'])
+            ->orderBy('no', 'asc')
+            ->where('kategori', 'IA10')
+            ->get()
+            ->groupBy('id_kelompok');
+
+        return [
+            'barcodes'        => $barcodes,
+            'referensi_form'  => $referensis,
+        ];
+    }
+
+    public function getIa10($id)
+    {
+        $data = $this->buildIa10Data($id);
 
         if ($data === null) {
             return response()->json([

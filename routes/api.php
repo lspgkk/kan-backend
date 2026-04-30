@@ -263,6 +263,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{id}/ia05', [AsesmenController::class, 'getIa05']);
         Route::get('/{id}/ia08', [AsesmenController::class, 'getIa08']);
         Route::get('/{id}/ia09', [AsesmenController::class, 'getIa09']);
+        Route::get('/{id}/ia10', [AsesmenController::class, 'getIa10']);
         Route::get('/{id}/ak02', [AsesmenController::class, 'getAk02']);
         Route::get('/{id}/ak03', [AsesmenController::class, 'getAk03']);
         Route::get('/{id}/ak05', [AsesmenController::class, 'getAk05']);

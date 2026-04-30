@@ -79,7 +79,7 @@
     </tr>
     @if(isset($dokumenHeader['asesor_2']) && !empty($dokumenHeader['asesor_2']))
     <tr>
-        <td>Nama Asesor 1</td>
+        <td>Nama Asesor</td>
         <td>:</td>
         <td>{{ isset($dokumenHeader['asesor_1']) && is_string($dokumenHeader['asesor_1']) ? $dokumenHeader['asesor_1'] : '-' }}</td>
     </tr>
@@ -138,7 +138,7 @@
         </td>
     </tr>
 
-    <tr><td style="font-weight: bold;" colspan="3">Asesor:</td></tr>
+    <tr><td style="font-weight: bold;" colspan="3">Asesor @if(isset($dokumenHeader['asesor_2']) && !empty($dokumenHeader['asesor_2']))1 @endif :</td></tr>
     <tr>
         <td>Nama Asesor</td>
         <td>:</td>

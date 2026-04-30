@@ -284,7 +284,7 @@
             </tr>
             @else
             <tr>
-                <td colspan="3" style="font-weight: bold;">Asesor 1</td>
+                <td colspan="3" style="font-weight: bold;">Asesor</td>
             </tr>
             <tr>
                 <td>Nama</td>

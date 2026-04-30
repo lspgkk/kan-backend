@@ -42,4 +42,9 @@ class Soal extends Model
     {
         return $this->belongsTo(Kuk::class, 'id_kuk', 'id');
     }
+
+    public function subunit()
+    {
+        return $this->belongsTo(SubunitKompetensi::class, 'id_subunitkompetensi', 'id');
+    }
 }
