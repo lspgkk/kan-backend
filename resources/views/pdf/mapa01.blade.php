@@ -531,20 +531,61 @@
                         </small>
                     </div>
                 </td>
+
+                <td class="vhead" style="width: 10%;">
+                    <div class="vtext">
+                        <strong>Verifikasi Pihak Ketiga</strong><br />
+                        <small>
+                            (testimoni dan laporan dari atasan, bukti pelatihan, otentikasi pencapaian sebelumnya, wawancara dengan atasan, atau rekan kerja)
+                        </small>
+                    </div>
+                </td>
             </tr>
             @foreach ($kelompok['units'] as $i => $unit)
-            <tr>
-                <td>{{ $i + 1 }}. {{ $unit['nama_unit'] }}</td>
-                <td>Hasil tanya jawab tentang: {{ $unit['nama_unit'] }}</td>
-                <td align="center">L</td>
-                <td align="center"></td>
-                <td align="center">T</td>
-                <td align="center"></td>
-                <td align="center"></td>
-                <td align="center">DPT</td>
-                <td align="center"></td>
-                <td align="center"></td>
-            </tr>
+                @php
+                    // Determine cell values based on jenjang and metode
+                    $td3 = ''; // L column
+                    $td4 = ''; // TL column
+                    $td5 = ''; // T column
+                    $td7 = ''; // Kegiatan Terstruktur column
+                    $td8 = ''; // Tanya Jawab column
+                    $td11 = ''; // Verifikasi Pihak Ketiga column
+
+                    if ($dokumenHeader['jenjang'] >= 1 && $dokumenHeader['jenjang'] <= 3) {
+                        // jenjang 1-3
+                        $td3 = 'L';
+                        $td5 = 'T';
+                        $td7 = 'CL';
+                        $td8 = 'DPT';
+                    } elseif ($dokumenHeader['jenjang'] >= 4 && $dokumenHeader['jenjang'] <= 9) {
+                        if (strtolower($dokumenHeader['metode']) === 'portofolio') {
+                            // jenjang 4-9 and metode is portofolio
+                            $td4 = 'TL';
+                            $td5 = 'T';
+                            $td8 = 'PW';
+                            $td11 = 'VPK';
+                        } elseif (strtolower($dokumenHeader['metode']) === 'observasi') {
+                            // jenjang 4-9 and metode is observasi
+                            $td3 = 'L';
+                            $td5 = 'T';
+                            $td7 = 'DIT';
+                            $td8 = 'DPT';
+                        }
+                    }
+                @endphp
+                <tr>
+                    <td>{{ $i + 1 }}. {{ $unit['nama_unit'] }}</td>
+                    <td>Hasil tanya jawab tentang: {{ $unit['nama_unit'] }}</td>
+                    <td align="center">{{ $td3 }}</td>
+                    <td align="center">{{ $td4 }}</td>
+                    <td align="center">{{ $td5 }}</td>
+                    <td align="center"></td>
+                    <td align="center">{{ $td7 }}</td>
+                    <td align="center">{{ $td8 }}</td>
+                    <td align="center"></td>
+                    <td align="center"></td>
+                    <td align="center">{{ $td11 }}</td>
+                </tr>
             @endforeach
         </table>
         <br />

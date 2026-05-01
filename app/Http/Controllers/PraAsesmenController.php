@@ -1128,13 +1128,15 @@ class PraAsesmenController extends Controller
         bool $forPdf = false
     ): ?array
     {
-        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+        $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
             ->where('id_izin', $id)
             ->first();
 
         if (!$klasifikasi) {
             return null;
         }
+
+        $apl2Submission = Apl2Submission::where('id_izin', $id)->first();
 
         $isPengalaman = Proyek::where('id_izin', $id)->exists();
 
@@ -1272,6 +1274,8 @@ class PraAsesmenController extends Controller
             'kelompok_kerja' => $kelompokKerja,
             'referensi_form' => $dataReferensi,
             'skkni' => $jabatanKerja->acuan,
+            'jenjang' => $klasifikasi->jenjang,
+            'metode' => $apl2Submission?->metode,
         ];
     }
 
