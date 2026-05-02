@@ -283,7 +283,11 @@ class InvoiceController extends Controller
             'input_date',
             'bulan',
             'tahun',
-            'total_biaya'
+            'total_biaya',
+            'payment_status',
+            'payment_method',
+            'midtrans_va_number',
+            'midtrans_order_id',
         ]);
 
         // 🔍 Search
@@ -322,6 +326,53 @@ class InvoiceController extends Controller
             ->map(fn ($tuk) => [
                 'nama_tuk' => $tuk->nama_tuk
             ]);
+
+        // Transform invoices to include frontend-friendly fields
+        $invoices->getCollection()->transform(function ($invoice) {
+            $biayaAdmin = 0;
+            $statusPembayaran = 'Belum Dibayar';
+
+            // Calculate admin fee for Midtrans payments
+            if ($invoice->payment_method === 'midtrans' && $invoice->midtrans_order_id) {
+                $midtransTransaction = \App\Models\MidtransTransaction::where('order_id', $invoice->midtrans_order_id)->first();
+                if ($midtransTransaction && isset($midtransTransaction->payment_details['midtrans_fee'])) {
+                    $biayaAdmin = $midtransTransaction->payment_details['midtrans_fee'];
+                }
+            }
+
+            // Map payment status
+            switch ($invoice->payment_status) {
+                case 'paid':
+                    $statusPembayaran = 'Sudah Dibayar';
+                    break;
+                case 'unpaid':
+                    $statusPembayaran = 'Belum Dibayar';
+                    break;
+                case 'pending':
+                    $statusPembayaran = 'Dalam Proses';
+                    break;
+                case 'failed':
+                    $statusPembayaran = 'Gagal';
+                    break;
+                default:
+                    $statusPembayaran = $invoice->payment_status ?? 'Belum Dibayar';
+            }
+
+            return [
+                'no_invoice' => $invoice->invoice_number,
+                'tuk' => $invoice->nama_tuk,
+                'link' => $invoice->inv_link,
+                'link_excel' => $invoice->inv_excel,
+                'total_biaya' => $invoice->total_biaya,
+                'biaya_admin' => $biayaAdmin,
+                'status_pembayaran' => $statusPembayaran,
+                'metode_pembayaran' => $invoice->payment_method,
+                'created_at' => $invoice->input_date,
+                'payment_status' => $invoice->payment_status,
+                'midtrans_va_number' => $invoice->midtrans_va_number,
+                'midtrans_order_id' => $invoice->midtrans_order_id,
+            ];
+        });
 
         return response()->json([
             'message' => 'History invoice berhasil dimuat',
@@ -575,17 +626,18 @@ class InvoiceController extends Controller
                     $invoice_pdf = "https://moon.lspgatensi.id/files/new_gatensi/invoice-tuk/" . $pdf_filename;
                 }
 
+                // TEMPORARILY DISABLED: SIKI status update after invoice creation
                 foreach ($data_asesi_beserta_harga as $asesi) {
-                    $this->updateSikiStatus(
-                        "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi['id_izin'],
-                        [
-                            'Content-Type' => 'application/json',
-                            'token' => env('SIKI_TOKEN'),
-                        ],
-                        ['kd_status' => '30', 'keterangan' => 'Invoice'],
-                        30,
-                        $asesi['id_izin']
-                    );
+                    // $this->updateSikiStatus(
+                    //     "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi['id_izin'],
+                    //     [
+                    //         'Content-Type' => 'application/json',
+                    //         'token' => env('SIKI_TOKEN'),
+                    //     ],
+                    //     ['kd_status' => '30', 'keterangan' => 'Invoice'],
+                    //     30,
+                    //     $asesi['id_izin']
+                    // );
 
                     Personal::where('id_izin', $asesi['id_izin'])->update(['status' => 30]);
                     usleep(500000);
@@ -659,58 +711,71 @@ class InvoiceController extends Controller
                 // Import MidtransService
                 $midtransService = new \App\Services\MidtransService();
 
-                // Calculate fee breakdown before creating transaction
-                $feeBreakdown = $midtransService->getFeeBreakdown($invoice->total_biaya, 'bca_va');
+                // Get payment method from request or use null for Midtrans modal
+                $paymentMethod = $request->input('midtrans_payment_method');
 
-                // Create Midtrans transaction (this includes fees automatically)
-                $midtransTransaction = $midtransService->createTransaction($invoice, 'bca_va');
+                // Use Snap (popup with multiple payment options) by default
+                try {
+                    // Create Snap transaction for popup
+                    $snapTransaction = $midtransService->createSnapTransaction($invoice);
 
-                // Save Midtrans transaction details with fee information
-                \App\Models\MidtransTransaction::create([
-                    'order_id' => $midtransTransaction['order_id'],
-                    'invoice_number' => $latest_invno,
-                    'transaction_id' => $midtransTransaction['transaction_id'] ?? null,
-                    'status' => $midtransTransaction['status_code'] ?? 'pending',
-                    'payment_type' => $midtransTransaction['payment_type'] ?? 'bca_va',
-                    'gross_amount' => $feeBreakdown['total_amount'], // Total including fees
-                    'bank' => $midtransTransaction['va_numbers'][0]['bank'] ?? 'bca',
-                    'va_number' => $midtransTransaction['va_numbers'][0]['va_number'] ?? null,
-                    'payment_details' => array_merge($midtransTransaction, $feeBreakdown), // Include fee breakdown
-                    'callback_response' => null,
-                ]);
+                    // Generate order_id for database (same as what we sent to Midtrans)
+                    $orderId = $midtransService->generateOrderId($invoice->invoice_number);
 
-                // Update invoice with Midtrans details
-                $invoice->update([
-                    'midtrans_order_id' => $midtransTransaction['order_id'],
-                    'midtrans_transaction_id' => $midtransTransaction['transaction_id'] ?? null,
-                    'midtrans_payment_type' => $midtransTransaction['payment_type'] ?? 'bca_va',
-                    'midtrans_va_number' => $midtransTransaction['va_numbers'][0]['va_number'] ?? null,
-                ]);
+                    // Save Snap transaction details
+                    \App\Models\MidtransTransaction::create([
+                        'order_id' => $orderId,
+                        'invoice_number' => $latest_invno,
+                        'transaction_id' => null,
+                        'status' => 'pending',
+                        'payment_type' => 'snap',
+                        'gross_amount' => $invoice->total_biaya,
+                        'payment_details' => $snapTransaction,
+                        'callback_response' => null,
+                    ]);
 
-                // Add Midtrans details to response with fee breakdown
-                $responseData['midtrans'] = [
-                    'order_id' => $midtransTransaction['order_id'],
-                    'va_number' => $midtransTransaction['va_numbers'][0]['va_number'] ?? null,
-                    'bank' => $midtransTransaction['va_numbers'][0]['bank'] ?? 'bca',
-                    'base_amount' => $feeBreakdown['base_amount'], // Original invoice amount
-                    'midtrans_fee' => $feeBreakdown['midtrans_fee'], // Fee paid by customer
-                    'total_amount' => $feeBreakdown['total_amount'], // Total customer pays
-                    'fee_description' => $feeBreakdown['fee_description'],
-                    'payment_url' => $midtransService->getPaymentUrl($midtransTransaction),
-                ];
+                    // Update invoice with Snap details
+                    $invoice->update([
+                        'midtrans_order_id' => $orderId,
+                        'midtrans_transaction_id' => null,
+                        'midtrans_payment_type' => 'snap',
+                    ]);
+
+                    $responseData['midtrans'] = [
+                        'order_id' => $orderId,
+                        'base_amount' => $invoice->total_biaya,
+                        'midtrans_fee' => null, // Fees calculated by Midtrans based on payment method
+                        'total_amount' => $invoice->total_biaya, // Customer pays base + fees
+                        'fee_description' => 'Biaya admin akan dihitung berdasarkan metode pembayaran yang dipilih',
+                        'payment_url' => $snapTransaction['redirect_url'],
+                        'redirect_url' => $snapTransaction['redirect_url'],
+                        'snap_token' => $snapTransaction['token'],
+                        'client_key' => $midtransService->getClientKey(),
+                        'is_sandbox' => $midtransService->isSandbox(),
+                    ];
+
+                } catch (\Exception $snapError) {
+                    Log::error('Snap transaction creation failed', [
+                        'error' => $snapError->getMessage(),
+                        'trace' => $snapError->getTraceAsString()
+                    ]);
+
+                    throw new \Exception('Failed to create Midtrans Snap transaction: ' . $snapError->getMessage());
+                }
 
                 // Update SIKI status to 30 (Verifikasi Pembayaran) for Midtrans
+                // TEMPORARILY DISABLED: SIKI status update after invoice creation
                 foreach ($data_asesi_beserta_harga as $asesi) {
-                    $this->updateSikiStatus(
-                        "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi['id_izin'],
-                        [
-                            'Content-Type' => 'application/json',
-                            'token' => env('SIKI_TOKEN'),
-                        ],
-                        ['kd_status' => '30', 'keterangan' => 'Invoice'],
-                        30,
-                        $asesi['id_izin']
-                    );
+                    // $this->updateSikiStatus(
+                    //     "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi['id_izin'],
+                    //     [
+                    //         'Content-Type' => 'application/json',
+                    //         'token' => env('SIKI_TOKEN'),
+                    //     ],
+                    //     ['kd_status' => '30', 'keterangan' => 'Invoice'],
+                    //     30,
+                    //     $asesi['id_izin']
+                    // );
 
                     Personal::where('id_izin', $asesi['id_izin'])->update(['status' => 30]);
                     usleep(500000);
@@ -750,46 +815,50 @@ class InvoiceController extends Controller
         return response()->json($responseData);
     }
 
-    private function updateSikiStatus($api_url, $headers, $status_payload, $status_code, $id_izin)
-    {
-        $maxRetries = 4;
-        $attempt = 0;
+    /**
+     * Update SIKI status helper method
+     * TEMPORARILY DISABLED
+     */
+    // private function updateSikiStatus($api_url, $headers, $status_payload, $status_code, $id_izin)
+    // {
+    //     $maxRetries = 4;
+    //     $attempt = 0;
 
-        while ($attempt < $maxRetries) {
-            try {
-                $response = Http::withHeaders($headers)->post($api_url, $status_payload);
+    //     while ($attempt < $maxRetries) {
+    //         try {
+    //             $response = Http::withHeaders($headers)->post($api_url, $status_payload);
 
-                if ($response->successful()) {
-                    $responseData = $response->json();
-                    if ($responseData['status'] == "success") {
-                        Log::info("Successfully updated to status $status_code for ID_Izin: $id_izin");
-                        return;
-                    } else if ($responseData['status'] == "errors") {
-                        throw new \Exception("Failed to update status $status_code: " . $responseData['message']);
-                    }
-                } else {
-                    $responseData = $response->json();
-                    // Handle specific messages that indicate the status is already set
-                    if ($response->status() == 403) {
-                        Log::info("Status $status_code is already set for ID_Izin: $id_izin. Skipping to the next status.");
-                        return;
-                    } else {
-                        throw new \Exception("API Error: " . $responseData['message']);
-                    }
-                }
-            } catch (\Exception $e) {
-                $attempt++;
-                Log::warning("Attempt $attempt: Failed to update status $status_code for ID_Izin: $id_izin. Error: " . $e->getMessage());
+    //             if ($response->successful()) {
+    //                 $responseData = $response->json();
+    //                 if ($responseData['status'] == "success") {
+    //                     Log::info("Successfully updated to status $status_code for ID_Izin: $id_izin");
+    //                     return;
+    //                 } else if ($responseData['status'] == "errors") {
+    //                     throw new \Exception("Failed to update status $status_code: " . $responseData['message']);
+    //                 }
+    //             } else {
+    //                 $responseData = $response->json();
+    //                 // Handle specific messages that indicate the status is already set
+    //                 if ($response->status() == 403) {
+    //                     Log::info("Status $status_code is already set for ID_Izin: $id_izin. Skipping to the next status.");
+    //                     return;
+    //                 } else {
+    //                     throw new \Exception("API Error: " . $responseData['message']);
+    //                 }
+    //             }
+    //         } catch (\Exception $e) {
+    //             $attempt++;
+    //             Log::warning("Attempt $attempt: Failed to update status $status_code for ID_Izin: $id_izin. Error: " . $e->getMessage());
 
-                if ($attempt >= $maxRetries) {
-                    throw new \Exception("Failed to update status $status_code after $maxRetries attempts for ID_Izin: $id_izin");
-                }
+    //             if ($attempt >= $maxRetries) {
+    //                 throw new \Exception("Failed to update status $status_code after $maxRetries attempts for ID_Izin: $id_izin");
+    //             }
 
-                // Optional: Wait before retrying
-                sleep(1);
-            }
-        }
-    }
+    //             // Optional: Wait before retrying
+    //             sleep(1);
+    //         }
+    //     }
+    // }
 
     /**
      * Create Midtrans payment for existing unpaid invoice
@@ -829,55 +898,73 @@ class InvoiceController extends Controller
                             'bank' => $existingTransaction->getBank(),
                             'amount' => $existingTransaction->gross_amount,
                             'payment_url' => $midtransService->getPaymentUrl(['order_id' => $existingTransaction->order_id]),
+                            'redirect_url' => $midtransService->getPaymentUrl(['order_id' => $existingTransaction->order_id]),
                         ]
                     ]);
                 }
             }
 
+            // Get payment method from request
+            $paymentMethod = $request->input('payment_method', 'bca_va');
+
             // Create new Midtrans transaction
             $midtransService = new \App\Services\MidtransService();
-            $midtransTransaction = $midtransService->createTransaction($invoice, 'bca_va');
+            $midtransTransaction = $midtransService->createTransaction($invoice, $paymentMethod);
 
             // Calculate fee breakdown for display
-            $feeBreakdown = $midtransService->getFeeBreakdown($invoice->total_biaya, 'bca_va');
+            $feeBreakdown = $midtransService->getFeeBreakdown($invoice->total_biaya, $paymentMethod);
 
             // Save Midtrans transaction details
-            \App\Models\MidtransTransaction::create([
+            $midtransData = [
                 'order_id' => $midtransTransaction['order_id'],
                 'invoice_number' => $invoiceNumber,
                 'transaction_id' => $midtransTransaction['transaction_id'] ?? null,
                 'status' => $midtransTransaction['status_code'] ?? 'pending',
-                'payment_type' => $midtransTransaction['payment_type'] ?? 'bca_va',
+                'payment_type' => $midtransTransaction['payment_type'] ?? $paymentMethod,
                 'gross_amount' => $feeBreakdown['total_amount'], // Store total including fees
-                'bank' => $midtransTransaction['va_numbers'][0]['bank'] ?? 'bca',
-                'va_number' => $midtransTransaction['va_numbers'][0]['va_number'] ?? null,
                 'payment_details' => array_merge($midtransTransaction, $feeBreakdown), // Include fee breakdown
                 'callback_response' => null,
-            ]);
+            ];
+
+            // Add VA details if available
+            if (isset($midtransTransaction['va_numbers'][0])) {
+                $midtransData['bank'] = $midtransTransaction['va_numbers'][0]['bank'] ?? 'bca';
+                $midtransData['va_number'] = $midtransTransaction['va_numbers'][0]['va_number'] ?? null;
+            }
+
+            \App\Models\MidtransTransaction::create($midtransData);
 
             // Update invoice with Midtrans details
             $invoice->update([
                 'payment_method' => 'midtrans',
                 'midtrans_order_id' => $midtransTransaction['order_id'],
                 'midtrans_transaction_id' => $midtransTransaction['transaction_id'] ?? null,
-                'midtrans_payment_type' => $midtransTransaction['payment_type'] ?? 'bca_va',
-                'midtrans_va_number' => $midtransTransaction['va_numbers'][0]['va_number'] ?? null,
+                'midtrans_payment_type' => $midtransTransaction['payment_type'] ?? $paymentMethod,
             ]);
 
-            return response()->json([
+            $response_data = [
                 'success' => true,
                 'message' => 'Midtrans payment created successfully',
                 'data' => [
                     'order_id' => $midtransTransaction['order_id'],
-                    'va_number' => $midtransTransaction['va_numbers'][0]['va_number'] ?? null,
-                    'bank' => $midtransTransaction['va_numbers'][0]['bank'] ?? 'bca',
                     'base_amount' => $feeBreakdown['base_amount'], // Original invoice amount
                     'midtrans_fee' => $feeBreakdown['midtrans_fee'], // Fee paid by customer
                     'total_amount' => $feeBreakdown['total_amount'], // Total customer pays
                     'fee_description' => $feeBreakdown['fee_description'],
                     'payment_url' => $midtransService->getPaymentUrl($midtransTransaction),
+                    'redirect_url' => $midtransService->getPaymentUrl($midtransTransaction),
+                    'client_key' => $midtransService->getClientKey(),
+                    'is_sandbox' => $midtransService->isSandbox(),
                 ]
-            ]);
+            ];
+
+            // Add VA details if available
+            if (isset($midtransTransaction['va_numbers'][0])) {
+                $response_data['data']['va_number'] = $midtransTransaction['va_numbers'][0]['va_number'] ?? null;
+                $response_data['data']['bank'] = $midtransTransaction['va_numbers'][0]['bank'] ?? 'bca';
+            }
+
+            return response()->json($response_data);
 
         } catch (\Exception $e) {
             Log::error('Failed to create Midtrans payment', [
@@ -952,10 +1039,46 @@ class InvoiceController extends Controller
 
     /**
      * Get Midtrans fee breakdown for an invoice
+     * Handles both existing invoices and temporary invoice numbers
      */
     public function getMidtransFeeBreakdown(Request $request, $invoiceNumber)
     {
         try {
+            $paymentMethod = $request->input('payment_method', 'bca_va');
+            $midtransService = new \App\Services\MidtransService();
+
+            // Check if this is a temporary invoice number (starts with TEMP-)
+            if (strpos($invoiceNumber, 'TEMP-') === 0) {
+                // For temporary invoices, use amount from request if provided
+                $amount = $request->input('amount');
+
+                if (!$amount) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Amount parameter is required for temporary invoice numbers'
+                    ], 400);
+                }
+
+                $feeBreakdown = $midtransService->getFeeBreakdown((float) $amount, $paymentMethod);
+                $supportedMethods = $midtransService->getSupportedPaymentMethods();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Fee breakdown retrieved successfully (temporary invoice)',
+                    'data' => [
+                        'invoice_number' => $invoiceNumber,
+                        'base_amount' => $feeBreakdown['base_amount'],
+                        'midtrans_fee' => $feeBreakdown['midtrans_fee'],
+                        'total_amount' => $feeBreakdown['total_amount'],
+                        'fee_description' => $feeBreakdown['fee_description'],
+                        'payment_method' => $paymentMethod,
+                        'supported_methods' => $supportedMethods,
+                        'is_temporary' => true,
+                    ]
+                ]);
+            }
+
+            // For existing invoices, look up the invoice
             $invoice = Invoice::where('invoice_number', $invoiceNumber)->first();
 
             if (!$invoice) {
@@ -965,11 +1088,7 @@ class InvoiceController extends Controller
                 ], 404);
             }
 
-            $paymentMethod = $request->input('payment_method', 'bca_va');
-            $midtransService = new \App\Services\MidtransService();
             $feeBreakdown = $midtransService->getFeeBreakdown($invoice->total_biaya, $paymentMethod);
-
-            // Get supported payment methods
             $supportedMethods = $midtransService->getSupportedPaymentMethods();
 
             return response()->json([
@@ -983,6 +1102,7 @@ class InvoiceController extends Controller
                     'fee_description' => $feeBreakdown['fee_description'],
                     'payment_method' => $paymentMethod,
                     'supported_methods' => $supportedMethods,
+                    'is_temporary' => false,
                 ]
             ]);
 
@@ -995,6 +1115,53 @@ class InvoiceController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to get fee breakdown: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Estimate Midtrans fees without creating invoice
+     * Use this for showing fee estimates before invoice creation
+     */
+    public function estimateMidtransFees(Request $request)
+    {
+        try {
+            $validatedData = $request->validate([
+                'amount' => ['required', 'numeric', 'min:0'],
+                'payment_method' => ['nullable', 'string'],
+            ]);
+
+            $amount = (float) $validatedData['amount'];
+            $paymentMethod = $validatedData['payment_method'] ?? 'bca_va';
+
+            $midtransService = new \App\Services\MidtransService();
+            $feeBreakdown = $midtransService->getFeeBreakdown($amount, $paymentMethod);
+
+            // Get supported payment methods
+            $supportedMethods = $midtransService->getSupportedPaymentMethods();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Fee estimation successful',
+                'data' => [
+                    'base_amount' => $feeBreakdown['base_amount'],
+                    'midtrans_fee' => $feeBreakdown['midtrans_fee'],
+                    'total_amount' => $feeBreakdown['total_amount'],
+                    'fee_description' => $feeBreakdown['fee_description'],
+                    'payment_method' => $paymentMethod,
+                    'supported_methods' => $supportedMethods,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to estimate fees', [
+                'amount' => $request->input('amount'),
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to estimate fees: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -1084,68 +1251,72 @@ class InvoiceController extends Controller
 
             DB::beginTransaction();
 
+            // TEMPORARILY DISABLED: SIKI API calls in invoice confirmation
             foreach ($asesi_invoice as $asesi) {
-                while (true) {
-                    error_log("try again");
+                // Update local status without SIKI API call
+                Personal::where('id_izin', $asesi->id_izin)->update(['status' => 31]);
 
-                    $api_url = "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi->id_izin;
+                // while (true) {
+                //     error_log("try again");
 
-                    $status31 = [
-                        "kd_status" => "31",
-                        "keterangan" => "Konfirmasi Pembayaran"
-                    ];
+                //     $api_url = "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi->id_izin;
 
-                    try {
-                        $response_post_bnsp = Http::withHeaders($headers)->post($api_url, $status31);
-                    } catch (\Exception $e) {
-                        error_log("try again");
-                        continue;
-                    }
+                //     $status31 = [
+                //         "kd_status" => "31",
+                //         "keterangan" => "Konfirmasi Pembayaran"
+                //     ];
 
-                    if ($response_post_bnsp->successful()) {
-                        $responseData = $response_post_bnsp->json();
+                //     try {
+                //         $response_post_bnsp = Http::withHeaders($headers)->post($api_url, $status31);
+                //     } catch (\Exception $e) {
+                //         error_log("try again");
+                //         continue;
+                //     }
 
-                        if ($responseData['status'] == "success") {
-                            Personal::where('id_izin', $asesi->id_izin)
-                                ->update(['status' => 31]);
-                            break;
+                //     if ($response_post_bnsp->successful()) {
+                //         $responseData = $response_post_bnsp->json();
 
-                        } elseif ($responseData['status'] == "errors") {
-                            DB::rollBack();
-                            return response()->json([
-                                'success' => false,
-                                'message' => 'Terjadi kesalahan saat naik ke 31',
-                                'detail'  => $responseData['message'] ?? null,
-                            ], 422);
+                //         if ($responseData['status'] == "success") {
+                //             Personal::where('id_izin', $asesi->id_izin)
+                //                 ->update(['status' => 31]);
+                //             break;
 
-                        } else {
-                            DB::rollBack();
-                            return response()->json([
-                                'success' => false,
-                                'message' => 'Terjadi kesalahan post pencatatan siki',
-                                'detail'  => $responseData['message'] ?? null,
-                            ], 500);
-                        }
+                //         } elseif ($responseData['status'] == "errors") {
+                //             DB::rollBack();
+                //             return response()->json([
+                //                 'success' => false,
+                //                 'message' => 'Terjadi kesalahan saat naik ke 31',
+                //                 'detail'  => $responseData['message'] ?? null,
+                //             ], 422);
 
-                    } else {
-                        $errorMessage = $response_post_bnsp->json()['message'] ?? null;
+                //         } else {
+                //             DB::rollBack();
+                //             return response()->json([
+                //                 'success' => false,
+                //                 'message' => 'Terjadi kesalahan post pencatatan siki',
+                //                 'detail'  => $responseData['message'] ?? null,
+                //             ], 500);
+                //         }
 
-                        if ($errorMessage === 'tidak dapat mengirim kode status 31, kode status saat ini 31') {
-                            Personal::where('id_izin', $asesi->id_izin)
-                                ->update(['status' => 31]);
-                            break;
-                        }
+                //     } else {
+                //         $errorMessage = $response_post_bnsp->json()['message'] ?? null;
 
-                        DB::rollBack();
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'Server SIKI sedang bermasalah',
-                            'detail'  => $errorMessage,
-                        ], 503);
-                    }
-                }
+                //         if ($errorMessage === 'tidak dapat mengirim kode status 31, kode status saat ini 31') {
+                //             Personal::where('id_izin', $asesi->id_izin)
+                //                 ->update(['status' => 31]);
+                //             break;
+                //         }
 
-                sleep(2);
+                //         DB::rollBack();
+                //         return response()->json([
+                //             'success' => false,
+                //             'message' => 'Server SIKI sedang bermasalah',
+                //             'detail'  => $errorMessage,
+                //         ], 503);
+                //     }
+                // }
+
+                // sleep(2);
             }
 
             $invoice_current = Invoice::where("invoice_number", $validatedData['no_invoice'])->first();
@@ -1181,6 +1352,51 @@ class InvoiceController extends Controller
                 'success' => false,
                 'message' => 'Unexpected server error',
                 'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Test Midtrans connection (debug endpoint)
+     */
+    public function testMidtransConnection()
+    {
+        try {
+            $midtransService = new \App\Services\MidtransService();
+
+            // Test basic configuration
+            $config = [
+                'environment' => $midtransService->isSandbox() ? 'sandbox' : 'production',
+                'server_key_prefix' => substr(Config::get('services.midtrans.server_key'), 0, 15) . '...',
+                'client_key_prefix' => substr(Config::get('services.midtrans.client_key'), 0, 15) . '...',
+            ];
+
+            // Test fee calculation
+            $testAmount = 150000;
+            $fees = [
+                'bca_va' => $midtransService->getFeeBreakdown($testAmount, 'bca_va'),
+                'gopay' => $midtransService->getFeeBreakdown($testAmount, 'gopay'),
+            ];
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Midtrans service configuration loaded successfully',
+                'data' => [
+                    'config' => $config,
+                    'test_amount' => $testAmount,
+                    'fee_calculations' => $fees,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Midtrans connection test failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Midtrans service test failed: ' . $e->getMessage()
             ], 500);
         }
     }

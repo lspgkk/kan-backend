@@ -171,9 +171,11 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/unpaid', [InvoiceController::class, 'getUnpaidInvoices']);
         Route::post('/create', [InvoiceController::class, 'createInvoice']);
         Route::post('/konfirmasi', [InvoiceController::class, 'confirmInvoice']);
+        Route::post('/estimate-fees', [InvoiceController::class, 'estimateMidtransFees']); // New endpoint for fee estimation
         Route::post('/{invoice}/midtrans-pay', [InvoiceController::class, 'createMidtransPayment']);
         Route::get('/{invoice}/midtrans-status', [InvoiceController::class, 'checkMidtransStatus']);
         Route::get('/{invoice}/midtrans-fees', [InvoiceController::class, 'getMidtransFeeBreakdown']);
+        Route::get('/test-midtrans', [InvoiceController::class, 'testMidtransConnection']); // Debug endpoint
     });
 
     // Midtrans webhook (no auth required)

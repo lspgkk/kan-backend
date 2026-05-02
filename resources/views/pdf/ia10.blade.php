@@ -4,97 +4,94 @@
 <meta charset="UTF-8">
 <title>FR.IA.10 Klarifikasi Bukti Pihak Ketiga</title>
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    background: #fff;
+@page {
+    size: A4;
+    margin: 15mm;
+}
+
+body {
+    font-family: 'DejaVu Sans', Arial, sans-serif;
+    font-size: 12px;
+    margin: 0;
     color: #000;
-  }
+}
 
-  .container {
-    width: 800px;
-    margin: 20px auto;
-  }
-
-  .title {
+.title {
     font-weight: bold;
-    color: #1a5fb4;
+    font-size: 14px;
     margin-bottom: 10px;
-  }
+}
 
-  table {
+table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 13px;
-  }
+    margin: 0;
+}
 
-  td, th {
+table + table {
+    margin-top: 10px;
+}
+
+td, th {
     border: 1px solid #000;
     padding: 6px;
     vertical-align: top;
-  }
+    font-size: 12px;
+}
 
-  .no-border td {
+.no-border td {
     border: none;
-  }
+}
 
-  .label {
+.label {
     width: 200px;
-  }
+}
 
-  .small {
+.small {
     font-size: 11px;
-  }
+}
 
-  .right {
+.right {
     text-align: right;
-  }
+}
 
-  .center {
+.center {
     text-align: center;
-  }
+}
 
-  .bold {
+.bold {
     font-weight: bold;
-  }
+}
 
-  .section-title {
+.section-title {
     background: #c00000;
     color: #000;
     font-weight: bold;
     padding: 6px;
-  }
+}
 
-  .box {
+.box {
     border: 1px solid #000;
     margin-top: 10px;
-  }
+}
 
-  .checkbox {
-    width: 15px;
-    height: 15px;
-    border: 1px solid #000;
-    display: inline-block;
-  }
-
-  .space {
+.space {
     height: 60px;
-  }
+}
 
-  .space-lg {
+.space-lg {
     height: 100px;
-  }
+}
 
-  .footer {
+.footer {
     font-size: 10px;
     margin-top: 10px;
-  }
+}
 </style>
 </head>
 <body>
 
-<div class="container">
-
-  <div class="title">FR.IA.10 KLARIFIKASI BUKTI PIHAK KETIGA</div>
+<div class="title">FR.IA.10 KLARIFIKASI BUKTI PIHAK KETIGA</div>
 
   <!-- HEADER -->
   <table>
@@ -209,8 +206,6 @@
     *Diadopsi dari template yang disediakan di Departemen Pendidikan dan Pelatihan, Australia.<br>
     Merancang alat asesmen untuk hasil yang berkualitas di VET. 2008
   </div>
-
-</div>
 
 </body>
 </html>

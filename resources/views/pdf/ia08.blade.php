@@ -5,20 +5,68 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ceklis Verifikasi Portofolio</title>
 <style>
-body{font-family:Arial, sans-serif; background:#eee;}
-.container{width:900px; margin:20px auto; background:#fff; padding:20px; border:2px solid #000;}
-table{width:100%; border-collapse:collapse; margin-top:10px;}
-th, td{border:1px solid #000; padding:6px; font-size:14px; vertical-align:top;}
-.title{font-weight:bold; margin-bottom:10px;}
-.red{background:#c00000; color:#000; font-weight:bold;}
-.center{text-align:center;}
-.small{font-size:12px;}
-.section{margin-top:15px;}
-.checkbox{width:15px; height:15px; border:1px solid #000; display:inline-block;}
+@page {
+    size: A4;
+    margin: 15mm;
+}
+
+body{
+    font-family: 'DejaVu Sans', Arial, sans-serif;
+    font-size:12px;
+    margin:0;
+    color:#000;
+}
+
+.title{
+    font-weight:bold;
+    font-size:14px;
+    margin-bottom:10px;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin:0;
+}
+
+table + table{
+    margin-top:10px;
+}
+
+td, th{
+    border:1px solid #000;
+    padding:6px;
+    font-size:12px;
+    vertical-align:top;
+}
+
+.red{
+    background:#c00000;
+    color:#000;
+    font-weight:bold;
+}
+
+.center{
+    text-align:center;
+}
+
+.small{
+    font-size:11px;
+}
+
+.section{
+    margin-top:10px;
+}
+
+.checkbox{
+    width:15px;
+    height:15px;
+    border:1px solid #000;
+    display:inline-block;
+}
 </style>
 </head>
 <body>
-<div class="container">
 
 <div class="title">FR.IA.08. CEKLIS VERIFIKASI PORTOFOLIO</div>
 
@@ -147,6 +195,5 @@ KUK        : {{ $rekomendasiKuk ?? '' }}</div>
 <tr><td>Tanda tangan dan tanggal</td><td>:</td><td>{!! $barcodes['asesor2']['url'] ?? '' !!}</td></tr>
 </table>
 
-</div>
 </body>
 </html>

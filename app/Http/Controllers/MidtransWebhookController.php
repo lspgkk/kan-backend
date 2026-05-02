@@ -136,14 +136,14 @@ class MidtransWebhookController extends Controller
                 'kode_bayar2' => $request->input('transaction_id'),
             ]);
 
-            // Update SIKI status automatically (no admin confirmation needed)
-            foreach ($invoice->details as $asesi) {
-                $this->updateSikiStatusAfterPayment(
-                    $asesi->id_izin,
-                    '31',
-                    'Konfirmasi Pembayaran Midtrans'
-                );
-            }
+            // TEMPORARILY DISABLED: SIKI status update after Midtrans payment
+            // foreach ($invoice->details as $asesi) {
+            //     $this->updateSikiStatusAfterPayment(
+            //         $asesi->id_izin,
+            //         '31',
+            //         'Konfirmasi Pembayaran Midtrans'
+            //     );
+            // }
 
             DB::commit();
 
@@ -201,83 +201,84 @@ class MidtransWebhookController extends Controller
 
     /**
      * Update SIKI status after payment (automatic processing)
+     * TEMPORARILY DISABLED
      */
-    private function updateSikiStatusAfterPayment($id_izin, $statusCode, $keterangan)
-    {
-        $maxRetries = 4;
-        $attempt = 0;
+    // private function updateSikiStatusAfterPayment($id_izin, $statusCode, $keterangan)
+    // {
+    //     $maxRetries = 4;
+    //     $attempt = 0;
 
-        while ($attempt < $maxRetries) {
-            try {
-                $api_url = "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $id_izin;
+    //     while ($attempt < $maxRetries) {
+    //         try {
+    //             $api_url = "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $id_izin;
 
-                $headers = [
-                    'Content-Type' => 'application/json',
-                    'token' => env('SIKI_TOKEN'),
-                ];
+    //             $headers = [
+    //                 'Content-Type' => 'application/json',
+    //                 'token' => env('SIKI_TOKEN'),
+    //             ];
 
-                $statusPayload = [
-                    "kd_status" => $statusCode,
-                    "keterangan" => $keterangan
-                ];
+    //             $statusPayload = [
+    //                 "kd_status" => $statusCode,
+    //                 "keterangan" => $keterangan
+    //             ];
 
-                $response = Http::withHeaders($headers)
-                    ->timeout(30)
-                    ->connectTimeout(30)
-                    ->post($api_url, $statusPayload);
+    //             $response = Http::withHeaders($headers)
+    //                 ->timeout(30)
+    //                 ->connectTimeout(30)
+    //                 ->post($api_url, $statusPayload);
 
-                if ($response->successful()) {
-                    $responseData = $response->json();
+    //             if ($response->successful()) {
+    //                 $responseData = $response->json();
 
-                    if ($responseData['status'] == "success") {
-                        // Update Personal status
-                        Personal::where('id_izin', $id_izin)->update(['status' => (int)$statusCode]);
+    //                 if ($responseData['status'] == "success") {
+    //                     // Update Personal status
+    //                     Personal::where('id_izin', $id_izin)->update(['status' => (int)$statusCode]);
 
-                        Log::info("SIKI status updated successfully after payment", [
-                            'id_izin' => $id_izin,
-                            'status' => $statusCode,
-                            'keterangan' => $keterangan
-                        ]);
+    //                     Log::info("SIKI status updated successfully after payment", [
+    //                         'id_izin' => $id_izin,
+    //                         'status' => $statusCode,
+    //                         'keterangan' => $keterangan
+    //                     ]);
 
-                        return;
-                    } elseif ($responseData['status'] == "errors") {
-                        Log::error("SIKI API returned error after payment", [
-                            'id_izin' => $id_izin,
-                            'message' => $responseData['message'] ?? null,
-                        ]);
+    //                     return;
+    //                 } elseif ($responseData['status'] == "errors") {
+    //                     Log::error("SIKI API returned error after payment", [
+    //                         'id_izin' => $id_izin,
+    //                         'message' => $responseData['message'] ?? null,
+    //                     ]);
 
-                        throw new \Exception("SIKI API error: " . ($responseData['message'] ?? 'Unknown error'));
-                    }
-                } else {
-                    $errorMessage = $response->json()['message'] ?? null;
+    //                     throw new \Exception("SIKI API error: " . ($responseData['message'] ?? 'Unknown error'));
+    //                 }
+    //             } else {
+    //                 $errorMessage = $response->json()['message'] ?? null;
 
-                    // Handle status already set error
-                    if ($errorMessage === 'tidak dapat mengirim kode status 31, kode status saat ini 31') {
-                        Personal::where('id_izin', $id_izin)->update(['status' => 31]);
-                        return;
-                    }
+    //                 // Handle status already set error
+    //                 if ($errorMessage === 'tidak dapat mengirim kode status 31, kode status saat ini 31') {
+    //                     Personal::where('id_izin', $id_izin)->update(['status' => 31]);
+    //                     return;
+    //                 }
 
-                    throw new \Exception("SIKI API HTTP error: " . $errorMessage);
-                }
+    //                 throw new \Exception("SIKI API HTTP error: " . $errorMessage);
+    //             }
 
-            } catch (\Exception $e) {
-                $attempt++;
-                Log::warning("Attempt $attempt: Failed to update SIKI status after payment", [
-                    'id_izin' => $id_izin,
-                    'error' => $e->getMessage()
-                ]);
+    //         } catch (\Exception $e) {
+    //             $attempt++;
+    //             Log::warning("Attempt $attempt: Failed to update SIKI status after payment", [
+    //                 'id_izin' => $id_izin,
+    //                 'error' => $e->getMessage()
+    //             ]);
 
-                if ($attempt >= $maxRetries) {
-                    Log::error("Failed to update SIKI status after maximum retries", [
-                        'id_izin' => $id_izin,
-                        'status' => $statusCode
-                    ]);
-                    throw new \Exception("Failed to update SIKI status after $maxRetries attempts");
-                }
+    //             if ($attempt >= $maxRetries) {
+    //                 Log::error("Failed to update SIKI status after maximum retries", [
+    //                     'id_izin' => $id_izin,
+    //                     'status' => $statusCode
+    //                 ]);
+    //                 throw new \Exception("Failed to update SIKI status after $maxRetries attempts");
+    //             }
 
-                // Wait before retry
-                sleep(1);
-            }
-        }
-    }
+    //             // Wait before retry
+    //             sleep(1);
+    //         }
+    //     }
+    // }
 }

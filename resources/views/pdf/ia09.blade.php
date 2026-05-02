@@ -4,53 +4,69 @@
 <meta charset="UTF-8">
 <title>FR.IA.09 - Pertanyaan Wawancara</title>
 <style>
-    body {
-        font-family: Arial, sans-serif;
-        font-size: 12px;
-    }
-    .container {
-        width: 900px;
-        margin: auto;
-    }
-    .title {
-        font-weight: bold;
-        margin-bottom: 5px;
-    }
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 10px;
-    }
-    td, th {
-        border: 1px solid #000;
-        padding: 5px;
-        vertical-align: top;
-    }
-    .no-border td {
-        border: none;
-    }
-    .header-red {
-        background: #c00000;
-        color: #fff;
-        font-weight: bold;
-        text-align: center;
-    }
-    .left {
-        text-align: left;
-    }
-    .center {
-        text-align: center;
-    }
-    .small {
-        font-size: 11px;
-    }
+@page {
+    size: A4;
+    margin: 15mm;
+}
+
+body {
+    font-family: 'DejaVu Sans', Arial, sans-serif;
+    font-size: 12px;
+    margin: 0;
+    color: #000;
+}
+
+.title {
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+}
+
+table + table {
+    margin-top: 10px;
+}
+
+td, th {
+    border: 1px solid #000;
+    padding: 5px;
+    vertical-align: top;
+    font-size: 12px;
+}
+
+.no-border td {
+    border: none;
+}
+
+.header-red {
+    background: #c00000;
+    color: #fff;
+    font-weight: bold;
+    text-align: center;
+}
+
+.left {
+    text-align: left;
+}
+
+.center {
+    text-align: center;
+}
+
+.small {
+    font-size: 11px;
+}
 </style>
 </head>
 
 <body>
-<div class="container">
 
-    <div class="title">FR.IA.09 &nbsp;&nbsp; PERTANYAAN WAWANCARA</div>
+<div class="title">FR.IA.09 &nbsp;&nbsp; PERTANYAAN WAWANCARA</div>
 
     <!-- Header -->
     <table>
@@ -210,6 +226,5 @@
         </tr>
     </table>
 
-</div>
 </body>
 </html>

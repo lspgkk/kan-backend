@@ -5,7 +5,7 @@
 <title>FR.IA.02 - TPD Tugas Praktik Demonstrasi</title>
 <style>
     body {
-        font-family: Arial, sans-serif;
+        font-family: 'DejaVu Sans', Arial, sans-serif;
         margin: 30px;
         background-color: #fff;
     }

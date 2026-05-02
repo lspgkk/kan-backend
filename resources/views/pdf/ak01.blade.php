@@ -13,12 +13,9 @@
             }
             body {
                 font-family:
+                    'DejaVu Sans',
                     "Open Sans",
                     Calibri,
-                    Candara,
-                    Segoe,
-                    Segoe UI,
-                    Optima,
                     Arial,
                     sans-serif;
                 font-size: 11pt;

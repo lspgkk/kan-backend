@@ -11,7 +11,7 @@
         src: url('.media_url().'fonts/cJZKeOuBrn4kERxqtaUH3aCWcynf_cDxXwCLxiixG1c) format("truetype");
     }   
         body{
-            font-family: "Open Sans", Calibri,Candara,Segoe,Segoe UI,Optima,Arial,sans-serif;
+            font-family: 'DejaVu Sans', "Open Sans", Calibri,Arial,sans-serif;
             font-size:11pt;
             margin-top:65px;
         }
@@ -30,7 +30,7 @@
         border: 0px solid black;
     }
     .fnt{
-        font-family: "Open Sans", Calibri,Candara,Segoe,Segoe UI,Optima,Arial,sans-serif;
+        font-family: 'DejaVu Sans', "Open Sans", Calibri,Arial,sans-serif;
     }
     .noborder{
         border:0 transparent!important;

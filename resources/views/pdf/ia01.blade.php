@@ -11,7 +11,7 @@
 }
 
 body{
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: 'DejaVu Sans', Arial, Helvetica, sans-serif;
     font-size:12px;
     margin:20px;
     color:#000;

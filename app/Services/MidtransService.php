@@ -17,17 +17,33 @@ class MidtransService
 
     public function __construct()
     {
-        $this->serverKey = Config::get('services.midtrans.server_key');
-        $this->clientKey = Config::get('services.midtrans.client_key');
-        $this->environment = Config::get('services.midtrans.environment', 'sandbox');
-        $this->prefix = Config::get('services.midtrans.prefix', 'GATENSI');
+        // Try multiple methods to load the server key
+        $this->serverKey = env('MIDTRANS_SERVER_KEY') ?: Config::get('services.midtrans.server_key');
+        $this->clientKey = env('MIDTRANS_CLIENT_KEY') ?: Config::get('services.midtrans.client_key');
+        $this->environment = env('MIDTRANS_ENVIRONMENT', 'sandbox') ?: Config::get('services.midtrans.environment', 'sandbox');
+        $this->prefix = env('MIDTRANS_PREFIX', 'GATENSI') ?: Config::get('services.midtrans.prefix', 'GATENSI');
         $this->paymentMethods = Config::get('services.midtrans.payment_methods', []);
+
+        // Debug: Log configuration (without exposing full keys)
+        if (empty($this->serverKey)) {
+            Log::error('Midtrans server key is not configured', [
+                'env_direct' => env('MIDTRANS_SERVER_KEY'),
+                'config_value' => Config::get('services.midtrans.server_key'),
+            ]);
+        } else {
+            Log::info('Midtrans configured', [
+                'environment' => $this->environment,
+                'server_key_prefix' => substr($this->serverKey, 0, 15) . '...',
+                'client_key_prefix' => substr($this->clientKey, 0, 15) . '...',
+                'prefix' => $this->prefix,
+            ]);
+        }
     }
 
     /**
      * Calculate Midtrans fee based on payment method
      */
-    protected function calculateMidtransFee($amount, $paymentMethod)
+    public function calculateMidtransFee($amount, $paymentMethod)
     {
         $fee = 0;
 
@@ -72,7 +88,7 @@ class MidtransService
     /**
      * Get fee description for payment method
      */
-    protected function getFeeDescription($paymentMethod)
+    public function getFeeDescription($paymentMethod)
     {
         $descriptions = [
             'credit_card' => 'Biaya Kartu Kredit (2.9% + Rp 2.000)',
@@ -94,23 +110,38 @@ class MidtransService
     /**
      * Create Midtrans transaction with customer-paid fees
      */
-    public function createTransaction($invoice, $paymentMethod = 'bca_va')
+    public function createTransaction($invoice, $paymentMethod = null)
     {
+        // Validate invoice data
+        if (!$invoice || !isset($invoice->invoice_number) || !isset($invoice->total_biaya)) {
+            throw new Exception('Invalid invoice data provided');
+        }
+
         $orderId = $this->generateOrderId($invoice->invoice_number);
 
         // Calculate Midtrans fee to be paid by customer
         $baseAmount = (int) $invoice->total_biaya;
+
+        // Validate amount
+        if ($baseAmount <= 0) {
+            throw new Exception('Invalid invoice amount: ' . $baseAmount);
+        }
+
+        // If no specific payment method, use a default for calculation purposes
+        $paymentMethod = $paymentMethod ?: 'bca_va';
         $midtransFee = $this->calculateMidtransFee($baseAmount, $paymentMethod);
         $totalAmount = $baseAmount + $midtransFee; // Customer pays original amount + fee
 
+        // Build transaction data with proper structure
         $transactionData = [
             'payment_type' => $paymentMethod,
             'transaction_details' => [
                 'order_id' => $orderId,
-                'gross_amount' => (int) $totalAmount, // Include fees in amount
+                'gross_amount' => (int) $totalAmount, // Must match sum of item_details
             ],
             'customer_details' => [
-                'first_name' => $invoice->nama_tuk,
+                'first_name' => $invoice->nama_tuk ?? $invoice->nama ?? 'Customer',
+                'last_name' => '',
                 'email' => 'admin@gatensi.id',
                 'phone' => '08123456789',
             ],
@@ -127,8 +158,6 @@ class MidtransService
                     'quantity' => 1,
                     'price' => (int) $midtransFee, // Fee paid by customer
                 ],
-            ],
-                ]
             ],
         ];
 
@@ -154,7 +183,9 @@ class MidtransService
                 'base_amount' => $baseAmount,
                 'midtrans_fee' => $midtransFee,
                 'total_amount' => $totalAmount,
-                'payment_method' => $paymentMethod
+                'payment_method' => $paymentMethod,
+                'server_key_prefix' => substr($this->serverKey, 0, 10) . '...',
+                'environment' => $this->environment,
             ]);
 
             $response = Http::withHeaders([
@@ -191,6 +222,7 @@ class MidtransService
                 'order_id' => $orderId,
                 'status' => $response->status(),
                 'response' => $response->json(),
+                'request_payload' => $transactionData,
             ]);
 
             throw new Exception('Midtrans API returned status ' . $response->status() . ': ' . $response->body());
@@ -295,11 +327,159 @@ class MidtransService
      */
     public function getPaymentUrl($transaction)
     {
+        $orderId = $transaction['order_id'] ?? '';
+
         if ($this->environment === 'production') {
-            return 'https://app.midtrans.com/ payment/' . $transaction['order_id'] ?? '';
+            return 'https://app.midtrans.com/payment/' . $orderId;
         }
 
-        return 'https://app.sandbox.midtrans.com/ payment/' . $transaction['order_id'] ?? '';
+        return 'https://app.sandbox.midtrans.com/payment/' . $orderId;
+    }
+
+    /**
+     * Create Snap transaction (for popup modal)
+     * This is the preferred method for Snap integration
+     */
+    public function createSnapTransaction($invoice, $paymentMethod = null)
+    {
+        $orderId = $this->generateOrderId($invoice->invoice_number);
+        $baseAmount = (int) $invoice->total_biaya;
+
+        // Validate amount
+        if ($baseAmount <= 0) {
+            throw new Exception('Invalid invoice amount: ' . $baseAmount);
+        }
+
+        // Validate server key
+        if (empty($this->serverKey)) {
+            throw new Exception('Midtrans server key is not configured');
+        }
+
+        // Calculate Midtrans fee (default to bca_va for calculation if not specified)
+        $paymentMethod = $paymentMethod ?: 'bca_va';
+        $midtransFee = (int) $this->calculateMidtransFee($baseAmount, $paymentMethod);
+        $totalAmount = $baseAmount + $midtransFee;
+
+        // Get the frontend URL for redirects
+        $frontendUrl = env('FRONTEND_URL', 'https://devgatensi.site');
+
+        // For Snap, include item details with admin fee
+        $transactionData = [
+            'transaction_details' => [
+                'order_id' => $orderId,
+                'gross_amount' => $totalAmount,
+            ],
+            'item_details' => [
+                [
+                    'id' => $invoice->invoice_number,
+                    'name' => 'Invoice ' . $invoice->invoice_number,
+                    'quantity' => 1,
+                    'price' => $baseAmount,
+                ],
+                [
+                    'id' => 'midtrans_fee',
+                    'name' => $this->getFeeDescription($paymentMethod),
+                    'quantity' => 1,
+                    'price' => $midtransFee,
+                ],
+            ],
+            // Enable specific payment methods
+            'enabled_payments' => $this->getEnabledPaymentMethods(),
+            // Add redirect URLs to handle callbacks
+            'callbacks' => [
+                'finish' => $frontendUrl . '/invoice/history?payment_status=success',
+                'error' => $frontendUrl . '/invoice/history?payment_status=error',
+                'pending' => $frontendUrl . '/invoice/history?payment_status=pending',
+            ],
+        ];
+
+        try {
+            Log::info('Midtrans Snap transaction creation started', [
+                'order_id' => $orderId,
+                'invoice_number' => $invoice->invoice_number,
+                'base_amount' => $baseAmount,
+                'midtrans_fee' => $midtransFee,
+                'total_amount' => $totalAmount,
+                'environment' => $this->environment,
+                'server_key_length' => strlen($this->serverKey),
+                'server_key_format' => preg_match('/^SB-Mid-server-/', $this->serverKey) ? 'valid_sandbox' : 'invalid_or_production',
+            ]);
+
+            // Use Snap API endpoint
+            $snapUrl = $this->environment === 'production'
+                ? 'https://app.midtrans.com/snap/v1/transactions'
+                : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
+
+            $authHeader = 'Basic ' . base64_encode($this->serverKey . ':');
+
+            Log::debug('Midtrans API request details', [
+                'snap_url' => $snapUrl,
+                'auth_header_length' => strlen($authHeader),
+                'payload' => $transactionData,
+            ]);
+
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+                'Authorization' => $authHeader,
+            ])->timeout(30)
+              ->connectTimeout(30)
+              ->retry(3, 1000)
+              ->post($snapUrl, $transactionData);
+
+            if ($response->successful()) {
+                $responseData = $response->json();
+
+                Log::info('Midtrans Snap transaction created successfully', [
+                    'order_id' => $orderId,
+                    'token' => $responseData['token'] ?? null,
+                    'redirect_url' => $responseData['redirect_url'] ?? null,
+                ]);
+
+                return $responseData;
+            }
+
+            $responseBody = $response->body();
+            $responseData = $response->json();
+
+            Log::error('Midtrans Snap transaction failed', [
+                'order_id' => $orderId,
+                'status' => $response->status(),
+                'response' => $responseData,
+                'response_body' => substr($responseBody, 0, 500),
+                'request_payload' => $transactionData,
+                'snap_url' => $snapUrl,
+                'auth_header' => substr($authHeader, 0, 20) . '...',
+            ]);
+
+            throw new Exception('Midtrans Snap API returned status ' . $response->status() . ': ' . $responseBody);
+
+        } catch (Exception $e) {
+            Log::error('Midtrans Snap transaction creation error', [
+                'order_id' => $orderId,
+                'invoice_number' => $invoice->invoice_number,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Get enabled payment methods for Snap
+     */
+    public function getEnabledPaymentMethods()
+    {
+        return [
+            'credit_card',
+            'bca_va',
+            'bni_va',
+            'mandiri_va',
+            'permata_va',
+            'gopay',
+            'shopeepay',
+            'qris',
+        ];
     }
 
     /**
@@ -352,16 +532,20 @@ class MidtransService
 
     /**
      * Generate order ID
+     * Midtrans only allows alphanumeric characters, dash, underscore, and dot
      */
-    protected function generateOrderId($invoiceNumber)
+    public function generateOrderId($invoiceNumber)
     {
-        return $this->prefix . '-' . $invoiceNumber . '-' . time();
+        // Remove forward slashes and other special characters from invoice number
+        $cleanInvoiceNumber = str_replace(['/', ' ', '.'], '-', $invoiceNumber);
+
+        return $this->prefix . '-' . $cleanInvoiceNumber . '-' . time();
     }
 
     /**
      * Generate VA number
      */
-    protected function generateVANumber()
+    public function generateVANumber()
     {
         return rand(1000000000, 9999999999);
     }
@@ -369,7 +553,7 @@ class MidtransService
     /**
      * Get API URL based on environment
      */
-    protected function getApiUrl()
+    public function getApiUrl()
     {
         $baseUrl = $this->environment === 'production'
             ? 'https://api.midtrans.com/v2'
