@@ -35,4 +35,18 @@ return [
         ],
     ],
 
+    'midtrans' => [
+        'server_key' => env('MIDTRANS_SERVER_KEY'),
+        'client_key' => env('MIDTRANS_CLIENT_KEY'),
+        'environment' => env('MIDTRANS_ENVIRONMENT', 'sandbox'),
+        'prefix' => env('MIDTRANS_PREFIX', 'GATENSI'),
+        'payment_methods' => [
+            'credit_card' => env('MIDTRANS_CC_ENABLED', true),
+            'bca_va' => env('MIDTRANS_BCA_ENABLED', true),
+            'bni_va' => env('MIDTRANS_BNI_ENABLED', true),
+            'mandiri_va' => env('MIDTRANS_MANDIRI_ENABLED', true),
+            'gopay' => env('MIDTRANS_GOPAY_ENABLED', true),
+        ],
+    ],
+
 ];

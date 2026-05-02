@@ -17,6 +17,7 @@ use App\Http\Controllers\PermohonanController;
 use App\Http\Controllers\HitStatusController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\JabatanKerjaController;
+use App\Http\Controllers\MidtransWebhookController;
 use App\Http\Controllers\JadwalController;
 use App\Http\Controllers\JenisAnggaranController;
 use App\Http\Controllers\JenisKelasController;
@@ -167,9 +168,15 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/rekening', [InvoiceController::class, 'rekening']);
         Route::get('/konfirmasi', [InvoiceController::class, 'viewKonfirmasi']);
         Route::get('/history', [InvoiceController::class, 'history']);
+        Route::get('/unpaid', [InvoiceController::class, 'getUnpaidInvoices']);
         Route::post('/create', [InvoiceController::class, 'createInvoice']);
         Route::post('/konfirmasi', [InvoiceController::class, 'confirmInvoice']);
+        Route::post('/{invoice}/midtrans-pay', [InvoiceController::class, 'createMidtransPayment']);
+        Route::get('/{invoice}/midtrans-status', [InvoiceController::class, 'checkMidtransStatus']);
     });
+
+    // Midtrans webhook (no auth required)
+    Route::post('/midtrans/webhook', [MidtransWebhookController::class, 'handlePaymentNotification']);
 
     Route::prefix('jadwal')->group(function () {
         Route::get('/', [JadwalController::class, 'index']);

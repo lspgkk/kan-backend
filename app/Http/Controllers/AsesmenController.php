@@ -1952,10 +1952,12 @@ class AsesmenController extends Controller
         $essayAnswersFormatted = [];
 
         foreach ($data['answers'] as $answer) {
+            // Only include non-null answers
             if ($answer->answer !== null) {
                 $answersFormatted[$answer->referensi_id] = $answer->answer;
             }
-            if ($answer->essay_answer !== null) {
+            // Only include non-null essay answers
+            if ($answer->essay_answer !== null && $answer->essay_answer !== '') {
                 $essayAnswersFormatted[$answer->referensi_id] = $answer->essay_answer;
             }
         }
@@ -1969,11 +1971,13 @@ class AsesmenController extends Controller
 
         return response()->json([
             'message' => 'Success',
-            'data' => array_merge($data, [
+            'data' => [
+                'barcodes' => $data['barcodes'],
+                'referensi_form' => $data['referensi_form'],
                 'answers' => $answersFormatted,
                 'essay_answers' => $essayAnswersFormatted,
                 'form_data' => $formDataFormatted,
-            ]),
+            ],
         ]);
     }
 
@@ -3240,10 +3244,12 @@ class AsesmenController extends Controller
     {
         $validated = $request->validate([
             'dokumen_id' => 'required|integer',
-            'answers' => 'required|array',
-            'answers.*.referensi_id' => 'nullable|integer',
+            'answers' => 'nullable|array',
+            'answers.*.referensi_id' => 'required|integer',
             'answers.*.answer' => 'nullable|boolean',
-            'answers.*.essay_answer' => 'nullable|string',
+            'essay_answers' => 'nullable|array',
+            'essay_answers.*.referensi_id' => 'required|integer',
+            'essay_answers.*.essay_answer' => 'nullable|string',
             'nama_pengawas' => 'nullable|string',
             'tempat_kerja' => 'nullable|string',
             'alamat' => 'nullable|string',
@@ -3262,19 +3268,56 @@ class AsesmenController extends Controller
                 ]
             );
 
-            // Save answers
-            foreach ($validated['answers'] as $answer) {
-                if (!empty($answer['referensi_id'])) {
-                    Ia10Answer::updateOrCreate(
-                        [
-                            'id_izin' => $idIzin,
-                            'referensi_id' => $answer['referensi_id'],
-                        ],
-                        [
-                            'answer' => $answer['answer'] ?? null,
-                            'essay_answer' => $answer['essay_answer'] ?? null,
-                        ]
-                    );
+            // Combine all answers by referensi_id
+            $allAnswers = [];
+
+            // Process yes/no answers
+            if (!empty($validated['answers'])) {
+                foreach ($validated['answers'] as $answer) {
+                    $refId = $answer['referensi_id'];
+                    if (!isset($allAnswers[$refId])) {
+                        $allAnswers[$refId] = [];
+                    }
+                    $allAnswers[$refId]['answer'] = $answer['answer'] ?? null;
+                }
+            }
+
+            // Process essay answers
+            if (!empty($validated['essay_answers'])) {
+                foreach ($validated['essay_answers'] as $answer) {
+                    $refId = $answer['referensi_id'];
+                    if (!isset($allAnswers[$refId])) {
+                        $allAnswers[$refId] = [];
+                    }
+                    $allAnswers[$refId]['essay_answer'] = $answer['essay_answer'] ?? null;
+                }
+            }
+
+            // Save all answers
+            foreach ($allAnswers as $referensiId => $answerData) {
+                $existingAnswer = Ia10Answer::where('id_izin', $idIzin)
+                    ->where('referensi_id', $referensiId)
+                    ->first();
+
+                $updateData = [];
+                if (isset($answerData['answer'])) {
+                    $updateData['answer'] = $answerData['answer'];
+                }
+                if (isset($answerData['essay_answer'])) {
+                    $updateData['essay_answer'] = $answerData['essay_answer'];
+                }
+
+                if ($existingAnswer) {
+                    // Update existing record, preserving fields not in current submission
+                    $existingAnswer->update($updateData);
+                } else {
+                    // Create new record
+                    Ia10Answer::create([
+                        'id_izin' => $idIzin,
+                        'referensi_id' => $referensiId,
+                        'answer' => $updateData['answer'] ?? null,
+                        'essay_answer' => $updateData['essay_answer'] ?? null,
+                    ]);
                 }
             }
         });
@@ -3303,15 +3346,17 @@ class AsesmenController extends Controller
             abort(404, 'Dokumen header not found');
         }
 
-        // Format answers from buildData
+        // Format answers from buildData - separate yes/no and essay answers
         $answersFormatted = [];
         $essayAnswersFormatted = [];
 
         foreach ($dataDokumen['answers'] as $answer) {
+            // Only include non-null yes/no answers
             if ($answer->answer !== null) {
                 $answersFormatted[$answer->referensi_id] = $answer->answer;
             }
-            if ($answer->essay_answer !== null) {
+            // Only include non-empty essay answers
+            if ($answer->essay_answer !== null && $answer->essay_answer !== '') {
                 $essayAnswersFormatted[$answer->referensi_id] = $answer->essay_answer;
             }
         }

@@ -59,6 +59,14 @@ class Invoice extends Model
         'input_date',
         'input_by',
         'sin_server',
+        'payment_method',
+        'payment_status',
+        'midtrans_order_id',
+        'midtrans_transaction_id',
+        'midtrans_payment_type',
+        'midtrans_va_number',
+        'midtrans_callback_response',
+        'midtrans_paid_at',
     ];
 
     /**
@@ -88,5 +96,65 @@ class Invoice extends Model
             'no_invoice',        // FK on invoice_details
             'invoice_number'     // PK on invoices
         );
+    }
+
+    /**
+     * Relationship: Invoice has one Midtrans transaction
+     */
+    public function midtransTransaction()
+    {
+        return $this->hasOne(
+            \App\Models\MidtransTransaction::class,
+            'invoice_number',     // FK on midtrans_transactions
+            'invoice_number'      // PK on invoices
+        );
+    }
+
+    /**
+     * Scope: Filter unpaid invoices
+     */
+    public function scopeUnpaid($query)
+    {
+        return $query->where('payment_status', 'unpaid');
+    }
+
+    /**
+     * Scope: Filter paid invoices
+     */
+    public function scopePaid($query)
+    {
+        return $query->where('payment_status', 'paid');
+    }
+
+    /**
+     * Scope: Filter by payment method
+     */
+    public function scopePaymentMethod($query, $method)
+    {
+        return $query->where('payment_method', $method);
+    }
+
+    /**
+     * Check if invoice is paid via Midtrans
+     */
+    public function isPaidViaMidtrans()
+    {
+        return $this->payment_method === 'midtrans' && $this->payment_status === 'paid';
+    }
+
+    /**
+     * Check if invoice is unpaid
+     */
+    public function isUnpaid()
+    {
+        return $this->payment_status === 'unpaid';
+    }
+
+    /**
+     * Check if invoice uses manual payment
+     */
+    public function isManualPayment()
+    {
+        return $this->payment_method === 'manual';
     }
 }
