@@ -659,20 +659,23 @@ class InvoiceController extends Controller
                 // Import MidtransService
                 $midtransService = new \App\Services\MidtransService();
 
-                // Create Midtrans transaction
+                // Calculate fee breakdown before creating transaction
+                $feeBreakdown = $midtransService->getFeeBreakdown($invoice->total_biaya, 'bca_va');
+
+                // Create Midtrans transaction (this includes fees automatically)
                 $midtransTransaction = $midtransService->createTransaction($invoice, 'bca_va');
 
-                // Save Midtrans transaction details
+                // Save Midtrans transaction details with fee information
                 \App\Models\MidtransTransaction::create([
                     'order_id' => $midtransTransaction['order_id'],
                     'invoice_number' => $latest_invno,
                     'transaction_id' => $midtransTransaction['transaction_id'] ?? null,
                     'status' => $midtransTransaction['status_code'] ?? 'pending',
                     'payment_type' => $midtransTransaction['payment_type'] ?? 'bca_va',
-                    'gross_amount' => $invoice->total_biaya,
+                    'gross_amount' => $feeBreakdown['total_amount'], // Total including fees
                     'bank' => $midtransTransaction['va_numbers'][0]['bank'] ?? 'bca',
                     'va_number' => $midtransTransaction['va_numbers'][0]['va_number'] ?? null,
-                    'payment_details' => $midtransTransaction,
+                    'payment_details' => array_merge($midtransTransaction, $feeBreakdown), // Include fee breakdown
                     'callback_response' => null,
                 ]);
 
@@ -684,12 +687,15 @@ class InvoiceController extends Controller
                     'midtrans_va_number' => $midtransTransaction['va_numbers'][0]['va_number'] ?? null,
                 ]);
 
-                // Add Midtrans details to response
+                // Add Midtrans details to response with fee breakdown
                 $responseData['midtrans'] = [
                     'order_id' => $midtransTransaction['order_id'],
                     'va_number' => $midtransTransaction['va_numbers'][0]['va_number'] ?? null,
                     'bank' => $midtransTransaction['va_numbers'][0]['bank'] ?? 'bca',
-                    'amount' => $invoice->total_biaya,
+                    'base_amount' => $feeBreakdown['base_amount'], // Original invoice amount
+                    'midtrans_fee' => $feeBreakdown['midtrans_fee'], // Fee paid by customer
+                    'total_amount' => $feeBreakdown['total_amount'], // Total customer pays
+                    'fee_description' => $feeBreakdown['fee_description'],
                     'payment_url' => $midtransService->getPaymentUrl($midtransTransaction),
                 ];
 
@@ -832,6 +838,9 @@ class InvoiceController extends Controller
             $midtransService = new \App\Services\MidtransService();
             $midtransTransaction = $midtransService->createTransaction($invoice, 'bca_va');
 
+            // Calculate fee breakdown for display
+            $feeBreakdown = $midtransService->getFeeBreakdown($invoice->total_biaya, 'bca_va');
+
             // Save Midtrans transaction details
             \App\Models\MidtransTransaction::create([
                 'order_id' => $midtransTransaction['order_id'],
@@ -839,10 +848,10 @@ class InvoiceController extends Controller
                 'transaction_id' => $midtransTransaction['transaction_id'] ?? null,
                 'status' => $midtransTransaction['status_code'] ?? 'pending',
                 'payment_type' => $midtransTransaction['payment_type'] ?? 'bca_va',
-                'gross_amount' => $invoice->total_biaya,
+                'gross_amount' => $feeBreakdown['total_amount'], // Store total including fees
                 'bank' => $midtransTransaction['va_numbers'][0]['bank'] ?? 'bca',
                 'va_number' => $midtransTransaction['va_numbers'][0]['va_number'] ?? null,
-                'payment_details' => $midtransTransaction,
+                'payment_details' => array_merge($midtransTransaction, $feeBreakdown), // Include fee breakdown
                 'callback_response' => null,
             ]);
 
@@ -862,7 +871,10 @@ class InvoiceController extends Controller
                     'order_id' => $midtransTransaction['order_id'],
                     'va_number' => $midtransTransaction['va_numbers'][0]['va_number'] ?? null,
                     'bank' => $midtransTransaction['va_numbers'][0]['bank'] ?? 'bca',
-                    'amount' => $invoice->total_biaya,
+                    'base_amount' => $feeBreakdown['base_amount'], // Original invoice amount
+                    'midtrans_fee' => $feeBreakdown['midtrans_fee'], // Fee paid by customer
+                    'total_amount' => $feeBreakdown['total_amount'], // Total customer pays
+                    'fee_description' => $feeBreakdown['fee_description'],
                     'payment_url' => $midtransService->getPaymentUrl($midtransTransaction),
                 ]
             ]);
@@ -934,6 +946,55 @@ class InvoiceController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to check Midtrans status: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get Midtrans fee breakdown for an invoice
+     */
+    public function getMidtransFeeBreakdown(Request $request, $invoiceNumber)
+    {
+        try {
+            $invoice = Invoice::where('invoice_number', $invoiceNumber)->first();
+
+            if (!$invoice) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invoice not found'
+                ], 404);
+            }
+
+            $paymentMethod = $request->input('payment_method', 'bca_va');
+            $midtransService = new \App\Services\MidtransService();
+            $feeBreakdown = $midtransService->getFeeBreakdown($invoice->total_biaya, $paymentMethod);
+
+            // Get supported payment methods
+            $supportedMethods = $midtransService->getSupportedPaymentMethods();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Fee breakdown retrieved successfully',
+                'data' => [
+                    'invoice_number' => $invoiceNumber,
+                    'base_amount' => $feeBreakdown['base_amount'],
+                    'midtrans_fee' => $feeBreakdown['midtrans_fee'],
+                    'total_amount' => $feeBreakdown['total_amount'],
+                    'fee_description' => $feeBreakdown['fee_description'],
+                    'payment_method' => $paymentMethod,
+                    'supported_methods' => $supportedMethods,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to get fee breakdown', [
+                'invoice_number' => $invoiceNumber,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get fee breakdown: ' . $e->getMessage()
             ], 500);
         }
     }

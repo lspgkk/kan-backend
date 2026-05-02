@@ -173,6 +173,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/konfirmasi', [InvoiceController::class, 'confirmInvoice']);
         Route::post('/{invoice}/midtrans-pay', [InvoiceController::class, 'createMidtransPayment']);
         Route::get('/{invoice}/midtrans-status', [InvoiceController::class, 'checkMidtransStatus']);
+        Route::get('/{invoice}/midtrans-fees', [InvoiceController::class, 'getMidtransFeeBreakdown']);
     });
 
     // Midtrans webhook (no auth required)

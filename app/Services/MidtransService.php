@@ -25,17 +25,89 @@ class MidtransService
     }
 
     /**
-     * Create Midtrans transaction
+     * Calculate Midtrans fee based on payment method
+     */
+    protected function calculateMidtransFee($amount, $paymentMethod)
+    {
+        $fee = 0;
+
+        switch ($paymentMethod) {
+            case 'credit_card':
+                // 2.9% + IDR 2,000
+                $fee = ($amount * 0.029) + 2000;
+                break;
+            case 'bca_va':
+            case 'bni_va':
+            case 'mandiri_va':
+            case 'permata_va':
+            case 'other_va':
+                // Flat fee IDR 4,000
+                $fee = 4000;
+                break;
+            case 'gopay':
+            case 'shopeepay':
+            case 'qris':
+                // 2% of transaction amount
+                $fee = $amount * 0.02;
+                break;
+            case 'bca_klikpay':
+            case 'cimb_clicks':
+                // 4.5% of transaction amount + IDR 2,000
+                $fee = ($amount * 0.045) + 2000;
+                break;
+            case 'bri_epay':
+                // 3.2% of transaction amount + IDR 2,000
+                $fee = ($amount * 0.032) + 2000;
+                break;
+            default:
+                // Default VA fee
+                $fee = 4000;
+                break;
+        }
+
+        // Ensure minimum fee
+        return max($fee, 0);
+    }
+
+    /**
+     * Get fee description for payment method
+     */
+    protected function getFeeDescription($paymentMethod)
+    {
+        $descriptions = [
+            'credit_card' => 'Biaya Kartu Kredit (2.9% + Rp 2.000)',
+            'bca_va' => 'Biaya Admin BCA VA (Rp 4.000)',
+            'bni_va' => 'Biaya Admin BNI VA (Rp 4.000)',
+            'mandiri_va' => 'Biaya Admin Mandiri VA (Rp 4.000)',
+            'permata_va' => 'Biaya Admin Permata VA (Rp 4.000)',
+            'gopay' => 'Biaya Admin GoPay (2%)',
+            'shopeepay' => 'Biaya Admin ShopeePay (2%)',
+            'qris' => 'Biaya Admin QRIS (2%)',
+            'bca_klikpay' => 'Biaya Admin BCA Klikpay (4.5% + Rp 2.000)',
+            'cimb_clicks' => 'Biaya Admin CIMB Clicks (4.5% + Rp 2.000)',
+            'bri_epay' => 'Biaya Admin BRI E-Pay (3.2% + Rp 2.000)',
+        ];
+
+        return $descriptions[$paymentMethod] ?? 'Biaya Admin';
+    }
+
+    /**
+     * Create Midtrans transaction with customer-paid fees
      */
     public function createTransaction($invoice, $paymentMethod = 'bca_va')
     {
         $orderId = $this->generateOrderId($invoice->invoice_number);
 
+        // Calculate Midtrans fee to be paid by customer
+        $baseAmount = (int) $invoice->total_biaya;
+        $midtransFee = $this->calculateMidtransFee($baseAmount, $paymentMethod);
+        $totalAmount = $baseAmount + $midtransFee; // Customer pays original amount + fee
+
         $transactionData = [
             'payment_type' => $paymentMethod,
             'transaction_details' => [
                 'order_id' => $orderId,
-                'gross_amount' => (int) $invoice->total_biaya,
+                'gross_amount' => (int) $totalAmount, // Include fees in amount
             ],
             'customer_details' => [
                 'first_name' => $invoice->nama_tuk,
@@ -47,7 +119,15 @@ class MidtransService
                     'id' => $invoice->invoice_number,
                     'name' => 'Invoice ' . $invoice->invoice_number,
                     'quantity' => 1,
-                    'price' => (int) $invoice->total_biaya,
+                    'price' => $baseAmount, // Original invoice amount
+                ],
+                [
+                    'id' => 'midtrans_fee',
+                    'name' => $this->getFeeDescription($paymentMethod),
+                    'quantity' => 1,
+                    'price' => (int) $midtransFee, // Fee paid by customer
+                ],
+            ],
                 ]
             ],
         ];
@@ -71,7 +151,9 @@ class MidtransService
             Log::info('Midtrans transaction creation started', [
                 'order_id' => $orderId,
                 'invoice_number' => $invoice->invoice_number,
-                'amount' => $invoice->total_biaya,
+                'base_amount' => $baseAmount,
+                'midtrans_fee' => $midtransFee,
+                'total_amount' => $totalAmount,
                 'payment_method' => $paymentMethod
             ]);
 
@@ -97,6 +179,9 @@ class MidtransService
                     'status_code' => $responseData['status_code'],
                     'transaction_id' => $responseData['transaction_id'] ?? null,
                     'payment_type' => $responseData['payment_type'] ?? null,
+                    'base_amount' => $baseAmount,
+                    'midtrans_fee' => $midtransFee,
+                    'total_amount' => $totalAmount,
                 ]);
 
                 return $responseData;
@@ -189,6 +274,23 @@ class MidtransService
     }
 
     /**
+     * Get fee breakdown for display
+     */
+    public function getFeeBreakdown($amount, $paymentMethod)
+    {
+        $midtransFee = $this->calculateMidtransFee($amount, $paymentMethod);
+        $totalAmount = $amount + $midtransFee;
+
+        return [
+            'base_amount' => $amount,
+            'midtrans_fee' => $midtransFee,
+            'total_amount' => $totalAmount,
+            'fee_description' => $this->getFeeDescription($paymentMethod),
+            'payment_method' => $paymentMethod,
+        ];
+    }
+
+    /**
      * Get payment redirect URL
      */
     public function getPaymentUrl($transaction)
@@ -206,6 +308,46 @@ class MidtransService
     public function getAvailablePaymentMethods()
     {
         return array_keys(array_filter($this->paymentMethods, fn($enabled) => $enabled));
+    }
+
+    /**
+     * Get supported payment methods with fees
+     */
+    public function getSupportedPaymentMethods()
+    {
+        return [
+            'credit_card' => [
+                'name' => 'Kartu Kredit',
+                'fee_type' => 'percentage',
+                'fee_rate' => 2.9,
+                'fixed_fee' => 2000,
+                'description' => '2.9% + Rp 2.000',
+            ],
+            'bca_va' => [
+                'name' => 'BCA Virtual Account',
+                'fee_type' => 'fixed',
+                'fixed_fee' => 4000,
+                'description' => 'Rp 4.000',
+            ],
+            'bni_va' => [
+                'name' => 'BNI Virtual Account',
+                'fee_type' => 'fixed',
+                'fixed_fee' => 4000,
+                'description' => 'Rp 4.000',
+            ],
+            'mandiri_va' => [
+                'name' => 'Mandiri Virtual Account',
+                'fee_type' => 'fixed',
+                'fixed_fee' => 4000,
+                'description' => 'Rp 4.000',
+            ],
+            'gopay' => [
+                'name' => 'GoPay',
+                'fee_type' => 'percentage',
+                'fee_rate' => 2.0,
+                'description' => '2%',
+            ],
+        ];
     }
 
     /**
