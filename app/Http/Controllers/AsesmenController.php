@@ -18,6 +18,12 @@ use App\Models\BuktiAsesmen;
 use App\Models\Ia1Answer;
 use App\Models\Ia1Feedback;
 use App\Models\Ia1Recommendation;
+use App\Models\Ia08Answer;
+use App\Models\Ia08Recommendation;
+use App\Models\Ia08UnitAnswer;
+use App\Models\Ia09Answer;
+use App\Models\Ia10Answer;
+use App\Models\Ia10FormData;
 use App\Models\Ia3Answer;
 use App\Models\Ia3Feedback;
 use App\Models\Ia4aAnswer;
@@ -1709,6 +1715,19 @@ class AsesmenController extends Controller
             ];
         }
 
+        /** 🔹 Load saved APL2 answers */
+        $apl2Answers = Ia08Answer::where('id_izin', $id)
+            ->get()
+            ->keyBy('soal_id');
+
+        /** 🔹 Load saved unit answers */
+        $unitAnswers = Ia08UnitAnswer::where('id_izin', $id)
+            ->get()
+            ->keyBy('soal_id');
+
+        /** 🔹 Load saved recommendation */
+        $recommendation = Ia08Recommendation::where('id_izin', $id)->first();
+
         $questions = Soal::query()
             ->with(['unit:id,kode', 'kuk:id,kode', 'subunit:id,nama'])
             ->where('soals.id_dokumen', $dokumen->id)
@@ -1741,6 +1760,9 @@ class AsesmenController extends Controller
             'soal' => $questions,
             'referensi' => $referensi,
             'files' => $files,
+            'apl2_answers' => $apl2Answers,
+            'unit_answers' => $unitAnswers,
+            'recommendation' => $recommendation,
         ];
     }
 
@@ -1755,9 +1777,37 @@ class AsesmenController extends Controller
             ], 404);
         }
 
+        // Format answers for API response
+        $apl2AnswersFormatted = [];
+        foreach ($data['apl2_answers'] as $answer) {
+            $apl2AnswersFormatted[$answer->soal_id] = [
+                'valid' => $answer->valid,
+                'asli' => $answer->asli,
+                'terkini' => $answer->terkini,
+                'memadai' => $answer->memadai,
+            ];
+        }
+
+        $unitAnswersFormatted = [];
+        foreach ($data['unit_answers'] as $answer) {
+            $unitAnswersFormatted[$answer->soal_id] = $answer->is_checked;
+        }
+
+        $recommendationFormatted = $data['recommendation'] ? [
+            'is_kompeten' => $data['recommendation']->is_kompeten,
+            'bukti_tambahan' => $data['recommendation']->bukti_tambahan,
+            'rekomendasi_unit' => $data['recommendation']->rekomendasi_unit,
+            'rekomendasi_elemen' => $data['recommendation']->rekomendasi_elemen,
+            'rekomendasi_kuk' => $data['recommendation']->rekomendasi_kuk,
+        ] : null;
+
         return response()->json([
             'message' => 'Success',
-            'data' => $data,
+            'data' => array_merge($data, [
+                'apl2_answers' => $apl2AnswersFormatted,
+                'unit_answers' => $unitAnswersFormatted,
+                'recommendation' => $recommendationFormatted,
+            ]),
         ]);
     }
 
@@ -1793,6 +1843,11 @@ class AsesmenController extends Controller
             ];
         }
 
+        /** 🔹 Load saved answers */
+        $answers = Ia09Answer::where('id_izin', $id)
+            ->get()
+            ->keyBy('soal_id');
+
         $questions = Soal::query()
             ->where('soals.id_dokumen', $dokumen->id)
             ->orderBy('soals.no', 'asc')
@@ -1811,6 +1866,7 @@ class AsesmenController extends Controller
             'dokumen' => $dokumen,
             'soal' => $questions,
             'files' => $files,
+            'answers' => $answers,
         ];
     }
 
@@ -1825,9 +1881,20 @@ class AsesmenController extends Controller
             ], 404);
         }
 
+        // Format answers for API response
+        $answersFormatted = [];
+        foreach ($data['answers'] as $answer) {
+            $answersFormatted[$answer->soal_id] = [
+                'kesimpulan' => $answer->kesimpulan,
+                'is_kompeten' => $answer->is_kompeten,
+            ];
+        }
+
         return response()->json([
             'message' => 'Success',
-            'data' => $data,
+            'data' => array_merge($data, [
+                'answers' => $answersFormatted,
+            ]),
         ]);
     }
 
@@ -1847,6 +1914,14 @@ class AsesmenController extends Controller
         /** ✅ Shared barcode resolver */
         $barcodes = $this->resolveDocumentBarcodes($id, 'IA10', $forPdf);
 
+        /** 🔹 Load saved answers */
+        $answers = Ia10Answer::where('id_izin', $id)
+            ->get()
+            ->keyBy('referensi_id');
+
+        /** 🔹 Load saved form data */
+        $formData = Ia10FormData::where('id_izin', $id)->first();
+
         $referensis = Referensi::select(['id', 'nama', 'id_kelompok', 'no'])
             ->orderBy('no', 'asc')
             ->where('kategori', 'IA10')
@@ -1856,6 +1931,8 @@ class AsesmenController extends Controller
         return [
             'barcodes'        => $barcodes,
             'referensi_form'  => $referensis,
+            'answers'         => $answers,
+            'form_data'       => $formData,
         ];
     }
 
@@ -1870,9 +1947,33 @@ class AsesmenController extends Controller
             ], 404);
         }
 
+        // Format answers for API response
+        $answersFormatted = [];
+        $essayAnswersFormatted = [];
+
+        foreach ($data['answers'] as $answer) {
+            if ($answer->answer !== null) {
+                $answersFormatted[$answer->referensi_id] = $answer->answer;
+            }
+            if ($answer->essay_answer !== null) {
+                $essayAnswersFormatted[$answer->referensi_id] = $answer->essay_answer;
+            }
+        }
+
+        $formDataFormatted = $data['form_data'] ? [
+            'nama_pengawas' => $data['form_data']->nama_pengawas,
+            'tempat_kerja' => $data['form_data']->tempat_kerja,
+            'alamat' => $data['form_data']->alamat,
+            'telepon' => $data['form_data']->telepon,
+        ] : null;
+
         return response()->json([
             'message' => 'Success',
-            'data' => $data,
+            'data' => array_merge($data, [
+                'answers' => $answersFormatted,
+                'essay_answers' => $essayAnswersFormatted,
+                'form_data' => $formDataFormatted,
+            ]),
         ]);
     }
 
@@ -2618,6 +2719,9 @@ class AsesmenController extends Controller
             'url_ia_04a',
             'url_ia_04b',
             'url_ia_05',
+            'url_ia_08',
+            'url_ia_09',
+            'url_ia_10',
             'url_ak02',
             'url_ak03',
             'url_ak05',
@@ -2653,6 +2757,9 @@ class AsesmenController extends Controller
                 'ia04a' => $dokumen->url_ia_04a,
                 'ia04b' => $dokumen->url_ia_04b,
                 'ia05' => $dokumen->url_ia_05,
+                'ia08' => $dokumen->url_ia_08,
+                'ia09' => $dokumen->url_ia_09,
+                'ia10' => $dokumen->url_ia_10,
                 'ak02' => $dokumen->url_ak02,
                 'ak03' => $dokumen->url_ak03,
                 'ak05' => $dokumen->url_ak05,
@@ -2868,5 +2975,395 @@ class AsesmenController extends Controller
             'url_image' => $urlImage,
             'url_ttd'   => $urlTtd,
         ];
+    }
+
+    public function submitIa08(Request $request, $idIzin)
+    {
+        $validated = $request->validate([
+            'dokumen_id' => 'required|integer',
+            'apl2_answers' => 'required|array',
+            'apl2_answers.*.soal_id' => 'required|integer',
+            'apl2_answers.*.valid' => 'nullable|boolean',
+            'apl2_answers.*.asli' => 'nullable|boolean',
+            'apl2_answers.*.terkini' => 'nullable|boolean',
+            'apl2_answers.*.memadai' => 'nullable|boolean',
+            'unit_answers' => 'nullable|array',
+            'unit_answers.*.soal_id' => 'required|integer',
+            'unit_answers.*.is_checked' => 'nullable|boolean',
+            'bukti_tambahan' => 'nullable|string',
+            'is_kompeten' => 'required|boolean',
+            'rekomendasi_unit' => 'nullable|string',
+            'rekomendasi_elemen' => 'nullable|string',
+            'rekomendasi_kuk' => 'nullable|string',
+        ]);
+
+        DB::transaction(function () use ($validated, $idIzin) {
+            // Save APL2 answers
+            foreach ($validated['apl2_answers'] as $answer) {
+                Ia08Answer::updateOrCreate(
+                    [
+                        'id_izin' => $idIzin,
+                        'soal_id' => $answer['soal_id'],
+                    ],
+                    [
+                        'valid' => $answer['valid'] ?? null,
+                        'asli' => $answer['asli'] ?? null,
+                        'terkini' => $answer['terkini'] ?? null,
+                        'memadai' => $answer['memadai'] ?? null,
+                    ]
+                );
+            }
+
+            // Save unit answers
+            if (!empty($validated['unit_answers'])) {
+                foreach ($validated['unit_answers'] as $answer) {
+                    Ia08UnitAnswer::updateOrCreate(
+                        [
+                            'id_izin' => $idIzin,
+                            'soal_id' => $answer['soal_id'],
+                        ],
+                        [
+                            'is_checked' => $answer['is_checked'] ?? null,
+                        ]
+                    );
+                }
+            }
+
+            // Save recommendation
+            Ia08Recommendation::updateOrCreate(
+                ['id_izin' => $idIzin],
+                [
+                    'is_kompeten' => $validated['is_kompeten'],
+                    'bukti_tambahan' => $validated['bukti_tambahan'] ?? null,
+                    'rekomendasi_unit' => $validated['rekomendasi_unit'] ?? null,
+                    'rekomendasi_elemen' => $validated['rekomendasi_elemen'] ?? null,
+                    'rekomendasi_kuk' => $validated['rekomendasi_kuk'] ?? null,
+                ]
+            );
+        });
+
+        return response()->json([
+            'message' => 'IA08 answers saved successfully'
+        ]);
+    }
+
+    public function ttdIa08(Request $request, $id)
+    {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'IA08',
+            'ttd_ia08',
+            $id
+        );
+
+        $dataDokumen = $this->buildIa08Data($id, true);
+        if (!$dataDokumen) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        // Format answers from buildData
+        $apl2Answers = [];
+        foreach ($dataDokumen['apl2_answers'] as $answer) {
+            $apl2Answers[$answer->soal_id] = [
+                'valid' => $answer->valid,
+                'asli' => $answer->asli,
+                'terkini' => $answer->terkini,
+                'memadai' => $answer->memadai,
+            ];
+        }
+
+        $unitAnswers = [];
+        foreach ($dataDokumen['unit_answers'] as $answer) {
+            $unitAnswers[$answer->soal_id] = $answer->is_checked;
+        }
+
+        $recommendation = $dataDokumen['recommendation'];
+
+        $viewData = array_merge($dataDokumen, [
+            'dokumenHeader' => $dokumenHeader,
+            'answers' => $apl2Answers,
+            'unitAnswers' => $unitAnswers,
+            'isKompeten' => $recommendation?->is_kompeten,
+            'buktiTambahan' => $recommendation?->bukti_tambahan,
+            'rekomendasiUnit' => $recommendation?->rekomendasi_unit,
+            'rekomendasiElemen' => $recommendation?->rekomendasi_elemen,
+            'rekomendasiKuk' => $recommendation?->rekomendasi_kuk,
+        ]);
+
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.ia08', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/ia08';
+
+        // unique + traceable filename
+        $filename = 'FR-IA-08-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_ia_08' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
+    }
+
+    public function submitIa09(Request $request, $idIzin)
+    {
+        $validated = $request->validate([
+            'dokumen_id' => 'required|integer',
+            'answers' => 'required|array',
+            'answers.*.soal_id' => 'required|integer',
+            'answers.*.kesimpulan' => 'nullable|string',
+            'answers.*.is_kompeten' => 'nullable|boolean',
+        ]);
+
+        DB::transaction(function () use ($validated, $idIzin) {
+            foreach ($validated['answers'] as $answer) {
+                Ia09Answer::updateOrCreate(
+                    [
+                        'id_izin' => $idIzin,
+                        'soal_id' => $answer['soal_id'],
+                    ],
+                    [
+                        'kesimpulan' => $answer['kesimpulan'] ?? null,
+                        'is_kompeten' => $answer['is_kompeten'] ?? null,
+                    ]
+                );
+            }
+        });
+
+        return response()->json([
+            'message' => 'IA09 answers saved successfully'
+        ]);
+    }
+
+    public function ttdIa09(Request $request, $id)
+    {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'IA09',
+            'ttd_ia09',
+            $id
+        );
+
+        $dataDokumen = $this->buildIa09Data($id, true);
+        if (!$dataDokumen) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        // Format answers from buildData
+        $answers = [];
+        foreach ($dataDokumen['answers'] as $answer) {
+            $answers[$answer->soal_id] = [
+                'kesimpulan' => $answer->kesimpulan,
+                'is_kompeten' => $answer->is_kompeten,
+            ];
+        }
+
+        $viewData = array_merge($dataDokumen, [
+            'dokumenHeader' => $dokumenHeader,
+            'answers' => $answers,
+        ]);
+
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.ia09', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/ia09';
+
+        // unique + traceable filename
+        $filename = 'FR-IA-09-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_ia_09' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
+    }
+
+    public function submitIa10(Request $request, $idIzin)
+    {
+        $validated = $request->validate([
+            'dokumen_id' => 'required|integer',
+            'answers' => 'required|array',
+            'answers.*.referensi_id' => 'nullable|integer',
+            'answers.*.answer' => 'nullable|boolean',
+            'answers.*.essay_answer' => 'nullable|string',
+            'nama_pengawas' => 'nullable|string',
+            'tempat_kerja' => 'nullable|string',
+            'alamat' => 'nullable|string',
+            'telepon' => 'nullable|string',
+        ]);
+
+        DB::transaction(function () use ($validated, $idIzin) {
+            // Save form data
+            Ia10FormData::updateOrCreate(
+                ['id_izin' => $idIzin],
+                [
+                    'nama_pengawas' => $validated['nama_pengawas'] ?? null,
+                    'tempat_kerja' => $validated['tempat_kerja'] ?? null,
+                    'alamat' => $validated['alamat'] ?? null,
+                    'telepon' => $validated['telepon'] ?? null,
+                ]
+            );
+
+            // Save answers
+            foreach ($validated['answers'] as $answer) {
+                if (!empty($answer['referensi_id'])) {
+                    Ia10Answer::updateOrCreate(
+                        [
+                            'id_izin' => $idIzin,
+                            'referensi_id' => $answer['referensi_id'],
+                        ],
+                        [
+                            'answer' => $answer['answer'] ?? null,
+                            'essay_answer' => $answer['essay_answer'] ?? null,
+                        ]
+                    );
+                }
+            }
+        });
+
+        return response()->json([
+            'message' => 'IA10 answers saved successfully'
+        ]);
+    }
+
+    public function ttdIa10(Request $request, $id)
+    {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'IA10',
+            'ttd_ia10',
+            $id
+        );
+
+        $dataDokumen = $this->buildIa10Data($id, true);
+        if (!$dataDokumen) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        // Format answers from buildData
+        $answersFormatted = [];
+        $essayAnswersFormatted = [];
+
+        foreach ($dataDokumen['answers'] as $answer) {
+            if ($answer->answer !== null) {
+                $answersFormatted[$answer->referensi_id] = $answer->answer;
+            }
+            if ($answer->essay_answer !== null) {
+                $essayAnswersFormatted[$answer->referensi_id] = $answer->essay_answer;
+            }
+        }
+
+        $formData = $dataDokumen['form_data'];
+
+        $viewData = array_merge($dataDokumen, [
+            'dokumenHeader' => $dokumenHeader,
+            'answers' => $answersFormatted,
+            'essayAnswers' => $essayAnswersFormatted,
+            'namaPengawas' => $formData?->nama_pengawas,
+            'tempatKerja' => $formData?->tempat_kerja,
+            'alamatPengawas' => $formData?->alamat,
+            'teleponPengawas' => $formData?->telepon,
+        ]);
+
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.ia10', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/ia10';
+
+        // unique + traceable filename
+        $filename = 'FR-IA-10-' . $id . '-' . Str::uuid() . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_ia_10' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
     }
 }

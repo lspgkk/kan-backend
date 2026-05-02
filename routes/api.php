@@ -245,6 +245,9 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/ia04a', [AsesmenController::class, 'ttdIa04a']);
         Route::post('/{id}/ia04b', [AsesmenController::class, 'ttdIa04b']);
         Route::post('/{id}/ia05', [AsesmenController::class, 'ttdIa05']);
+        Route::post('/{id}/ia08', [AsesmenController::class, 'ttdIa08']);
+        Route::post('/{id}/ia09', [AsesmenController::class, 'ttdIa09']);
+        Route::post('/{id}/ia10', [AsesmenController::class, 'ttdIa10']);
         Route::post('/{id}/ak02', [AsesmenController::class, 'ttdAk02']);
         Route::post('/{id}/ak05', [AsesmenController::class, 'ttdAk05']);
         Route::post('/{id}/ak06', [AsesmenController::class, 'ttdAk06']);
@@ -276,6 +279,9 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/ia04b', [AsesmenController::class, 'submitIa04b']);
         Route::post('/{id}/nilai-ia04b', [AsesmenController::class, 'nilaiIa04b']);
         Route::post('/{id}/ia05', [AsesmenController::class, 'submitIa05']);
+        Route::post('/{id}/ia08', [AsesmenController::class, 'submitIa08']);
+        Route::post('/{id}/ia09', [AsesmenController::class, 'submitIa09']);
+        Route::post('/{id}/ia10', [AsesmenController::class, 'submitIa10']);
         Route::post('/{id}/ak02', [AsesmenController::class, 'submitAk02']);
         Route::post('/{id}/ak03', [AsesmenController::class, 'submitAk03']);
         Route::post('/{id}/ak05', [AsesmenController::class, 'submitAk05']);
