@@ -1,272 +1,287 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="id">
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <style>
-        /**
-                Set the margins of the page to 0, so the footer and the header
-                can be of the full height and width !
-             **/
-        @page {
-            margin: 0cm 0cm;
-            size: A4;
+<meta charset="UTF-8">
+<title>Berita Acara Keputusan Hasil Uji Kompetensi</title>
 
-        }
+<style>
 
-        /** Define now the real margins of every page in the PDF **/
-        body {
-            margin-top: 3cm;
-            margin-left: 2cm;
-            margin-right: 2cm;
-            margin-bottom: 2cm;
-        }
+body{
+    font-family: Arial, sans-serif;
+    background:#f3f3f3;
+}
 
-        /** Define the header rules **/
-        header {
-            position: fixed;
-            top: 0cm;
-            left: 0cm;
-            right: 0cm;
-            height: 3cm;
-        }
+.page{
+    width:800px;
+    height:1132px;
+    margin:40px auto;
+    background:#fff;
+    padding:40px 65px 45px 65px;
+    font-size:14px;
+    line-height:1.1;
+    box-sizing:border-box;
+    overflow:hidden;
+}
 
-        /** Define the footer rules **/
-        footer {
-            position: fixed;
-            bottom: 0cm;
-            left: 0cm;
-            right: 0cm;
-            height: 2cm;
-        }
+.page.first{
+    background:#fff url('{{ asset('images/kop-surat-1.png') }}') no-repeat top center;
+    background-size:100% auto;
+    padding:150px 65px 45px 65px;
+}
 
-        table {
-            /* table-layout: fixed; */
-            border-color: black;
-            border-collapse: collapse;
-        }
+/* HEADER */
 
-        td {
-            vertical-align: top;
-            padding: 5px;
-        }
+.center{
+    text-align:center;
+    font-weight:bold;
+}
 
-        th {
-            padding: 5px;
-        }
+.number{
+    text-align:center;
+    margin-top:4px;
+    margin-bottom:26px;
+}
 
-        li {
-            padding-left: 5px;
-        }
+.highlight{
+    font-weight: bold;
+}
 
-        body {
-            font-family: Arial, Helvetica, sans-serif;
-            font-size: 14px;
-            -webkit-print-color-adjust: exact !important;
-        }
+/* PARAGRAPH */
 
-        @media print {
-            .noprint {
-                display: none;
-            }
+.paragraph{
+    text-align:justify;
+    margin-bottom:10px;
+}
 
-            .nobg {
-                box-shadow: 0px 0px 5px 0px rgb(255, 255, 255);
-            }
+/* TABLE STANDARD */
 
-            .pagebreak {
-                page-break-after: always;
-            }
-        }
-    </style>
+.table{
+    width:100%;
+    border-collapse:collapse;
+    margin:10px 0 14px 0;
+}
+
+.table th,
+.table td{
+    border:1px solid black;
+    padding:6px 8px;
+}
+
+.table th{
+    background:#d9e1e7;
+    text-align:center;
+}
+
+/* WORD STYLE NUMBER LIST */
+
+.word-list{
+    margin-left:22px;
+    text-align:justify;
+}
+
+.word-list div{
+    margin-bottom:4px;
+}
+
+/* SIGNATURE TABLE HEIGHT LOCK */
+
+.sign-table td{
+    height:130px;
+    vertical-align:middle;
+}
+
+/* QR PLACEHOLDER */
+
+.qr{
+    width:92px;
+    height:92px;
+    border:2px solid black;
+    margin:auto;
+}
+
+.footer{
+    margin-top:14px;
+}
+.underline{
+    text-decoration:underline;
+}
+</style>
 </head>
 
 <body>
-    <!-- Define header and footer blocks before your content -->
-    <header>
-        <img src="./images/untuk-template/kop_satu.png" width="100%" />
-    </header>
 
-    <footer>
-        <img src="./images/untuk-template/kop_dua.png" width="100%" />
-    </footer>
+<div class="page first">
 
-    <!-- Wrap the content of your PDF inside a main tag -->
-    <main>
-        <div style="margin: 0 auto;">
-            <h3
-                style="
-                      text-align: center;
-                      padding-bottom: 8px;
-                      margin-bottom: 0px;
-                      font-weight: 200;">
-                BERITA ACARA KEPUTUSAN HASIL UJI KOMPETENSI
-            </h3>
-            <h3
-                style="
-                      text-align: center;
-                      padding-top: 0px;
-                      margin-top: 0px;
-                      font-weight: 300;
-                    ">
-                NO: {{ $no_surat }}
-            </h3>
-            <table width="90%" style="margin: 50px 0 0 0">
-                <tbody>
-                    <tr>
-                        <td style="text-align: justify">
-                            Pada hari ini Tanggal {{ $hari_tanggal }}, bertempat di telah
-                            diselenggarakan rapat Komite Teknis, yang dihadiri oleh:
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+<div class="center underline">
+BERITA ACARA KEPUTUSAN HASIL UJI KOMPETENSI
+</div>
 
-            <table width="90%" style="margin: 12px 0 0 0">
-                <tbody>
-                    <tr>
-                        <td style="width: 12px; padding-bottom: 12px">1)</td>
-                        <td>{{ $komtek1 }}</td>
-                    </tr>
-                    <tr>
-                        <td style="width: 12px; padding-bottom: 12px">2)</td>
-                        <td>{{ $komtek2 }}</td>
-                    </tr>
-                    <tr>
-                        <td style="width: 12px; padding-bottom: 12px">3)</td>
-                        <td>{{ $komtek3 }}</td>
-                    </tr>
-                </tbody>
-            </table>
+<div class="center">
+Nomor :
+<span class="highlight">{{ $nomor ?? 'XXX/LSP GKK B.002-A/ROMAN/TAHUN' }}</span>
+</div>
+<br/><br/><br/>
 
-            <table width="90%" style="margin: 0">
-                <tbody>
-                    <tr>
-                        <td style="text-align: justify; line-height: 20px">
-                            Untuk menetapkan hasil uji Sertifikasi Kompetensi pada<br />
-                            Keputusan ini dibuat berdasarkan dokumen hasil asesmen
-                            yang terdiri dari:<br />1. Daftar Periksa<br />2.
-                            Kelengkapan Data Asesi<br />3. Buku Kerja<br />4. Laporan
-                            Asesmen
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+<div class="paragraph">
+Pada hari ini
+<span class="highlight">{{ now()->isoFormat('dddd') }}</span>
+tanggal
+<span class="highlight">{{ $tanggal ?? now()->isoFormat('D MMMM Y') }}</span>,
+telah diselenggarakan rapat Komite Teknis untuk menetapkan hasil uji sertifikasi kompetensi bagi asesi yang tercantum dalam daftar hasil asesmen.
+</div>
 
-            <table width="90%" style="margin: 12px 0">
-                <tbody>
-                    <tr>
-                        <td colspan="2" style="padding-bottom: 0">
-                            Tim Pemutus sepakat memutuskan hal-hal sebagai berikut :
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="text-align: justify; line-height: 20px">1.</td>
-                        <td style="margin-bottom: 0; padding-bottom: 0">
-                            Persyaratan Dasar sebagai Asesi berdasarkan dokumen yang
-                            ada, semuanya telah sesuai dengan PP 14 Tahun 2021 dan
-                            Surat Keputusan DIrektur Jendral Bina Konstruksi,
-                            Kementerian Pekerjaan Umum dan Perumahan Rakyat Nomor:
-                            12.1/KPTS/Dk/2021, Tentang PenetapanJabatan Kerja Dan
-                            Konversi Jabatan Kerja Eksisting serta Jenjang Kualifikasi
-                            Bidang Jasa Konstruksi, Tanggal 2 Februari 2022.
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding-top: 0; padding-bottom: 0">2.</td>
-                        <td style="padding-top: 0; padding-bottom: 0">
-                            Semua proses asesmen dan alur yang ditetapkan LSP telah
-                            sesuai dengan ketentuan yang berlaku.
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding-top: 0; padding-bottom: 0">3.</td>
-                        <td style="margin-top: 0; padding-top: 0">
-                            Telah dilakukan asesmen kepada asesi oleh para asesor
-                            dengan disaksikan oleh asesor peninjau dengan hasil sesuai
-                            dengan daftar terlampir sebagai berikut
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
 
-            <table width="90%" border="1" style="margin: 24px 0">
-                <thead>
-                    <tr>
-                        <th rowspan="2" style="width: 30px">No</th>
-                        <th rowspan="2">Nama</th>
-                        <th rowspan="2">Skema Sertifikasi</th>
-                        <th colspan="2">Rekomendasi</th>
-                    </tr>
-                    <tr>
-                        <th style="width: 40px">K</th>
-                        <th style="width: 40px">BK</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($nama_peserta as $peserta)
-                        <tr>
-                            <td style="text-align: center; vertical-align: middle">
-                                {{ $loop->iteration }}
-                            </td>
-                            <td style="vertical-align: middle">{{ $peserta['nama'] }}</td>
-                            <td style="vertical-align: middle">{{ $peserta['skema'] }}</td>
-                            <td style="text-align: center; vertical-align: middle">
-                                @if ($peserta['kompeten'] == 'K')
-                                    <div style="font-family: ZapfDingbats, sans-serif;">4</div>
-                                @endif
-                            </td>
-                            <td style="text-align: center; vertical-align: middle">
-                                @if ($peserta['kompeten'] == 'BK')
-                                    <div style="font-family: ZapfDingbats, sans-serif;">4</div>
-                                @endif
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-            <table width="90%" border="1">
-                <thead>
-                    <td
-                        style="
-                          font-weight: 700;
-                          vertical-align: middle;
-                          text-align: center;
-                        ">
-                        Ketua Rapat Pleno Komite Teknis
-                    </td>
-                    <td
-                        style="
-                          width: 12%;
-                          vertical-align: middle;
-                          text-align: center;
-                        ">
-                        Tanda Tangan
-                    </td>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td style="vertical-align: middle">{{ $komtek1 }}</td>
-                        <td style="vertical-align: middle">
-                            {!! $svg1 !!}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="vertical-align: middle">{{ $komtek2 }}</td>
-                        <td style="vertical-align: middle">
-                            {!! $svg2 !!}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="vertical-align: middle">{{ $komtek3 }}</td>
-                        <td style="vertical-align: middle">
-                            {!! $svg3 !!}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </main>
+<div class="paragraph">
+Rapat Komite Teknis dihadiri oleh:
+</div>
+
+
+<table class="table">
+
+<tr>
+<th width="60">No</th>
+<th>Nama</th>
+<th width="160">Jabatan</th>
+</tr>
+
+@if($nama_komtek1 ?? false)
+<tr>
+<td>1.</td>
+<td><span class="highlight">{{ $nama_komtek1 }}</span></td>
+<td>Ketua</td>
+</tr>
+@endif
+
+@if($nama_komtek2 ?? false)
+<tr>
+<td>2.</td>
+<td><span class="highlight">{{ $nama_komtek2 }}</span></td>
+<td>Anggota</td>
+</tr>
+@endif
+
+@if($nama_komtek3 ?? false)
+<tr>
+<td>3.</td>
+<td><span class="highlight">{{ $nama_komtek3 }}</span></td>
+<td>Anggota</td>
+</tr>
+@endif
+
+</table>
+
+
+<div class="paragraph">
+Keputusan ini dibuat berdasarkan dokumen hasil asesmen yang terdiri atas:
+</div>
+
+<div class="word-list">
+<div>1. Daftar Periksa;</div>
+<div>2. Kelengkapan Data Asesi;</div>
+<div>3. Buku Kerja; dan</div>
+<div>4. Laporan Asesmen</div>
+</div>
+
+
+<div class="paragraph">
+Tim Pemutus sepakat memutuskan hal-hal sebagai berikut:
+</div>
+
+
+<div class="word-list">
+
+<div>
+1. Keputusan Direktur Jenderal Bina Konstruksi Kementerian Pekerjaan Umum dan Perumahan Rakyat Nomor 114/KPTS/Dk/2024 Tentang Penetapan Jabatan Kerja dan Jenjang Kualifikasi Atas Jabatan Kerja di Bidang Jasa Konstruksi.
+</div>
+
+<div>
+2. Surat Edaran Ketua Pengembangan Jasa Konstruksi Nomor 01/SE/LPJK/2025 Tentang Pedoman Pemberian Rekomendasi Lisensi Lembaga Sertifikasi Profesi (LSP).
+</div>
+
+<div>
+3. Surat Keputusan Lembaga Pengembangan Jasa Konstruksi Nomor BK 0401-LK/164 Tentang Penyesuaian Skema Sertifikasi Jabatan Kerja Perbaikan dan Penjelasan Lampiran Surat Edaran Ketua LPJK.
+</div>
+
+<div>
+4. Seluruh proses asesmen dan alur yang ditetapkan oleh LSP telah sesuai dengan ketentuan yang berlaku.
+</div>
+
+<div>
+5. Telah dilakukan kegiatan asesmen kepada asesi oleh para asesor kompetensi sesuai dengan aturan pelaksanaan asesmen dengan daftar terlampir sebagai berikut:
+</div>
+
+</div>
+
+
+<table class="table">
+
+<tr>
+<th width="60">No</th>
+<th>Nama</th>
+<th>Skema Sertifikasi</th>
+<th width="60">K</th>
+<th width="60">BK</th>
+</tr>
+
+@foreach($nama_peserta ?? [] as $index => $asesi)
+<tr>
+<td>{{ $index + 1 }}.</td>
+<td><span class="highlight">{{ $asesi['nama'] }}</span></td>
+<td><span class="highlight">{{ $asesi['skema'] }}</span></td>
+<td style="text-align:center;">@if($asesi['kompeten'] === 'K' || $asesi['kompeten'] === true)✔@endif</td>
+<td style="text-align:center;">@if($asesi['kompeten'] === 'BK' || $asesi['kompeten'] === false)✔@endif</td>
+</tr>
+@endforeach
+
+</table>
+
+
+<div class="paragraph">
+Keterangan:<br>
+K = Kompeten; BK = Belum Kompeten.
+</div>
+
+
+<div class="footer">
+Demikian berita acara keputusan hasil uji kompetensi ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.
+</div>
+
+
+<table class="table sign-table">
+
+<tr>
+<th>Komite Teknis</th>
+<th width="160">Jabatan</th>
+<th width="160">Tanda Tangan</th>
+</tr>
+
+@if($nama_komtek1 ?? false)
+<tr>
+<td><span class="highlight">{{ $nama_komtek1 }}</span></td>
+<td style="text-align:center;">Ketua</td>
+<td>@if($qr){!! $qr !!}<div class="qr"></div>@else<div class="qr"></div>@endif</td>
+</tr>
+@endif
+
+@if($nama_komtek2 ?? false)
+<tr>
+<td><span class="highlight">{{ $nama_komtek2 }}</span></td>
+<td style="text-align:center;">Anggota</td>
+<td>@if($qr){!! $qr !!}<div class="qr"></div>@else<div class="qr"></div>@endif</td>
+</tr>
+@endif
+
+@if($nama_komtek3 ?? false)
+<tr>
+<td><span class="highlight">{{ $nama_komtek3 }}</span></td>
+<td style="text-align:center;">Anggota</td>
+<td>@if($qr){!! $qr !!}<div class="qr"></div>@else<div class="qr"></div>@endif</td>
+</tr>
+@endif
+
+</table>
+
+</div>
+
 </body>
-
 </html>

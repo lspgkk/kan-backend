@@ -89,12 +89,11 @@ class KomtekController extends Controller
         $ba_komtek = BaKomtek::where('jadwal_id', $id)->value('link');
         $spt_komtek = SPTKomtek::where('jadwal_id', $id)->value('link');
         $absen_komtek = AbsenKomtek::where('jadwal_id', $id)->value('link');
-        $sk_komtek = SkKomtek::where('jadwal_id', $id)->value('link');
 
         return response()->json([
             'ba_komtek' => $ba_komtek,
             'spt_komtek' => $spt_komtek,
-            'sk_komtek' => $sk_komtek,
+            'sk_komtek' => env('APP_URL') . '/files/sk_komtek.pdf',
             'pleno_komtek' => $absen_komtek
         ]);
     }

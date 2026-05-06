@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AbsenKomtek;
 use App\Models\AsesiJadwal;
 use App\Models\AsesorBnsp;
+use App\Models\BaKomtek;
 use App\Models\Barcode;
 use App\Models\JabatanKerja;
 use App\Models\Jadwal;
@@ -564,6 +565,11 @@ class JadwalController extends Controller
                 ];
             }
         }
+
+        /** ===============================
+         *  📄 GENERATE INITIAL DOCUMENTS
+         *  =============================== */
+        $this->generateInitialDocuments($jadwalId);
 
         /** ===============================
          *  ✅ FINAL RESPONSE (JSON ONLY)
@@ -1474,7 +1480,6 @@ class JadwalController extends Controller
                 $q->where('asesor_id', $asesorId)
                 ->orWhere('asesor2_id', $asesorId);
             })
-            ->where('tahap', '!=', 0)
             ->whereDate('tanggal_uji', today())
             ->get();
 
@@ -1854,5 +1859,310 @@ class JadwalController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Generate initial documents for jadwal without QR codes
+     * Creates: SkPelaksanaanUji, SPTAsesor, SPTKomtek, BaKomtek
+     */
+    private function generateInitialDocuments(int $jadwalId): void
+    {
+        try {
+            $this->generateSkPelaksanaanUjiWithoutTtd($jadwalId);
+            $this->generateSptAsesorWithoutTtd($jadwalId);
+            $this->generateSptKomtekWithoutTtd($jadwalId);
+            $this->generateBaKomtekWithoutTtd($jadwalId);
+        } catch (\Exception $e) {
+            Log::error('Failed to generate initial documents', [
+                'jadwal_id' => $jadwalId,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Generate SK Pelaksanaan Uji without TTD/QR
+     */
+    private function generateSkPelaksanaanUjiWithoutTtd(int $jadwalId): array
+    {
+        $last = SkPelaksanaanUji::latest('id')->first();
+        $noSk = $last?->no_surat ?? '0/LSP-GATENSI/SK-UJI/I/2024';
+
+        $romawi = [
+            1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
+            5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII',
+            9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
+        ];
+
+        $parts = explode('/', $noSk);
+        $year  = now()->year;
+
+        $parts[0] = ((int)($parts[3] ?? 0) === $year) ? ((int)$parts[0] + 1) : 1;
+        $parts[2] = $romawi[now()->month];
+        $parts[3] = (string)$year;
+
+        $nomorSk = implode('/', $parts);
+
+        // Get jadwal data
+        $jadwal = Jadwal::where('jadwal_id', $jadwalId)->firstOrFail();
+        $asesiJadwals = AsesiJadwal::where('jadwal_id', $jadwalId)->with(['personal'])->get();
+
+        $peserta = [];
+        foreach ($asesiJadwals as $asesi) {
+            $jabatanKerjaId = KlasifikasiKualifikasi::where('id_izin', $asesi->id_izin)->value('jabatan_kerja');
+            $namaSkema = JabatanKerja::where('id_jabatan_kerja', $jabatanKerjaId)->value('jabatan_kerja');
+            $peserta[] = [
+                'nama' => $asesi->personal->nama ?? '',
+                'skema' => $namaSkema ?? '',
+            ];
+        }
+
+        $viewData = [
+            'nomor_sk' => $nomorSk,
+            'tanggal_uji' => Carbon::parse($jadwal->tanggal_uji)->isoFormat('dddd, D MMMM Y'),
+            'peserta' => $peserta,
+            'qr' => null, // No QR code
+        ];
+
+        $pdf = PDF::loadView('template-surat.sk_pelaksanaan_uji', $viewData);
+        $pdfContent = $pdf->output();
+
+        $timestamp = now()->format('YmdHis');
+        $path = "sk_pelaksanaan_uji/{$jadwalId}_{$timestamp}.pdf";
+        Storage::disk('str_moon')->put($path, $pdfContent);
+        $fileUrl = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        SkPelaksanaanUji::updateOrCreate(
+            ['jadwal_id' => $jadwalId],
+            [
+                'no_surat' => $nomorSk,
+                'link' => $fileUrl,
+                'is_approved' => false,
+            ]
+        );
+
+        return [
+            'nomor_sk' => $nomorSk,
+            'url' => $fileUrl,
+        ];
+    }
+
+    /**
+     * Generate SPT Asesor without TTD/QR
+     */
+    private function generateSptAsesorWithoutTtd(int $jadwalId): array
+    {
+        $last = SPTAsesor::latest('id')->first();
+        $noSpt = $last?->spt_no ?? '0/SPT-ASESOR/LSP-GATENSI/I/2024';
+
+        $romawi = [
+            1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
+            5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII',
+            9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
+        ];
+
+        $parts = explode('/', $noSpt);
+        $year  = now()->year;
+
+        $parts[0] = ((int)($parts[3] ?? 0) === $year) ? ((int)$parts[0] + 1) : 1;
+        $parts[2] = $romawi[now()->month];
+        $parts[3] = (string)$year;
+
+        $noSpt = implode('/', $parts);
+
+        // Get jadwal data
+        $jadwal = Jadwal::where('jadwal_id', $jadwalId)->firstOrFail();
+        $asesor1 = DB::table('asesor_bnsp')->where('id', $jadwal->asesor_id)->first();
+        $asesor2 = $jadwal->asesor2_id ? DB::table('asesor_bnsp')->where('id', $jadwal->asesor2_id)->first() : null;
+
+        $asesiJadwals = AsesiJadwal::where('jadwal_id', $jadwalId)->with(['personal'])->get();
+        $peserta = $asesiJadwals->pluck('personal.nama')->toArray();
+
+        $viewData = [
+            'no_surat' => $noSpt,
+            'nama_asesor' => $asesor1->Nama ?? '',
+            'nama_met' => $asesor1->Noreg ?? '',
+            'nama_asesor2' => $asesor2->Nama ?? '',
+            'nama_met2' => $asesor2->Noreg ?? '',
+            'nama_tuk' => '', // Will be filled from BNSP data if available
+            'alamat_tuk' => '',
+            'hari_tanggal' => Carbon::parse($jadwal->tanggal_mulai)->isoFormat('dddd, D MMMM Y'),
+            'jmlh_peserta' => count($peserta),
+            'nama_skema' => '', // Will be filled from BNSP data if available
+            'nama_peserta' => $peserta,
+            'qr' => null, // No QR code
+        ];
+
+        $pdf = PDF::loadView('template-surat.spt_asesor', $viewData);
+        $pdfContent = $pdf->output();
+
+        $path = "spt_asesor/{$jadwalId}.pdf";
+        Storage::disk('str_moon')->put($path, $pdfContent);
+        $fileUrl = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        SPTAsesor::updateOrCreate(
+            ['jadwal_id' => $jadwalId],
+            [
+                'spt_no' => $noSpt,
+                'asesor_id' => $asesor1->IDAsesor ?? null,
+                'link' => $fileUrl,
+                'send' => 0,
+            ]
+        );
+
+        return [
+            'spt_no' => $noSpt,
+            'url' => $fileUrl,
+        ];
+    }
+
+    /**
+     * Generate SPT Komtek without TTD/QR
+     */
+    private function generateSptKomtekWithoutTtd(int $jadwalId): array
+    {
+        $last = SPTKomtek::latest('id')->first();
+        $base = $last?->no_surat ?? '0/LSP-GATENSI/SPT-KOMTEK/I/2024';
+
+        $romawi = [
+            1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
+            5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII',
+            9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
+        ];
+
+        $parts = explode('/', $base);
+        $year  = now()->year;
+
+        $parts[0] = ((int)($parts[3] ?? 0) === $year) ? ((int)$parts[0] + 1) : 1;
+        $parts[2] = $romawi[now()->month];
+        $parts[3] = (string)$year;
+
+        $spt_no = implode('/', $parts);
+
+        // Get jadwal data
+        $jadwal = Jadwal::where('jadwal_id', $jadwalId)->firstOrFail();
+
+        $getNamaKomtek = function($komtekId) {
+            return $komtekId ? User::where('id', $komtekId)->value('name') : null;
+        };
+
+        $nama_komtek1 = $getNamaKomtek($jadwal->komtek1);
+        $nama_komtek2 = $getNamaKomtek($jadwal->komtek2);
+        $nama_komtek3 = $getNamaKomtek($jadwal->komtek3);
+
+        $asesiJadwals = AsesiJadwal::where('jadwal_id', $jadwalId)->with(['personal'])->get();
+        $peserta = [];
+        foreach ($asesiJadwals as $asesi) {
+            $jabatanKerjaId = KlasifikasiKualifikasi::where('id_izin', $asesi->id_izin)->value('jabatan_kerja');
+            $namaSkema = JabatanKerja::where('id_jabatan_kerja', $jabatanKerjaId)->value('jabatan_kerja');
+            $peserta[] = [
+                'nama' => $asesi->personal->nama ?? '',
+                'skema' => $namaSkema ?? '',
+            ];
+        }
+
+        $viewData = [
+            'nomor' => $spt_no,
+            'tanggal_surat' => now()->isoFormat('dddd, D MMMM Y'),
+            'nama_komtek1' => $nama_komtek1,
+            'nama_komtek2' => $nama_komtek2,
+            'nama_komtek3' => $nama_komtek3,
+            'peserta' => $peserta,
+            'qr' => null, // No QR code
+        ];
+
+        $pdf = PDF::loadView('template-surat.spt_komtek', $viewData);
+        $pdfContent = $pdf->output();
+
+        $path = "spt_komtek/{$jadwalId}.pdf";
+        Storage::disk('str_moon')->put($path, $pdfContent);
+        $fileUrl = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        SPTKomtek::updateOrCreate(
+            ['jadwal_id' => $jadwalId],
+            [
+                'no_surat' => $spt_no,
+                'link' => $fileUrl,
+                'send' => 0,
+                'inputby_id' => auth()->id(),
+            ]
+        );
+
+        return [
+            'spt_no' => $spt_no,
+            'url' => $fileUrl,
+        ];
+    }
+
+    /**
+     * Generate BA Komtek without TTD/QR
+     */
+    private function generateBaKomtekWithoutTtd(int $jadwalId): array
+    {
+        $last = BaKomtek::latest('id')->first();
+        $roman = [1=>'I',2=>'II',3=>'III',4=>'IV',5=>'V',6=>'VI',7=>'VII',8=>'VIII',9=>'IX',10=>'X',11=>'XI',12=>'XII'];
+        $now = Carbon::now();
+
+        $num = $last ? ((int) explode('/', $last->no_surat)[0] + 1) : 1;
+        $no_ba_komtek = "{$num}/BA-KOMTEK/{$roman[$now->month]}/{$now->year}";
+
+        // Get jadwal data
+        $jadwal = Jadwal::where('jadwal_id', $jadwalId)->firstOrFail();
+
+        $komtekIds = array_filter([$jadwal->komtek1, $jadwal->komtek2, $jadwal->komtek3]);
+        $komtekNames = User::whereIn('id', $komtekIds)->pluck('name', 'id');
+
+        $nama_komtek1 = $komtekNames[$jadwal->komtek1] ?? null;
+        $nama_komtek2 = $komtekNames[$jadwal->komtek2] ?? null;
+        $nama_komtek3 = $komtekNames[$jadwal->komtek3] ?? null;
+
+        $asesiJadwals = AsesiJadwal::where('jadwal_id', $jadwalId)->with(['personal'])->get();
+        $nama_peserta = [];
+
+        foreach ($asesiJadwals as $asesi) {
+            $jabatanKerjaId = KlasifikasiKualifikasi::where('id_izin', $asesi->id_izin)->value('jabatan_kerja');
+            $namaSkema = JabatanKerja::where('id_jabatan_kerja', $jabatanKerjaId)->value('jabatan_kerja');
+
+            $nama_peserta[] = [
+                'nama' => $asesi->personal->nama ?? '',
+                'skema' => $namaSkema ?? '',
+                'kompeten' => $asesi->kompeten,
+            ];
+        }
+
+        $viewData = [
+            'nomor' => $no_ba_komtek,
+            'tanggal' => now()->isoFormat('dddd, D MMMM Y'),
+            'nama_komtek1' => $nama_komtek1,
+            'nama_komtek2' => $nama_komtek2,
+            'nama_komtek3' => $nama_komtek3,
+            'nama_peserta' => $nama_peserta,
+            'jml_peserta' => count($nama_peserta),
+            'qr' => null, // No QR code
+        ];
+
+        $pdf = PDF::loadView('template-surat.ba_komteks', $viewData);
+        $pdfContent = $pdf->output();
+
+        $path = "ba_komtek/{$jadwalId}.pdf";
+        Storage::disk('str_moon')->put($path, $pdfContent);
+        $fileUrl = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        BaKomtek::updateOrCreate(
+            ['jadwal_id' => $jadwalId],
+            [
+                'no_surat' => $no_ba_komtek,
+                'link' => $fileUrl,
+                'has_ttd_komtek1' => 0,
+                'has_ttd_komtek2' => 0,
+                'has_ttd_komtek3' => 0,
+                'inputby_id' => auth()->id(),
+            ]
+        );
+
+        return [
+            'no_ba' => $no_ba_komtek,
+            'url' => $fileUrl,
+        ];
     }
 }

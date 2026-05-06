@@ -1,208 +1,228 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="id">
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SPT Asesor</title>
-    <link rel="stylesheet" href="{{ 'template/spt_asesor.css' }}" />
+<meta charset="UTF-8">
+<title>Surat Perintah Tugas</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #f5f5f5;
+    }
+
+    .container {
+        width: 800px;
+        height: 1132px;
+        margin: 40px auto;
+        background: #fff;
+        padding: 40px 60px 40px 60px;
+        box-sizing: border-box;
+        box-shadow: 0 0 8px rgba(0,0,0,0.15);
+        overflow: hidden;
+    }
+
+    .container.first {
+        background: #fff url('{{ asset('images/kop-surat-1.png') }}') no-repeat top center;
+        background-size: 100% auto;
+        padding: 150px 60px 40px 60px;
+    }
+
+    .title {
+        text-align: center;
+        font-weight: bold;
+        text-decoration: underline;
+        font-size: 14px;
+        margin-bottom: 5px;
+    }
+
+    .number {
+        text-align: center;
+        margin-bottom: 25px;
+        font-size: 14px;
+    }
+
+    .highlight {
+        font-weight: bold;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        margin-bottom: 20px;
+        font-size: 14px;
+    }
+
+    th, td {
+        border: 1px solid black;
+        padding: 6px;
+    }
+
+    th {
+        background-color: #d9e1e7;
+        text-align: center;
+    }
+
+    .no-border td {
+        border: none;
+        padding: 4px 0;
+    }
+
+    .section-text {
+        font-size: 14px;
+        margin-bottom: 10px;
+        text-align: justify;
+    }
+
+    .info-table {
+        width: 100%;
+        font-size: 14px;
+        margin-top: 10px;
+    }
+
+    .info-table td {
+        border: none;
+        padding: 10px 0;
+        vertical-align: top;
+    }
+
+    .label {
+        width: 180px;
+    }
+
+    .colon {
+        width: 10px;
+    }
+
+    .footer {
+        margin-top: 40px;
+        display: flex;
+        justify-content: flex-end;
+        font-size: 14px;
+    }
+
+    .director {
+        text-align: left;
+        margin-top: 5px;
+        font-weight: bold;
+    }
+
+    .director .sign-space {
+        display: inline-block;
+        width: 100%;
+        height: 80px;
+    }
+</style>
 </head>
 
 <body>
-    <div class="page nobg">
-        <div class="header">
-            <table style="margin-left: auto; margin-right:auto;" width="90%" border="0" cellspacing="0"
-                cellpadding="0">
-                <tbody>
-                    <tr>
-                        <td rowspan="2" style="width: 25%; text-align: center; vertical-align: middle">
-                            <img src="./images/untuk-template/logo.png" width="100px" />
-                        </td>
-                        <td
-                            style="
-                  width: 65%;
-                  font-size: 22px;
-                  color: blue;
-                  text-align: center;
-                  font-weight: bold;
-                  padding: 5px;
-                ">
-                            LEMBAGA SERTIFIKASI PROFESI GATENSI KARYA KONSTRUKSI
-                        </td>
-                        <td style="width: 10%px"></td>
-                    </tr>
-                    <tr>
-                        <td
-                            style="
-                  color: black;
-                  text-align: center;
-                  font-size: 12px;
-                  margin-bottom: 20px;
-                ">
-                            Graha Gapensi Jl. Raya Ragunan No. 1C, Jati Padang, Pasar
-                            Minggu, Jakarta Selatan Telp. 0217810444 | Email:
-                            admin@lspgatensi.id
-                        </td>
-                        <td></td>
-                    </tr>
-                    <tr>
-                        <td colspan="3" style="height: 5px; border-bottom: 4px double blue"></td>
-                    </tr>
-                </tbody>
-            </table>
 
-            <h3
-                style="
-            text-align: center;
-            text-decoration: underline;
-            padding-bottom: 8px;
-            margin-bottom: 0px;
-          ">
-                SURAT PERINTAH TUGAS
-            </h3>
-            <h3
-                style="
-            text-align: center;
-            text-decoration: underline;
-            padding-top: 0px;
-            margin-top: 0px;
-          ">
-                Nomor : {{ $no_surat }}
-            </h3>
+<div class="container first">
 
-            <div style="width: 100%; margin-left: 60px;">
-                <table style="margin-left: auto; margin-right:auto;" width="85%" cellspacing="0" cellpadding="0"
-                    style="border: 0px">
-                    <tbody>
-                        <tr>
-                            <td colspan="3" style="width: 100%; padding: 12px 6px">
-                                Yang bertandatangan di bawah ini Ketua LSP GKK, dengan ini
-                                memberi tugas kepada Komtek:
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="width: 20%">Nama</td>
-                            <td style="width: 5%">:</td>
-                            <td>{{ $nama_komtek }}</td>
-                        </tr>
-                        <tr>
-                            <td style="width: 20%"></td>
-                            <td style="width: 5%"></td>
-                            <td>{{ $nama_komtek2 }}</td>
-                        </tr>
-                        <tr>
-                            <td style="width: 20%"></td>
-                            <td style="width: 5%"></td>
-                            <td>{{ $nama_komtek3 }}</td>
-                        </tr>
-                        <tr>
-                            <td colspan="3" style="width: 100%; padding: 12px 6px 6px 5px">
-                                Untuk melaksanakan uji kompetensi
-                                <span style="text-decoration: underline">bidang konstruksi</span>
-                                di :
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="width: 20%">Nama TUK</td>
-                            <td style="width: 5%">:</td>
-                            <td>{{ $nama_tuk }}</td>
-                        </tr>
-                        <tr>
-                            <td style="width: 20%">Alamat</td>
-                            <td style="width: 5%">:</td>
-                            <td>
-                                {{ $alamat_tuk }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="width: 20%">Hari/tanggal</td>
-                            <td style="width: 5%">:</td>
-                            <td>{{ $hari_tanggal }}</td>
-                        </tr>
-                        <tr>
-                            <td style="width: 20%">Jumlah Peserta</td>
-                            <td style="width: 5%">:</td>
-                            <td>{{ $jmlh_peserta }}</td>
-                        </tr>
-                        <tr>
-                            <td style="width: 20%">Skema Sertifikasi</td>
-                            <td style="width: 5%">:</td>
-                            <td>{{ $nama_skema }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <div style="width: 100%; margin-left: 5px;">
-                    <div style="width: 17%; float: left;"> Nama Peserta</div>
-                    <div style="float: left;">:</div>
-                    <div style="margin-left: 19%;">
-                        <ol></ol>
-                        <ol style="margin: 0;">
-                            @foreach ($nama_peserta as $peserta)
-                                <li style="margin: 0 0 5px 0">{{ $peserta }}</li>
-                            @endforeach
-                        </ol>
-                    </div>
-                </div>
+    <div class="title">SURAT PERINTAH TUGAS</div>
 
+    <div class="number highlight">
+        Nomor : <span class="highlight">{{ $nomor ?? 'XXX/LSP GKK B.001-D/ROMAN/TAHUN' }}</span>
+    </div>
 
-            </div>
+    <div class="section-text">
+        Yang bertandatangan di bawah ini Direktur LSP Gatensi Karya Konstruksi,
+        dengan ini memberi tugas kepada Komite Teknis:
+    </div>
+    <br/>
+    <table>
+        <tr>
+            <th>No</th>
+            <th>Nama</th>
+            <th>Jabatan</th>
+        </tr>
+        @if($nama_komtek1 ?? false)
+        <tr>
+            <td>1.</td>
+            <td>{{ $nama_komtek1 }}</td>
+            <td>Ketua</td>
+        </tr>
+        @endif
+        @if($nama_komtek2 ?? false)
+        <tr>
+            <td>2.</td>
+            <td>{{ $nama_komtek2 }}</td>
+            <td>Anggota</td>
+        </tr>
+        @endif
+        @if($nama_komtek3 ?? false)
+        <tr>
+            <td>3.</td>
+            <td>{{ $nama_komtek3 }}</td>
+            <td>Anggota</td>
+        </tr>
+        @endif
+    </table>
 
-            <table width="40%"
-                style="
-            border: 0px;
-            float: right;
-            margin-right: 60px;
-            margin-top: 25px;
-            text-align: center;
-          ">
-                <tbody>
-                    <tr>
-                        <td style="margin: 0; padding: 0">
-                            {{ \Carbon\Carbon::parse($tanggal_surat)->setTimezone('Asia/Jakarta')->isoFormat('dddd, D MMMM YYYY') }}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Hormat kami,</td>
-                    </tr>
-                    <tr>
-                        <td style="font-weight: 700; margin: 0; padding: 0">
-                            Lembaga Sertifikasi Profesi Gatensi Karya Konstruksi
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 20px 0px">{!! $svg !!}</td>
-                    </tr>
-                    <tr>
-                        <td style="margin: 0; padding: 0">Radinal Efendy, ST</td>
-                    </tr>
-                    <tr>
-                        <td>Ketua LSP</td>
-                    </tr>
-                </tbody>
-            </table>
-            <br>
-            <br>
+    <div class="section-text">
+        Untuk melaksanakan evaluasi hasil uji kompetensi dan pengambilan keputusan
+        atas uji kompetensi yang telah dilaksanakan dengan rincian sebagai berikut:
+    </div>
+    <br/>
+    <table class="info-table">
+        <tr>
+            <td class="label">Nama TUK</td>
+            <td class="colon">:</td>
+            <td><span class="highlight">{{ $nama_tuk ?? '-' }}</span></td>
+        </tr>
+        <tr>
+            <td class="label">Alamat</td>
+            <td class="colon">:</td>
+            <td>
+                <span class="highlight">
+                {{ $alamat_tuk ?? '-' }}
+                </span>
+            </td>
+        </tr>
 
-            <br>
-            <table width="40%"
-                style="
-            border: 0px;
-            margin-left: 60px;
-            margin-top: 250px;
-          ">
-                <tbody>
-                    <tr>
-                        <td>
-                            <div style="margin-bottom:4px;">Tembusan :</div>
-                            <div style="margin-bottom:4px;">1. Ketua Dewan Pengarah</div>
-                            <div style="margin-bottom:4px;">2. Yang bersangkutan</div>
-                            <div style="margin-bottom:4px;">3. Arsip</div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+        <tr>
+            <td class="label">Hari/tanggal Uji</td>
+            <td class="colon">:</td>
+            <td><span class="highlight">{{ $hari_tanggal ?? '-' }}</span></td>
+        </tr>
+
+        <tr>
+            <td class="label">Jumlah Peserta</td>
+            <td class="colon">:</td>
+            <td><span class="highlight">{{ $jmlh_peserta ?? count($peserta ?? []) }} orang</span></td>
+        </tr>
+
+        <tr>
+            <td class="label">Skema Sertifikasi</td>
+            <td class="colon">:</td>
+            <td><span class="highlight">{{ $nama_skema ?? '-' }}</span></td>
+        </tr>
+
+        <tr>
+            <td class="label">Nama Peserta</td>
+            <td class="colon">:</td>
+            <td><span class="highlight">
+            @foreach($peserta ?? [] as $index => $asesi)
+            {{ $index + 1 }}. {{ $asesi['nama'] }}<br/>
+            @endforeach
+            </span></td>
+        </tr>
+    </table>
+    <br/><br/>
+    <div class="footer">
+        <div class="director">
+            <span style="font-weight:normal">Jakarta, <span>{{ now()->isoFormat('D MMMM Y') }}</span></span><br>
+            LSP Gatensi Karya Konstruksi<br>
+            <div class="sign-space"></div>
+            @if($qr)
+            {!! $qr !!}
+            @else
+            Radihal Efendy, S.T.<br>
+            Direktur
+            @endif
         </div>
     </div>
-</body>
 
+</div>
+
+</body>
 </html>

@@ -198,7 +198,7 @@
 
             <!-- RIGHT -->
             <div class="right-section">
-                <img src="./images/logo-template.png') }}" class="logo">
+                <img src="{{ asset('images/logo-template.png') }}" class="logo">
 
                 <div class="info-text right-text bold" style="text-align: left;">
                     No. Invoice : {{ $latest_invno }} <br>

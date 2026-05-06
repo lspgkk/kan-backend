@@ -1,273 +1,318 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="id">
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <title>SK Direktur - Template</title>
-    <style>
-        /**
-            Set the margins of the page to 0, so the footer and the header
-            can be of the full height and width !
-         **/
-        @page {
-            margin: 0cm 0cm;
-            size: A4;
-        }
+<meta charset="UTF-8">
+<title>SK Pelaksanaan Uji</title>
 
-        /** Define now the real margins of every page in the PDF **/
-        body {
-            margin-top: 3cm;
-            margin-left: 2cm;
-            margin-right: 2cm;
-            margin-bottom: 2cm;
-            font-family: Arial, Helvetica, sans-serif;
-            font-size: 14px;
-            line-height: 1.4;
-            -webkit-print-color-adjust: exact !important;
-        }
+<style>
 
-        /** Define the header rules **/
-        header {
-            position: fixed;
-            top: 0cm;
-            left: 0cm;
-            right: 0cm;
-            height: 3cm;
-        }
+body{
+    font-family: Arial, sans-serif;
+    background:#f3f3f3;
+}
 
-        /** Define the footer rules **/
-        footer {
-            position: fixed;
-            bottom: 0cm;
-            left: 0cm;
-            right: 0cm;
-            height: 2cm;
-        }
+.page{
+    width:800px;
+    height:1132px;
+    margin:40px auto;
+    background:#fff;
+    padding:40px 65px 45px 65px;
+    font-size:14px;
+    line-height:1.5;
+    box-sizing:border-box;
+    overflow:hidden;
+}
 
-        table {
-            width: 100%;
-            border: 1px solid black;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
+.page.first{
+    background:#fff url('{{ asset('images/kop-surat-1.png') }}') no-repeat top center;
+    background-size:100% auto;
+    padding:150px 65px 45px 65px;
+}
 
-        td {
-            border: 1px solid black;
-            vertical-align: top;
-            padding: 5px;
-            word-wrap: break-word;
-        }
+.center{
+    text-align:center;
+    font-weight:bold;
+}
 
-        th {
-            border: 1px solid black;
-            padding: 5px;
-            text-align: center;
-            font-weight: bold;
-        }
+.spacer{
+    height:14px;
+}
 
-        li {
-            padding-left: 5px;
-            margin-bottom: 5px;
-        }
+.highlight{
+    font-weight: bold;
+}
 
-        @media print {
-            .noprint {
-                display: none;
-            }
+.main-table{
+    width:100%;
+    border-collapse:collapse;
+}
 
-            .nobg {
-                box-shadow: 0px 0px 5px 0px rgb(255, 255, 255);
-            }
+.main-table td{
+    vertical-align:top;
+}
 
-            .pagebreak {
-                page-break-after: always;
-            }
-        }
-    </style>
+.label{
+    width:130px;
+}
+
+.colon{
+    width:10px;
+}
+
+.content{
+    text-align:justify;
+}
+
+.letter-list{
+    padding-left:0;
+    text-align:left;
+}
+
+.letter-list div{
+    margin-bottom:4px;
+    padding-left:22px;
+    text-indent:-15px;
+}
+
+.decision{
+    text-align:center;
+    font-weight:bold;
+    letter-spacing:6px;
+    margin:26px 0 18px 0;
+}
+
+.detail-table{
+    border-collapse:collapse;
+    margin-top:6px;
+}
+
+.detail-table td{
+    padding:2px 6px 2px 0;
+    vertical-align:top;
+}
+
+.footer{
+    margin-top:45px;
+    display:flex;
+    justify-content:flex-end;
+}
+
+.signature{
+    text-align:left;
+    margin-top:35px;
+    font-weight:bold;
+}
+
+.signature .sign-space{
+    display:inline-block;
+    width:100%;
+    height:80px;
+}
+
+/* Lampiran page */
+.lampiran-title{
+    text-align:center;
+    font-weight:bold;
+    margin-top:20px;
+}
+
+.table{
+    width:100%;
+    border-collapse:collapse;
+    margin:10px 0 14px 0;
+}
+
+.table th,
+.table td{
+    border:1px solid black;
+    padding:6px 8px;
+}
+
+.table th{
+    background:#d9e1e7;
+    text-align:center;
+}
+
+.page-break{
+    page-break-before:always;
+    margin-top:40px;
+}
+
+</style>
 </head>
 
 <body>
-    <!-- Define header and footer blocks before your content -->
-    <header>
-        <img src="./images/untuk-template/kop_satu.png" width="100%" />
-    </header>
 
-    <footer>
-        <img src="./images/untuk-template/kop_dua.png" width="100%" />
-    </footer>
+<div class="page first">
 
-    <!-- Wrap the content of your PDF inside a main tag -->
-    <main>
-        <div style="text-align: center; margin-bottom: 15px;">
-            <h3 style="margin: 0; padding: 0; font-weight: bold;">SURAT KEPUTUSAN</h3>
-            <h3 style="margin: 5px 0; padding: 0; font-weight: bold;">DIREKTUR LEMBAGA SERTIFIKASI PROFESI GATENSI KARYA KONSTRUKSI</h3>
-        </div>
+<div class="center">
+SURAT KEPUTUSAN DIREKTUR<br>
+LEMBAGA SERTIFIKASI PROFESI GATENSI KARYA KONSTRUKSI
+</div>
 
-        <div style="text-align: center; margin-bottom: 15px;">
-            <strong>Nomor : {{ $nomor }}</strong>
-        </div>
+<div class="center">
+Nomor :
+<span class="highlight">{{ $nomor_sk ?? 'XXX/LSP GKK B.003-B/ROMAN/TAHUN' }}</span>
+</div>
 
-        <div style="text-align: center; margin-bottom: 20px;">
-            <h3 style="margin: 0; font-weight: bold;">TENTANG</h3>
-            <h3 style="margin: 5px 0; font-weight: bold;">PENETAPAN HASIL SERTIFIKASI KOMPETENSI</h3>
-            <h3 style="margin: 5px 0; font-weight: bold;">LEMBAGA SERTIFIKASI PROFESI GATENSI KARYA KONSTRUKSI</h3>
-        </div>
+<div class="spacer"></div>
 
-        <div style="border-top: 2px solid #000; border-bottom: 1px solid #000; height: 3px; margin-bottom: 15px;"></div>
+<div class="center">TENTANG</div>
+<div class="spacer"></div>
+<div class="center">
+PELAKSANAAN UJI KOMPETENSI
+</div>
+<div class="center">LEMBAGA SERTIFIKASI PROFESI GATENSI KARYA KONSTRUKSI</div>
 
-        <div style="text-align: center; font-weight: bold; margin-bottom: 20px;">
-            DIREKTUR LEMBAGA SERTIFIKASI PROFESI GATENSI KARYA KONSTRUKSI
-        </div>
+<hr style="border:none;border-top:2px solid black;margin:10px 0">
 
-        <table style="width: 100%; margin-bottom: 15px; border: none;">
-            <tr style="border: none;">
-                <td style="width: 130px; border: none; padding: 0; vertical-align: top; font-weight: normal;">Menimbang</td>
-                <td style="width: 10px; border: none; padding: 0; vertical-align: top; text-align: center;">:</td>
-                <td style="border: none; padding: 0; vertical-align: top;">
-                    <ol type="a" style="padding-left: 20px; margin: 0; text-align: justify;">
-                        <li>Undang-Undang Republik Indonesia Nomor 13 Tahun 2003 Tentang Ketenagakerjaan;</li>
-                        <li>Bahwa hasil sertifikasi Kompetensi harus ditetapkan oleh Lembaga Sertifikasi Profesi;</li>
-                        <li>Bahwa berdasarkan berita acara rapat pleno komite teknis pada tanggal {{ $tanggal_pleno_komtek }}</li>
-                        <li>Bahwa berdasarkan poin b dan c maka perlu ditetapkan hasil sertifikasi kompetensi Lembaga Sertifikasi Profesi Gatensi Karya Konstruksi.</li>
-                    </ol>
-                </td>
-            </tr>
-        </table>
+<table class="main-table">
 
-        <table style="width: 100%; margin-bottom: 15px; border: none;">
-            <tr style="border: none;">
-                <td style="width: 130px; border: none; padding: 0; vertical-align: top; font-weight: normal;">Mengingat</td>
-                <td style="width: 10px; border: none; padding: 0; vertical-align: top; text-align: center;">:</td>
-                <td style="border: none; padding: 0; vertical-align: top;">
-                    <ol type="a" style="padding-left: 20px; margin: 0; text-align: justify;">
-                        <li>Peraturan Pemerintah Republik Indonesia Nomor 10 Tahun 2018 tentang Badan Nasional Sertifikasi Profesi;</li>
-                        <li>Peraturan Badan Nasional Sertifikasi Profesi Nomor: 1/BNSP/III/2014 tentang pedoman penilaian kesesuaian persyaratan umum Lembaga Sertifikasi Profesi;</li>
-                        <li>Peraturan Badan Nasional Sertifikasi Profesi Nomor: 2/BNSP/III/2014 tentang pedoman pembentukan Lembaga Sertifikasi Profesi;</li>
-                        <li>Peraturan Badan Nasional Sertifikasi Profesi Nomor: 09/BNSP.301/XI/2013 tentang pedoman pelaksanaan asesmen kompetensi.</li>
-                    </ol>
-                </td>
-            </tr>
-        </table>
+<tr>
+<td class="label">Menimbang</td>
+<td class="colon">:</td>
+<td class="content">
 
-        <table style="width: 100%; margin-bottom: 15px; border: none;">
-            <tr style="border: none;">
-                <td style="width: 130px; border: none; padding: 0; vertical-align: top; font-weight: normal;">Memperhatikan</td>
-                <td style="width: 10px; border: none; padding: 0; vertical-align: top; text-align: center;">:</td>
-                <td style="border: none; padding: 0; vertical-align: top; text-align: justify;">
-                    Hasil berita acara pleno komte teknis pada tanggal {{ $tanggal_pleno_komtek }} dengan nomor {{ $nomor_pleno_komtek }}
-                </td>
-            </tr>
-        </table>
+<div class="letter-list">
+<div>a. bahwa dalam rangka menjamin mutu pelaksanaan sertifikasi kompetensi, perlu dilakukan penetapan jadwal pelaksanaan uji kompetensi sesuai dengan ketentuan yang berlaku;</div>
 
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
+<div>b. bahwa berdasarkan permintaan pelaksanaan uji kompetensi, perlu ditetapkan jadwal pelaksanaan uji kompetensi bagi asesi yang akan mengikuti uji kompetensi;</div>
 
-        <div style="text-align: center; margin-bottom: 30px;">
-            <h3 style="margin: 0; font-weight: bold; text-transform: uppercase;">M E M U T U S K A N</h3>
-        </div>
+<div>c. bahwa penetapan pelaksanaan uji kompetensi sebagaimana dimaksud pada huruf a dan huruf b perlu ditetapkan melalui Surat Keputusan Direktur Lembaga Sertifikasi Profesi Gatensi Karya Konstruksi;</div>
+</div>
 
-        <table style="width: 100%; margin-bottom: 15px; border: none;">
-            <tr style="border: none;">
-                <td style="width: 130px; border: none; padding: 0; vertical-align: top; font-weight: normal;">Menetapkan</td>
-                <td style="width: 10px; border: none; padding: 0; vertical-align: top; text-align: center;">:</td>
-                <td style="border: none; padding: 0; vertical-align: top; text-align: justify;">
-                    Hasil sertifikasi kompetensi Lembaga Sertifikasi Profesi Gatensi Karya Konstruksi yang dilaksanakan pada tanggal {{ $tanggal_uji_sertifikasi }} sebagaimana terlampir.
-                </td>
-            </tr>
-        </table>
+</td>
+</tr>
 
-        <div style="position: absolute; bottom: 100px; right: 80px; text-align: left; width: 280px;">
-            <div style="margin-bottom: 5px;">Diterbitkan di : Jakarta</div>
-            <div style="margin-bottom: 5px;">Pada Tanggal : {{ $tanggal_direktur_lsp }}</div>
-            <div style="font-weight: bold; margin-bottom: 3px; display: block; margin-top: 15px;">Direktur Lembaga Sertifikasi Profesi<br>Gatensi Karya Konstruksi</div>
-            @if($qr)
-            <img src="data:image/png;base64,{{ $qr }}" style="width: 120px; height: 120px;" />
-            @endif
-            <div style="font-weight: bold; text-decoration: underline;">Radinal Efendy, ST</div>
-            <div style="font-size: 13px;">Direktur LSP</div>
-        </div>
+<tr>
+<td class="label"><br/>Mengingat</td>
+<td class="colon"><br/>:</td>
+<td class="content">
 
-        <!-- Page 3 - Lampiran -->
+<div class="letter-list">
+<br/>
+<div>a. Undang-Undang Republik Indonesia Nomor 13 Tahun 2003 Tentang Ketenagakerjaan;</div>
 
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
+<div>b. Peraturan Pemerintah Pengganti Undang-Undang Nomor 2 Tahun 2022 Tentang Cipta Kerja;</div>
 
-        <div>
-            <div style="text-align: center; font-weight: bold; margin-bottom: 15px;">LAMPIRAN SURAT KEPUTUSAN</div>
-            <div style="text-align: center; margin-bottom: 20px;">
-                <strong>Nomor : {{ $nomor }}</strong><br>
-                <strong>Tentang Penetapan Hasil Sertifikasi Kompetensi</strong>
-            </div>
-            <div style="font-weight: bold; margin-bottom: 10px; text-align: center;">HASIL SERTIFIKASI KOMPETENSI:</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 8%;">No</th>
-                        <th style="width: 37%;">Nama</th>
-                        <th style="width: 37%;">Skema</th>
-                        <th style="width: 18%;">Hasil</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($hasil_sertifikasi as $item)
-                    <tr>
-                        <td style="text-align: center;">{{ $item['no'] }}</td>
-                        <td>{{ $item['nama'] }}</td>
-                        <td>{{ $item['skema'] }}</td>
-                        <td style="text-align: center;">{{ $item['hasil'] }}</td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    </main>
+<div>c. Peraturan Pemerintah Nomor 10 Tahun 2018 tentang Badan Nasional Sertifikasi Profesi;</div>
+
+<div>d. Peraturan Badan Nasional Sertifikasi Profesi Nomor: 1/BNSP/III/2014 tentang pedoman penilaian kesesuaian persyaratan umum Lembaga Sertifikasi Profesi;</div>
+
+<div>e. Peraturan Badan Nasional Sertifikasi Profesi Nomor: 2/BNSP/III/2014 tentang pedoman pembentukan Lembaga Sertifikasi Profesi;</div>
+
+<div>f. Peraturan Badan Nasional Sertifikasi Profesi Nomor: 09/BNSP.301/XI/2013 tentang pedoman pelaksanaan asesmen kompetensi;</div>
+
+<div>g. Surat Keputusan Direktur Nomor <span class="highlight">067/LSP GKK C.003-A/VIII/2025</span>.</div>
+
+</div>
+
+</td>
+</tr>
+
+
+<tr>
+<td class="label"><br/>Memperhatikan</td>
+<td class="colon"><br/>:</td>
+<td class="content">
+<br/>
+Jadwal pelaksanaan uji kompetensi yang akan dilaksanakan pada <span class="highlight">{{ $tanggal_uji ?? 'HARI, TANGGAL' }}</span>
+</td>
+</tr>
+
+</table>
+
+<div class="decision">MEMUTUSKAN</div>
+
+
+<table class="main-table">
+
+<tr>
+<td class="label">Menetapkan</td>
+<td class="colon">:</td>
+<td class="content">
+
+SURAT KEPUTUSAN DIREKTUR LEMBAGA SERTIFIKASI PROFESI
+GATENSI KARYA KONSTRUKSI TENTANG PELAKSANAAN
+UJI KOMPETENSI
+
+</td>
+</tr>
+
+<tr>
+<td class="label"><br/>Kesatu</td>
+<td class="colon"><br/>:</td>
+<td class="content">
+<br/>
+Menjadwalkan pelaksanaan uji kompetensi bagi asesi sebagaimana tercantum dalam lampiran yang merupakan bagian tidak terpisahkan dari surat keputusan ini.
+</td>
+</tr>
+
+<tr>
+<td class="label"><br/>Dua</td>
+<td class="colon"><br/>:</td>
+<td class="content"><br/>
+Keputusan ini berlaku sejak tanggal ditetapkan.
+</td>
+</tr>
+
+</table>
+
+
+<div class="footer">
+
+<div class="signature">
+<span style="font-weight:normal">Ditetapkan di : Jakarta<br>
+Tanggal : {{ now()->isoFormat('D MMMM Y') }}</span><br>
+LSP GATENSI KARYA KONSTRUKSI<br>
+<div class="sign-space"></div>
+RADINAL EFENDY, S.T.<br>
+Direktur
+</div>
+
+</div>
+
+<div class="page-break"></div>
+
+<!-- LAMPIRAN -->
+<div class="lampiran-title">
+LAMPIRAN SURAT KEPUTUSAN<br>
+NOMOR: <span class="highlight">{{ $nomor_sk ?? 'XXX/LSP GKK B.003-B/ROMAN/TAHUN' }}</span>
+</div>
+
+<br/>
+
+<table class="table">
+
+<tr>
+<th width="60">No</th>
+<th>Nama</th>
+<th>Skema Sertifikasi</th>
+</tr>
+
+@foreach($peserta ?? [] as $index => $asesi)
+<tr>
+<td>{{ $index + 1 }}.</td>
+<td><span class="highlight">{{ $asesi['nama'] }}</span></td>
+<td><span class="highlight">{{ $asesi['skema'] }}</span></td>
+</tr>
+@endforeach
+
+</table>
+
+<br/><br/><br/>
+
+<div class="footer">
+
+<div class="signature">
+DIREKTUR LSP GATENSI KARYA KONSTRUKSI<br>
+<div class="sign-space"></div>
+RADINAL EFENDY, S.T.
+</div>
+
+</div>
+
+</div>
+
 </body>
-
 </html>

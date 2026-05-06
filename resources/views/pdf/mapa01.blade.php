@@ -551,20 +551,23 @@
                     $td8 = ''; // Tanya Jawab column
                     $td11 = ''; // Verifikasi Pihak Ketiga column
 
-                    if ($dokumenHeader['jenjang'] >= 1 && $dokumenHeader['jenjang'] <= 3) {
+                    $jenjang = $dokumenHeader['jenjang'] ?? null;
+                    $metode = strtolower($dokumenHeader['metode'] ?? '');
+
+                    if ($jenjang >= 1 && $jenjang <= 3) {
                         // jenjang 1-3
                         $td3 = 'L';
                         $td5 = 'T';
                         $td7 = 'CL';
                         $td8 = 'DPT';
-                    } elseif ($dokumenHeader['jenjang'] >= 4 && $dokumenHeader['jenjang'] <= 9) {
-                        if (strtolower($dokumenHeader['metode']) === 'portofolio') {
+                    } elseif ($jenjang >= 4 && $jenjang <= 9) {
+                        if ($metode === 'portofolio') {
                             // jenjang 4-9 and metode is portofolio
                             $td4 = 'TL';
                             $td5 = 'T';
                             $td8 = 'PW';
                             $td11 = 'VPK';
-                        } elseif (strtolower($dokumenHeader['metode']) === 'observasi') {
+                        } elseif ($metode === 'observasi') {
                             // jenjang 4-9 and metode is observasi
                             $td3 = 'L';
                             $td5 = 'T';

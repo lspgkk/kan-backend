@@ -290,6 +290,8 @@ class MidtransService
         $grossAmount = $request->input('gross_amount');
         $signatureKey = $request->input('signature_key');
 
+        // Use gross_amount as-is (string with decimals) for signature calculation
+        // Midtrans sends "1004000.00" and this format should be used directly
         $expectedSignature = hash('sha512', $orderId . $statusCode . $grossAmount . $this->serverKey);
 
         $isValid = $signatureKey === $expectedSignature;
@@ -297,8 +299,15 @@ class MidtransService
         if (!$isValid) {
             Log::error('Invalid Midtrans webhook signature', [
                 'order_id' => $orderId,
+                'status_code' => $statusCode,
+                'gross_amount' => $grossAmount,
                 'received_signature' => $signatureKey,
                 'expected_signature' => $expectedSignature,
+            ]);
+        } else {
+            Log::info('Midtrans webhook signature verified successfully', [
+                'order_id' => $orderId,
+                'transaction_status' => $request->input('transaction_status'),
             ]);
         }
 
@@ -360,9 +369,6 @@ class MidtransService
         $midtransFee = (int) $this->calculateMidtransFee($baseAmount, $paymentMethod);
         $totalAmount = $baseAmount + $midtransFee;
 
-        // Get the frontend URL for redirects
-        $frontendUrl = env('FRONTEND_URL', 'https://devgatensi.site');
-
         // For Snap, include item details with admin fee
         $transactionData = [
             'transaction_details' => [
@@ -385,12 +391,6 @@ class MidtransService
             ],
             // Enable specific payment methods
             'enabled_payments' => $this->getEnabledPaymentMethods(),
-            // Add redirect URLs to handle callbacks
-            'callbacks' => [
-                'finish' => $frontendUrl . '/invoice/history?payment_status=success',
-                'error' => $frontendUrl . '/invoice/history?payment_status=error',
-                'pending' => $frontendUrl . '/invoice/history?payment_status=pending',
-            ],
         ];
 
         try {

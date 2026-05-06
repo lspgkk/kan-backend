@@ -182,6 +182,7 @@ class PraAsesmenController extends Controller
             'tanggal_uji',
             'tanggal_selesai',
             'jenis_kelas',
+            'tahap'
         ])->with([
             'tuk:id,nama',
             'asesor:id,nama,noreg',
@@ -224,7 +225,8 @@ class PraAsesmenController extends Controller
                 'noreg_penyusun' => $penyusun_validator->penyusun?->noreg,
                 'noreg_validator' => $penyusun_validator->validator?->noreg,
                 'metode' => $apl2Submission?->metode,
-
+                'tahap' => $jadwal->tahap,
+                'jadwal_id' => $jadwalId,
             ]
         ]);
     }
@@ -314,6 +316,7 @@ class PraAsesmenController extends Controller
             'noreg_penyusun' => $penyusun_validator->penyusun?->noreg,
             'noreg_validator' => $penyusun_validator->validator?->noreg,
             'metode' => $apl2Submission?->metode,
+            'jenjang' => $klasifikasi->jenjang,
         ];
     }
 
@@ -1158,6 +1161,8 @@ class PraAsesmenController extends Controller
             ];
         }
 
+        $barcodes = $this->resolveDocumentBarcodes($id, 'MAPA01', $forPdf);
+
         /* =========================
         * KELOMPOK KERJA
         * ========================= */
@@ -1276,6 +1281,7 @@ class PraAsesmenController extends Controller
             'skkni' => $jabatanKerja->acuan,
             'jenjang' => $klasifikasi->jenjang,
             'metode' => $apl2Submission?->metode,
+            'barcodes' => $barcodes,
         ];
     }
 
@@ -1351,6 +1357,22 @@ class PraAsesmenController extends Controller
         ]);
     }
 
+    public function ttdMapa01(Request $request, $id)
+    {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'MAPA01',
+            'ttd_mapa01',
+            $id
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+            'broadcasted' => true,
+        ]);
+    }
+
     private function buildMapa02Data(
         int|string $id,
         bool $forPdf = false
@@ -1378,6 +1400,8 @@ class PraAsesmenController extends Controller
                 'referensi_form' => [],
             ];
         }
+
+        $barcodes = $this->resolveDocumentBarcodes($id, 'MAPA02', $forPdf);
 
         $kelompokKerja = [
             'id' => $dokumen->id,
@@ -1446,6 +1470,7 @@ class PraAsesmenController extends Controller
         return [
             'kelompok_kerja' => $kelompokKerja,
             'referensi_form' => $dataReferensi,
+            'barcodes' => $barcodes,
         ];
     }
 
@@ -1518,6 +1543,22 @@ class PraAsesmenController extends Controller
         return response()->json([
             'message' => 'Success',
             'data'    => $fullUrl,
+        ]);
+    }
+
+    public function ttdMapa02(Request $request, $id)
+    {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'MAPA02',
+            'ttd_mapa02',
+            $id
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+            'broadcasted' => true,
         ]);
     }
 
@@ -1600,7 +1641,7 @@ class PraAsesmenController extends Controller
                                             return [
                                                 'id' => $item->id,
                                                 'nama' => $item->nama,
-                                                'jawaban' => false,
+                                                'jawaban' => null,
                                             ];
                                         }
 
@@ -1623,7 +1664,7 @@ class PraAsesmenController extends Controller
                                         return [
                                             'id' => $item->id,
                                             'nama' => $item->nama,
-                                            'jawaban' => false,
+                                            'jawaban' => null,
                                         ];
                                     })->values(),
                                 ];
@@ -1874,10 +1915,10 @@ class PraAsesmenController extends Controller
     public function submitAk04(Request $request, $id)
     {
         $validated = $request->validate([
-            'answers' => 'required|array',
-            'answers.*.referensi_id' => 'required|integer|exists:referensis,id',
-            'answers.*.kelompok_id'  => 'required|integer',
-            'answers.*.jawaban'     => 'required|boolean',
+            'answers' => 'nullable|array',
+            'answers.*.referensi_id' => 'nullable|integer|exists:referensis,id',
+            'answers.*.kelompok_id'  => 'nullable|integer',
+            'answers.*.jawaban'     => 'nullable|boolean',
             'alasan'                => 'nullable|string'
         ]);
 

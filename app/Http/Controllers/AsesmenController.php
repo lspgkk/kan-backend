@@ -218,7 +218,7 @@ class AsesmenController extends Controller
                 'noreg_penyusun' => $penyusun_validator->penyusun?->noreg,
                 'noreg_validator' => $penyusun_validator->validator?->noreg,
                 'metode' => $apl2Submission?->metode,
-
+                'jadwal_id' => $jadwalId,
             ]
         ]);
     }
@@ -2223,9 +2223,12 @@ class AsesmenController extends Controller
         // ===== AK3 NOTE (GLOBAL NOTE) =====
         $ak3Note = Ak3Note::where('id_izin', $id)->value('catatan');
 
+        $barcodes = $this->resolveDocumentBarcodes($id, 'AK03', false);
+
         return [
             'soal'     => $questions,
             'catatan' => $ak3Note,
+            'barcodes' => $barcodes,
         ];
     }
 
@@ -2327,6 +2330,22 @@ class AsesmenController extends Controller
         return $fullUrl;
     }
 
+    public function ttdAk03(Request $request, $id)
+    {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'AK03',
+            'ttd_ak03',
+            $id
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+            'broadcasted' => true,
+        ]);
+    }
+
     private function buildAk05Data(
         int|string $id,
         bool $forPdf = false
@@ -2370,6 +2389,116 @@ class AsesmenController extends Controller
             'message' => 'Success',
             'data' => $data,
         ]);
+    }
+
+    public function getAk05ByJadwal($jadwal_id)
+    {
+        $asesiList = AsesiJadwal::query()
+            ->join('personals', 'personals.id_izin', '=', 'asesi_jadwals.id_izin')
+            ->where('asesi_jadwals.jadwal_id', $jadwal_id)
+            ->select([
+                'asesi_jadwals.jadwal_id',
+                'asesi_jadwals.id_izin',
+                'personals.nama',
+            ])
+            ->get();
+
+        if ($asesiList->isEmpty()) {
+            return response()->json([
+                'message' => 'No asesi found for this jadwal',
+                'data' => [],
+            ], 404);
+        }
+
+        // Get latest asesor barcodes once for the entire jadwal
+        $asesorBarcodes = $this->getLatestAsesorBarcodes($jadwal_id);
+
+        $ak05Data = [];
+        foreach ($asesiList as $asesi) {
+            $data = $this->buildAk05Data($asesi->id_izin);
+            if ($data !== null) {
+                // Remove asesor barcodes from individual data and use shared ones
+                unset($data['barcodes']['asesor1']);
+                unset($data['barcodes']['asesor2']);
+
+                $ak05Data[] = [
+                    'asesi' => [
+                        'id_izin' => $asesi->id_izin,
+                        'nama' => $asesi->nama,
+                    ],
+                    'ak05_data' => $data,
+                ];
+            }
+        }
+
+        return response()->json([
+            'message' => 'Success',
+            'asesor_barcodes' => $asesorBarcodes,
+            'data' => $ak05Data,
+        ]);
+    }
+
+    private function getLatestAsesorBarcodes($jadwal_id)
+    {
+        // Get jadwal information to find asesor IDs
+        $jadwal = Jadwal::select(['asesor_id', 'asesor2_id'])
+            ->where('jadwal_id', $jadwal_id)
+            ->first();
+
+        if (!$jadwal) {
+            return [
+                'asesor1' => null,
+                'asesor2' => null,
+            ];
+        }
+
+        // Resolve asesor → user
+        $asesors = AsesorBnsp::select(['id', 'noreg'])
+            ->whereIn('id', array_filter([
+                $jadwal->asesor_id,
+                $jadwal->asesor2_id
+            ]))
+            ->get()
+            ->keyBy('id');
+
+        $asesorUsers = User::whereIn('noreg', $asesors->pluck('noreg'))
+            ->get()
+            ->keyBy('noreg');
+
+        $asesor1User = isset($asesors[$jadwal->asesor_id])
+            ? ($asesorUsers[$asesors[$jadwal->asesor_id]->noreg] ?? null)
+            : null;
+
+        $asesor2User = isset($asesors[$jadwal->asesor2_id])
+            ? ($asesorUsers[$asesors[$jadwal->asesor2_id]->noreg] ?? null)
+            : null;
+
+        // Get latest AK05 barcodes for asesor
+        $asesor1Barcode = null;
+        $asesor2Barcode = null;
+
+        if ($asesor1User) {
+            $asesor1Barcode = Barcode::with('user')
+                ->where('id_jadwal', $jadwal_id)
+                ->where('jenis_dokumen', 'AK05')
+                ->where('id_user', $asesor1User->id)
+                ->latest()
+                ->first();
+        }
+
+        if ($asesor2User) {
+            $asesor2Barcode = Barcode::with('user')
+                ->where('id_jadwal', $jadwal_id)
+                ->where('jenis_dokumen', 'AK05')
+                ->where('id_user', $asesor2User->id)
+                ->latest()
+                ->first();
+        }
+
+        return [
+            'asesor1' => $asesor1Barcode ? $this->mapBarcode($asesor1Barcode) : null,
+            'asesor2' => $asesor2Barcode ? $this->mapBarcode($asesor2Barcode) : null,
+        ];
     }
 
     public function submitAk05(Request $request, $id)

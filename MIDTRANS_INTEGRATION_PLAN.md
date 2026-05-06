@@ -215,7 +215,7 @@ public function getUnpaidInvoices(Request $request)
 {
     $user = Auth::user();
 
-    if ($user->role === 'super_admin') {
+    if ($user->role === 'superadmin') {
         // Can see all unpaid invoices
         $invoices = Invoice::unpaid()->paginate();
     } elseif ($user->role === 'adm_tuk') {
@@ -237,7 +237,7 @@ Add role-based UI display:
 ```typescript
 const canPayInvoice = computed(() => {
   const userRole = useAuthStore().user?.role
-  return userRole === 'adm_tuk' || userRole === 'super_admin'
+  return userRole === 'adm_tuk' || userRole === 'superadmin'
 })
 ```
 

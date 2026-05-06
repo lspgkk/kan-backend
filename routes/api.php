@@ -55,6 +55,9 @@ Route::middleware('guest')->group(function () {
 Route::get('/barcode/verify', [BarcodeController::class, 'getBarcodeByUrlTtd']);
 Route::get('/barcode/penyusun-validator/verify', [BarcodeController::class, 'getPenyusunValidatorByUrl']);
 
+// Midtrans webhook (no auth required - must be publicly accessible for Midtrans servers)
+Route::post('/midtrans/webhook', [MidtransWebhookController::class, 'handlePaymentNotification']);
+
 Route::middleware(['auth:api'])->group(function () {
 
     // --- WebSocket Test Endpoint ---
@@ -172,14 +175,12 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/create', [InvoiceController::class, 'createInvoice']);
         Route::post('/konfirmasi', [InvoiceController::class, 'confirmInvoice']);
         Route::post('/estimate-fees', [InvoiceController::class, 'estimateMidtransFees']); // New endpoint for fee estimation
-        Route::post('/{invoice}/midtrans-pay', [InvoiceController::class, 'createMidtransPayment']);
+        Route::post('/midtrans-pay', [InvoiceController::class, 'createMidtransPayment']);
         Route::get('/{invoice}/midtrans-status', [InvoiceController::class, 'checkMidtransStatus']);
         Route::get('/{invoice}/midtrans-fees', [InvoiceController::class, 'getMidtransFeeBreakdown']);
+        Route::post('/{invoice}/force-payment-success', [InvoiceController::class, 'forcePaymentSuccess']); // Debug endpoint
         Route::get('/test-midtrans', [InvoiceController::class, 'testMidtransConnection']); // Debug endpoint
     });
-
-    // Midtrans webhook (no auth required)
-    Route::post('/midtrans/webhook', [MidtransWebhookController::class, 'handlePaymentNotification']);
 
     Route::prefix('jadwal')->group(function () {
         Route::get('/', [JadwalController::class, 'index']);
@@ -205,6 +206,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/start-praasesmen', [JadwalController::class, 'startPraAsesmen']);
         Route::get('/{id}/list-asesi', [JadwalController::class, 'listAsesi']);
         Route::get('/{id}/dokumen-asesi', [BuktiController::class, 'dokumenAsesi']);
+        Route::get('/{jadwal_id}/ak05', [AsesmenController::class, 'getAk05ByJadwal']);
     });
 
     Route::prefix('bukti')->group(function () {
@@ -246,6 +248,8 @@ Route::middleware(['auth:api'])->group(function () {
     Route::prefix('qr')->group(function () {
         Route::post('/{id}/apl01', [PraAsesmenController::class, 'ttdApl01']);
         Route::post('/{id}/apl02', [PraAsesmenController::class, 'ttdApl02']);
+        Route::post('/{id}/mapa01', [PraAsesmenController::class, 'ttdMapa01']);
+        Route::post('/{id}/mapa02', [PraAsesmenController::class, 'ttdMapa02']);
         Route::post('/{id}/ak07', [PraAsesmenController::class, 'ttdAk07']);
         Route::post('/{id}/ak04', [PraAsesmenController::class, 'ttdAk04']);
         Route::post('/{id}/ak01', [PraAsesmenController::class, 'ttdAk01']);
@@ -259,6 +263,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/ia09', [AsesmenController::class, 'ttdIa09']);
         Route::post('/{id}/ia10', [AsesmenController::class, 'ttdIa10']);
         Route::post('/{id}/ak02', [AsesmenController::class, 'ttdAk02']);
+        Route::post('/{id}/ak03', [AsesmenController::class, 'ttdAk03']);
         Route::post('/{id}/ak05', [AsesmenController::class, 'ttdAk05']);
         Route::post('/{id}/ak06', [AsesmenController::class, 'ttdAk06']);
     });
