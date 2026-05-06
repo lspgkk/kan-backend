@@ -1378,7 +1378,7 @@ class PraAsesmenController extends Controller
         bool $forPdf = false
     ): ?array
     {
-        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+        $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
             ->where('id_izin', $id)
             ->first();
 
@@ -1428,15 +1428,13 @@ class PraAsesmenController extends Controller
         $potensiAsesiIndex = 1; // Default to 1
 
         if ($mapa01Data && isset($mapa01Data['referensi_form'])) {
-            // Find kelompok id 1, kategori id 1 (Asesi)
             foreach ($mapa01Data['referensi_form'] as $kelompok) {
                 if ($kelompok['kelompok']['id'] == 1) {
                     foreach ($kelompok['kelompok']['kategoris'] as $kategori) {
                         if ($kategori['id'] == 1) {
-                            // Find the checked referensi item
                             foreach ($kategori['subkategoris'][0]['referensis'] as $index => $referensi) {
                                 if ($referensi['value'] === true) {
-                                    $potensiAsesiIndex = $index + 1; // Convert to 1-based
+                                    $potensiAsesiIndex = $index + 1;
                                     break 2;
                                 }
                             }
@@ -1446,20 +1444,51 @@ class PraAsesmenController extends Controller
             }
         }
 
+        // Get metode & jenjang for MAPA02_1 isdefault logic
+        $apl2Submission = Apl2Submission::where('id_izin', $id)->first();
+        $metode = $apl2Submission?->metode;
+        $jenjang = $klasifikasi->jenjang;
+
+        // Determine which FR codes should be default based on jenjang and metode
+        $defaultFrCodes = [];
+        if ($jenjang >= 1 && $jenjang <= 3) {
+            $defaultFrCodes = ['FR.IA.01', 'FR.IA.02', 'FR.IA.03', 'FR.IA.05'];
+        } elseif ($jenjang >= 4 && $jenjang <= 9) {
+            if ($metode === 'observasi') {
+                $defaultFrCodes = ['FR.IA.04A', 'FR.IA.04B', 'FR.IA.05'];
+            } elseif ($metode === 'portofolio') {
+                $defaultFrCodes = ['FR.IA.08', 'FR.IA.09', 'FR.IA.10'];
+            }
+        }
+
         $referensis = Referensi::select(['id', 'nama', 'kategori', 'isdefault'])
             ->whereIn('kategori', ['MAPA02-1', 'MAPA02_1'])
             ->get();
 
         $dataReferensi = $referensis
             ->groupBy('kategori')
-            ->map(function ($items, $kategori) use ($potensiAsesiIndex) {
+            ->map(function ($items, $kategori) use ($potensiAsesiIndex, $defaultFrCodes) {
                 return [
                     'kategori'   => $kategori,
-                    'referensis' => $items->map(function ($item) use ($potensiAsesiIndex) {
+                    'referensis' => $items->map(function ($item) use ($potensiAsesiIndex, $kategori, $defaultFrCodes) {
+                        $isdefault = $item->isdefault;
+
+                        // Override isdefault for MAPA02_1 based on jenjang/metode logic
+                        if ($kategori === 'MAPA02_1' && !empty($defaultFrCodes)) {
+                            $matched = false;
+                            foreach ($defaultFrCodes as $frCode) {
+                                if (str_contains($item->nama, $frCode)) {
+                                    $matched = true;
+                                    break;
+                                }
+                            }
+                            $isdefault = $matched ? 1 : null;
+                        }
+
                         return [
                             'id'         => $item->id,
                             'nama'       => $item->nama,
-                            'isdefault' => $item->isdefault,
+                            'isdefault'  => $isdefault,
                             'potensi_asesi_index' => $potensiAsesiIndex,
                         ];
                     })->values(),

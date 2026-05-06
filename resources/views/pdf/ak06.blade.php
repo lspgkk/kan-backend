@@ -193,11 +193,7 @@
                     <span class="checkbox @if($item['validitas']) checked @endif"></span>
                 </td>
                 <td style="text-align: center;">
-                    @if($item['nama'] != 'Keputusan asesmen' && $item['nama'] != 'Umpan balik asesmen')
                     <span class="checkbox @if($item['reliabel']) checked @endif"></span>
-                    @else
-                    &nbsp;
-                    @endif
                 </td>
                 <td style="text-align: center;">
                     @if($item['nama'] != 'Keputusan asesmen' && $item['nama'] != 'Umpan balik asesmen')
