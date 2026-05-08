@@ -360,7 +360,7 @@
             <tr>
                 <td style="height: 100px; vertical-align: top;">
                     <div>Nama Asesi :</div>
-                    <div>{{($barcodes['asesi']['nama']) }}</div>
+                    <div>{{($barcodes['asesi']['nama'] ?? '') }}</div>
                 </td>
                 <td style="vertical-align: middle; text-align: center;">
                     <div style="text-align: left; margin-bottom: 4px;">Tanggal dan Tanda Tangan Asesi :</div>

@@ -108,7 +108,7 @@ class HitStatusController extends Controller
 
         $suffix = $endpointMap[$type] ?? '/';
 
-        if ($personal->validby_id == Auth::id()) {
+        if ($personal->verifby_id == Auth::id()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validasi tidak dapat dilakukan oleh verifikator!'

@@ -217,23 +217,24 @@ td {
                 <td class="hd-dok" style="width: 8%;" align="center"><strong>5</strong></td>
             </tr>
             @foreach ($referensi_form[1]['referensis'] as $i => $item)
+            @php $checkedCol = ($item['isdefault'] !== null) ? ($item['potensi_asesi_index'] ?? null) : null; @endphp
             <tr>
                 <td align="center">{{ $i + 1 }}.</td>
                 <td>{{ $item['nama'] }}</td>
                 <td align="center">
-                    <span class="checkbox {{ $item['isdefault'] == 1 ? 'checked' : '' }}"></span>
+                    <span class="checkbox {{ $checkedCol == 1 ? 'checked' : '' }}"></span>
                 </td>
                 <td align="center">
-                    <span class="checkbox {{ $item['isdefault'] == 2 ? 'checked' : '' }}"></span>
+                    <span class="checkbox {{ $checkedCol == 2 ? 'checked' : '' }}"></span>
                 </td>
                 <td align="center">
-                    <span class="checkbox {{ $item['isdefault'] == 3 ? 'checked' : '' }}"></span>
+                    <span class="checkbox {{ $checkedCol == 3 ? 'checked' : '' }}"></span>
                 </td>
                 <td align="center">
-                    <span class="checkbox {{ $item['isdefault'] == 4 ? 'checked' : '' }}"></span>
+                    <span class="checkbox {{ $checkedCol == 4 ? 'checked' : '' }}"></span>
                 </td>
                 <td align="center">
-                    <span class="checkbox {{ $item['isdefault'] == 5 ? 'checked' : '' }}"></span>
+                    <span class="checkbox {{ $checkedCol == 5 ? 'checked' : '' }}"></span>
                 </td>
             </tr>
             @endforeach

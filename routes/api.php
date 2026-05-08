@@ -188,6 +188,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/sertifikasi', [JadwalController::class, 'sertifikasi']);
         Route::get('/list-asesi-create', [JadwalController::class, 'listAsesiCreateJadwal']);
         Route::post('/create-jadwal', [JadwalController::class, 'store']);
+        Route::post('/{id}/post-ke-bnsp', [JadwalController::class, 'postToBnsp']);
         Route::get('/{id}', [JadwalController::class, 'show']);
         Route::put('/{jadwal_id}', [JadwalController::class, 'updateJadwal']);
     });

@@ -388,16 +388,13 @@ class PermohonanController extends Controller
         ->get("$baseUrl/permohonan-skk{$endpoint}");
 
         $items = $response->json('data', []);
-
-        $now = now();
-
         $idIzins = collect($items)
             ->filter(fn ($i) =>
                 !isset($i['status']) || is_null($i['status'])
             )
             ->filter(fn ($i) =>
                 isset($i['created_at']) &&
-                Carbon::parse($i['created_at'])->isSameMonth($now)
+                Carbon::parse($i['created_at'])->greaterThanOrEqualTo(now()->subMonths(2)->startOfMonth())
             )
             ->pluck('id_izin')
             ->values();
@@ -660,10 +657,13 @@ class PermohonanController extends Controller
             }
 
             // Only hit this if none above matched
-            $q->where('nama', 'like', "{$search}%") // 🔥 prefix search
-            ->orWhereHas('klasifikasi_kualifikasi.tuk', function ($tuk) use ($search) {
-                $tuk->where('nama_tuk', 'like', "{$search}%"); // 🔥 prefix search
-            });
+            $q->where('nama', 'like', "{$search}%")
+              ->orWhereIn('id_izin', function ($sq) use ($search) {
+                  $sq->select('kk.id_izin')
+                      ->from('klasifikasi_kualifikasis as kk')
+                      ->join('mytuk', 'mytuk.id', '=', 'kk.tuk')
+                      ->where('mytuk.nama_tuk', 'like', "{$search}%");
+              });
         });
     }
 

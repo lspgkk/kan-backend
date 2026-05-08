@@ -353,20 +353,49 @@ class PraAsesmenController extends Controller
             'Non' => ['99']
         ];
 
-        // Determine matching education levels for the asesi's jenjang
-        $matchedEducationLevels = [];
+        // Education hierarchy from lowest to highest (for fallback matching)
+        $educationOrder = ['Non', 'SD', 'SMP', 'SMA', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3', 'profesi'];
+
+        // Load persyaratan records
+        $persyaratanRecords = ImpBuktiPersyaratan::select(['no', 'bukti'])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->orderBy('no', 'asc')
+            ->get();
+
+        // Get all persyaratan bukti text to detect which education levels are mentioned
+        $allPersyaratanText = $persyaratanRecords->pluck('bukti')->implode(' ');
+
+        // Determine the user's education level name from jenjang
+        $userEducationLevel = null;
         foreach ($educationMapping as $level => $jenjangs) {
             if (in_array($jenjang, $jenjangs)) {
-                $matchedEducationLevels[] = $level;
-                $matchedEducationLevels[] = ucfirst($level); // Add capitalized version
+                $userEducationLevel = $level;
+                break;
             }
         }
 
-        $persyaratan = ImpBuktiPersyaratan::select(['no', 'bukti'])
-            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
-            ->orderBy('no', 'asc')
-            ->get()
-            ->map(function ($item) use ($matchedEducationLevels) {
+        // Build matched levels: try exact match first, then fall back to the nearest lower level
+        $matchedEducationLevels = [];
+        if ($userEducationLevel) {
+            if (stripos($allPersyaratanText, $userEducationLevel) !== false) {
+                // Exact level exists in persyaratan — use it
+                $matchedEducationLevels = [$userEducationLevel, ucfirst($userEducationLevel)];
+            } else {
+                // Fall back to the highest nearest lower level that exists
+                $userIndex = array_search($userEducationLevel, $educationOrder);
+                if ($userIndex !== false) {
+                    for ($i = $userIndex - 1; $i >= 0; $i--) {
+                        $lowerLevel = $educationOrder[$i];
+                        if (stripos($allPersyaratanText, $lowerLevel) !== false) {
+                            $matchedEducationLevels = [$lowerLevel, ucfirst($lowerLevel)];
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        $persyaratan = $persyaratanRecords->map(function ($item) use ($matchedEducationLevels) {
                 $checked = false;
                 foreach ($matchedEducationLevels as $level) {
                     if (stripos($item->bukti, $level) !== false) {
@@ -593,22 +622,51 @@ class PraAsesmenController extends Controller
             'Non' => ['99']
         ];
 
-        // Determine matching education levels for the asesi's jenjang
-        $matchedEducationLevels = [];
-        foreach ($educationMapping as $level => $jenjangs) {
-            if (in_array($jenjang, $jenjangs)) {
-                $matchedEducationLevels[] = $level;
-                $matchedEducationLevels[] = ucfirst($level); // Add capitalized version
-            }
-        }
+        // Education hierarchy from lowest to highest (for fallback matching)
+        $educationOrder = ['Non', 'SD', 'SMP', 'SMA', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3', 'profesi'];
 
-        $persyaratan = ImpBuktiPersyaratan::select(['no', 'bukti'])
+        // Load persyaratan records
+        $persyaratanRecords = ImpBuktiPersyaratan::select(['no', 'bukti'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->whereNotLike('bukti', 'Syarat Administrasi%')
             ->whereNotLike('bukti', 'Bukti Keanggotaan%')
             ->orderBy('no')
-            ->get()
-            ->map(function ($item) use ($matchedEducationLevels) {
+            ->get();
+
+        // Get all persyaratan bukti text to detect which education levels are mentioned
+        $allPersyaratanText = $persyaratanRecords->pluck('bukti')->implode(' ');
+
+        // Determine the user's education level name from jenjang
+        $userEducationLevel = null;
+        foreach ($educationMapping as $level => $jenjangs) {
+            if (in_array($jenjang, $jenjangs)) {
+                $userEducationLevel = $level;
+                break;
+            }
+        }
+
+        // Build matched levels: try exact match first, then fall back to the nearest lower level
+        $matchedEducationLevels = [];
+        if ($userEducationLevel) {
+            if (stripos($allPersyaratanText, $userEducationLevel) !== false) {
+                // Exact level exists in persyaratan — use it
+                $matchedEducationLevels = [$userEducationLevel, ucfirst($userEducationLevel)];
+            } else {
+                // Fall back to the highest nearest lower level that exists
+                $userIndex = array_search($userEducationLevel, $educationOrder);
+                if ($userIndex !== false) {
+                    for ($i = $userIndex - 1; $i >= 0; $i--) {
+                        $lowerLevel = $educationOrder[$i];
+                        if (stripos($allPersyaratanText, $lowerLevel) !== false) {
+                            $matchedEducationLevels = [$lowerLevel, ucfirst($lowerLevel)];
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        $persyaratan = $persyaratanRecords->map(function ($item) use ($matchedEducationLevels) {
                 $checked = false;
                 foreach ($matchedEducationLevels as $level) {
                     if (stripos($item->bukti, $level) !== false) {
@@ -1259,6 +1317,10 @@ class PraAsesmenController extends Controller
 
                                                     if ($kelompok->id == 2 && $kategori?->id == 5) {
                                                         $checked = $item->id == 105;
+                                                    }
+
+                                                    if ($kelompok->id == 3) {
+                                                        $checked = $item->id == 114;
                                                     }
 
                                                     return [
@@ -1982,12 +2044,19 @@ class PraAsesmenController extends Controller
 
     public function ttdAk04(Request $request, $id)
     {
-        $data = $this->generateTtdBarcode(
-            $request,
-            'AK04',
-            'ttd_ak04',
-            $id
-        );
+        $hasAnswers = Ak4Answer::where('id_izin', $id)->exists();
+
+        // Only generate QR if AK04 answers have been filled
+        if ($hasAnswers) {
+            $data = $this->generateTtdBarcode(
+                $request,
+                'AK04',
+                'ttd_ak04',
+                $id
+            );
+        } else {
+            $data = null;
+        }
 
         $dataDokumen = $this->buildAk04Data($id, true);
         if (!$dataDokumen) {
