@@ -1707,27 +1707,24 @@ class JadwalController extends Controller
         $jadwalId = AsesiJadwal::where('account', auth()->user()->email)
             ->value('jadwal_id');
 
+        $asesiJadwal = AsesiJadwal::where('account', auth()->user()->email)
+            ->with('skema')
+            ->first();
+
         $jadwals = $this->baseJadwalQuery()
             ->where('jadwal_id', $jadwalId)
             ->where('tahap', '!=', 0)
             ->when($request->filled('search'), function ($q) use ($request) {
                 $q->where('nama_kegiatan', 'like', '%' . $request->search . '%');
             })
-            ->with(['asesiJadwals.skema', 'asesiJadwals.personal'])
             ->first();
 
         if ($jadwals) {
             $jadwalsArray = $jadwals->toArray();
-            $jadwalsArray['asesi'] = $jadwals->asesiJadwals->map(function ($a) {
-                return [
-                    'id_izin'   => $a->id_izin,
-                    'skema_id'  => $a->skema_id,
-                    'skema'     => $a->skema ? ['id' => $a->skema->id, 'nama' => $a->skema->nama] : null,
-                    'kompeten'  => $a->kompeten,
-                    'nama'      => $a->personal?->nama,
-                ];
-            })->values();
-            unset($jadwalsArray['asesi_jadwals']);
+            $jadwalsArray['skema_id'] = $asesiJadwal?->skema_id;
+            $jadwalsArray['skema'] = $asesiJadwal?->skema
+                ? ['id' => $asesiJadwal->skema->id, 'nama' => $asesiJadwal->skema->nama]
+                : null;
             $jadwals = $jadwalsArray;
         }
 
@@ -1785,28 +1782,49 @@ class JadwalController extends Controller
         }
 
         $userId = auth()->id();
-        $ttd = filter_var($request->query('ttd'), FILTER_VALIDATE_BOOLEAN);
 
         $jadwals = $this->baseJadwalQuery()
-        ->join('ba_komteks', 'ba_komteks.jadwal_id', '=', 'jadwals.jadwal_id')
+        ->leftJoin('ba_komteks', 'ba_komteks.jadwal_id', '=', 'jadwals.jadwal_id')
         ->where(function ($q) use ($userId) {
             $q->where('komtek1', $userId)
             ->orWhere('komtek2', $userId)
             ->orWhere('komtek3', $userId);
         })
-        ->when($ttd !== null, function ($q) use ($ttd, $userId) {
+        ->when($request->has('ttd'), function ($q) use ($request, $userId) {
+            $ttd = filter_var($request->query('ttd'), FILTER_VALIDATE_BOOLEAN);
             $q->where(function ($sq) use ($ttd, $userId) {
                 $sq->where(function ($s) use ($ttd, $userId) {
                     $s->where('komtek1', $userId)
-                    ->where('ba_komteks.has_ttd_komtek1', $ttd);
+                    ->where(function ($s2) use ($ttd) {
+                        if ($ttd) {
+                            $s2->where('ba_komteks.has_ttd_komtek1', true);
+                        } else {
+                            $s2->whereNull('ba_komteks.has_ttd_komtek1')
+                                ->orWhere('ba_komteks.has_ttd_komtek1', false);
+                        }
+                    });
                 })
                 ->orWhere(function ($s) use ($ttd, $userId) {
                     $s->where('komtek2', $userId)
-                    ->where('ba_komteks.has_ttd_komtek2', $ttd);
+                    ->where(function ($s2) use ($ttd) {
+                        if ($ttd) {
+                            $s2->where('ba_komteks.has_ttd_komtek2', true);
+                        } else {
+                            $s2->whereNull('ba_komteks.has_ttd_komtek2')
+                                ->orWhere('ba_komteks.has_ttd_komtek2', false);
+                        }
+                    });
                 })
                 ->orWhere(function ($s) use ($ttd, $userId) {
                     $s->where('komtek3', $userId)
-                    ->where('ba_komteks.has_ttd_komtek3', $ttd);
+                    ->where(function ($s2) use ($ttd) {
+                        if ($ttd) {
+                            $s2->where('ba_komteks.has_ttd_komtek3', true);
+                        } else {
+                            $s2->whereNull('ba_komteks.has_ttd_komtek3')
+                                ->orWhere('ba_komteks.has_ttd_komtek3', false);
+                        }
+                    });
                 });
             });
         })

@@ -2016,6 +2016,7 @@ class AsesmenController extends Controller
                 'a.pertanyaan_lisan',
                 'a.pertanyaan_tertulis',
                 'a.proyek_kerja',
+                'a.lainnya',
             ])
             ->map(function ($item) {
                 return [
@@ -2028,6 +2029,7 @@ class AsesmenController extends Controller
                     'pertanyaan_lisan' => is_null($item->pertanyaan_lisan) ? null : (bool) $item->pertanyaan_lisan,
                     'pertanyaan_tertulis' => is_null($item->pertanyaan_tertulis) ? null : (bool) $item->pertanyaan_tertulis,
                     'proyek_kerja' => is_null($item->proyek_kerja) ? null : (bool) $item->proyek_kerja,
+                    'lainnya' => is_null($item->lainnya) ? null : (bool) $item->lainnya,
                 ];
             });
 
@@ -2071,6 +2073,7 @@ class AsesmenController extends Controller
             'answers.*.pertanyaan_lisan' => 'required|boolean',
             'answers.*.pertanyaan_tertulis' => 'required|boolean',
             'answers.*.proyek_kerja' => 'required|boolean',
+            'answers.*.lainnya' => 'nullable|boolean',
             'is_kompeten' => 'required|boolean',
             'tindak_lanjut' => 'nullable|string',
             'komentar' => 'nullable|string'
@@ -2089,6 +2092,7 @@ class AsesmenController extends Controller
                     'pertanyaan_lisan' => $answer['pertanyaan_lisan'],
                     'pertanyaan_tertulis' => $answer['pertanyaan_tertulis'],
                     'proyek_kerja' => $answer['proyek_kerja'],
+                    'lainnya' => $answer['lainnya'] ?? false,
                 ]
             );
         }

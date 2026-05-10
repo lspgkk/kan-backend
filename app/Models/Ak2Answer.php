@@ -14,7 +14,8 @@ class Ak2Answer extends Model
         'pertanyaan_wawancara',
         'pertanyaan_lisan',
         'pertanyaan_tertulis',
-        'proyek_kerja'
+        'proyek_kerja',
+        'lainnya'
     ];
 
     protected $casts = [
@@ -24,5 +25,6 @@ class Ak2Answer extends Model
         'pertanyaan_lisan' => 'boolean',
         'pertanyaan_tertulis' => 'boolean',
         'proyek_kerja' => 'boolean',
+        'lainnya' => 'boolean',
     ];
 }

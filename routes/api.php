@@ -147,11 +147,11 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/rekomendasi/{id}', [KomtekController::class, 'rekomendasi']);
         Route::get('/rekomendasi/{id}', [KomtekController::class, 'getRekomendasi']);
         Route::get('/files/{id}', [KomtekController::class, 'komtekFiles']);
+        Route::post('/approve-ba-komtek/{jadwal_id}', [DirekturController::class, 'approveBaKomtek']);
     });
 
     Route::prefix('direktur')->group(function () {
         Route::get('/files/{id}', [DirekturController::class, 'jadwalFiles']);
-        Route::post('/approve-ba-komtek/{jadwal_id}', [DirekturController::class, 'approveBaKomtek']);
         Route::post('/approve-sk-pelaksanaan-uji/{jadwal_id}', [DirekturController::class, 'approveSkPelaksanaanUji']);
         Route::post('/approve-spt-asesor/{jadwal_id}', [DirekturController::class, 'approveSptAsesor']);
         Route::post('/approve-spt-komtek/{jadwal_id}', [DirekturController::class, 'approveSptKomtek']);

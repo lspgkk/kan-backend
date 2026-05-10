@@ -170,6 +170,7 @@
                 <th>Pertanyaan lisan</th>
                 <th>Pertanyaan tertulis</th>
                 <th>Proyek kerja</th>
+                <th>Lainnya</th>
             </tr>
             @foreach($data_unit_kompetensi as $unit)
             <tr>
@@ -194,6 +195,9 @@
                 </td>
                 <td style="text-align: center; font-size: 18px;">
                     <span class="checkbox @if($unit['proyek_kerja']) checked @endif"></span>
+                </td>
+                <td style="text-align: center; font-size: 18px;">
+                    <span class="checkbox @if($unit['lainnya']) checked @endif"></span>
                 </td>
             </tr>
             @endforeach
