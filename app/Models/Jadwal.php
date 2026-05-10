@@ -34,7 +34,11 @@ class Jadwal extends Model
         'is_started_praasesmen',
         'is_started',
         'tahap',
-        'started_at'
+        'started_at',
+        'sk_komtek_direktur_approved',
+        'sk_pelaksanaan_uji_direktur_approved',
+        'spt_asesor_direktur_approved',
+        'spt_komtek_direktur_approved',
     ]);
 
     protected $casts = [
@@ -54,6 +58,10 @@ class Jadwal extends Model
         'jenis_mohon' => 'integer',
         'is_started_praasesmen' => 'boolean',
         'is_started' => 'boolean',
+        'sk_komtek_direktur_approved' => 'boolean',
+        'sk_pelaksanaan_uji_direktur_approved' => 'boolean',
+        'spt_asesor_direktur_approved' => 'boolean',
+        'spt_komtek_direktur_approved' => 'boolean',
     ];
 
     /* ================= RELATIONS ================= */

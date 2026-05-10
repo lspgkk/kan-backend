@@ -308,6 +308,9 @@ class AsesmenController extends Controller
             'noreg_penyusun' => $penyusun_validator->penyusun?->noreg,
             'noreg_validator' => $penyusun_validator->validator?->noreg,
             'metode' => $apl2Submission?->metode,
+            'waktu'  => $jadwal->tanggal_uji
+                ? \Carbon\Carbon::parse($jadwal->tanggal_uji)->locale('id')->translatedFormat('H:i')
+                : null,
         ];
     }
 

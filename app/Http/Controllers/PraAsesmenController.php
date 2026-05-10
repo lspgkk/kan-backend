@@ -317,6 +317,9 @@ class PraAsesmenController extends Controller
             'noreg_validator' => $penyusun_validator->validator?->noreg,
             'metode' => $apl2Submission?->metode,
             'jenjang' => $klasifikasi->jenjang,
+            'waktu'   => $jadwal->tanggal_uji
+                ? \Carbon\Carbon::parse($jadwal->tanggal_uji)->locale('id')->translatedFormat('H:i')
+                : null,
         ];
     }
 
@@ -1327,6 +1330,7 @@ class PraAsesmenController extends Controller
                                                         'id' => $item->id,
                                                         'nama' => $item->nama,
                                                         'value' => $checked,
+                                                        'alasan' => '',
                                                     ];
                                                 })->values(),
                                             ];
@@ -1364,9 +1368,16 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    public function generateMapa01($id)
+    public function ttdMapa01(Request $request, $id)
     {
-        $data = $this->buildMapa01Data($id);
+        $barcode = $this->generateTtdBarcode(
+            $request,
+            'MAPA01',
+            'ttd_mapa01',
+            $id
+        );
+
+        $data = $this->buildMapa01Data($id, true);
         if (!$data) {
             abort(404, 'Data not found');
         }
@@ -1415,22 +1426,8 @@ class PraAsesmenController extends Controller
 
         return response()->json([
             'message' => 'Success',
-            'data'    => $fullUrl,
-        ]);
-    }
-
-    public function ttdMapa01(Request $request, $id)
-    {
-        $data = $this->generateTtdBarcode(
-            $request,
-            'MAPA01',
-            'ttd_mapa01',
-            $id
-        );
-
-        return response()->json([
-            'message' => 'Success',
-            'data'    => $data,
+            'data'    => $barcode,
+            'url'     => $fullUrl,
             'broadcasted' => true,
         ]);
     }
@@ -2044,19 +2041,12 @@ class PraAsesmenController extends Controller
 
     public function ttdAk04(Request $request, $id)
     {
-        $hasAnswers = Ak4Answer::where('id_izin', $id)->exists();
-
-        // Only generate QR if AK04 answers have been filled
-        if ($hasAnswers) {
-            $data = $this->generateTtdBarcode(
-                $request,
-                'AK04',
-                'ttd_ak04',
-                $id
-            );
-        } else {
-            $data = null;
-        }
+        $data = $this->generateTtdBarcode(
+            $request,
+            'AK04',
+            'ttd_ak04',
+            $id
+        );
 
         $dataDokumen = $this->buildAk04Data($id, true);
         if (!$dataDokumen) {

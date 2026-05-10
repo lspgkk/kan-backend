@@ -6,5 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class SPTKomtek extends Model
 {
-    //
+    protected $fillable = [
+        'jadwal_id',
+        'no_surat',
+        'link',
+    ];
 }

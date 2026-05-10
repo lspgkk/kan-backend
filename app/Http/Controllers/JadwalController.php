@@ -1400,12 +1400,12 @@ class JadwalController extends Controller
          *  6. GENERATE PDF
          *  =============================== */
         $viewData = [
-            'nomor' => $nomorSk,
+            'nomor_sk' => $nomorSk,
             'tanggal_pleno_komtek' => Carbon::parse($tanggalPlenoKomtek)->isoFormat('D MMMM YYYY'),
             'nomor_pleno_komtek' => $nomorPlenoKomtek,
-            'tanggal_uji_sertifikasi' => $tanggalUji->isoFormat('D MMMM YYYY'),
+            'tanggal_uji' => $tanggalUji->isoFormat('D MMMM YYYY'),
             'tanggal_direktur_lsp' => Carbon::parse($tanggalDirekturLsp)->isoFormat('D MMMM YYYY'),
-            'hasil_sertifikasi' => $hasilSertifikasi,
+            'peserta' => $hasilSertifikasi,
             'qr' => $qrBase64,
         ];
 
@@ -1673,9 +1673,10 @@ class JadwalController extends Controller
             'is_started_praasesmen',
             'jenis_kelas',
             'tahap',
-            'ba_komtek_direktur_approved',
             'sk_komtek_direktur_approved',
-            'sk_hasil_asesmen_direktur_approved',
+            'sk_pelaksanaan_uji_direktur_approved',
+            'spt_asesor_direktur_approved',
+            'spt_komtek_direktur_approved',
         ])->with([
             'tuk:id,nama,alamat',
             'asesor:id,nama,noreg',
@@ -1805,14 +1806,17 @@ class JadwalController extends Controller
                     ->orWhere('has_spt_komtek', false);
                 });
             })
-            ->when($stage === 'ba-komtek', function ($q) {
-                $q->where('ba_komtek_direktur_approved', false);
-            })
             ->when($stage === 'sk-komtek', function ($q) {
                 $q->where('sk_komtek_direktur_approved', false);
             })
-            ->when($stage === 'sk-hasil-asesmen', function ($q) {
-                $q->where('sk_hasil_asesmen_direktur_approved', false);
+            ->when($stage === 'sk-pelaksanaan-uji', function ($q) {
+                $q->where('sk_pelaksanaan_uji_direktur_approved', false);
+            })
+            ->when($stage === 'spt-asesor', function ($q) {
+                $q->where('spt_asesor_direktur_approved', false);
+            })
+            ->when($stage === 'spt-komtek', function ($q) {
+                $q->where('spt_komtek_direktur_approved', false);
             })
             ->paginate($this->perPage($request));
 

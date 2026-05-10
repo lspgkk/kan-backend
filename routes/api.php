@@ -58,6 +58,7 @@ Route::get('/barcode/penyusun-validator/verify', [BarcodeController::class, 'get
 // Midtrans webhook (no auth required - must be publicly accessible for Midtrans servers)
 Route::post('/midtrans/webhook', [MidtransWebhookController::class, 'handlePaymentNotification']);
 
+// Route::middleware(['auth:api', 'singlesession'])->group(function () {
 Route::middleware(['auth:api'])->group(function () {
 
     // --- WebSocket Test Endpoint ---
@@ -150,6 +151,10 @@ Route::middleware(['auth:api'])->group(function () {
 
     Route::prefix('direktur')->group(function () {
         Route::get('/files/{id}', [DirekturController::class, 'jadwalFiles']);
+        Route::post('/approve-ba-komtek/{jadwal_id}', [DirekturController::class, 'approveBaKomtek']);
+        Route::post('/approve-sk-pelaksanaan-uji/{jadwal_id}', [DirekturController::class, 'approveSkPelaksanaanUji']);
+        Route::post('/approve-spt-asesor/{jadwal_id}', [DirekturController::class, 'approveSptAsesor']);
+        Route::post('/approve-spt-komtek/{jadwal_id}', [DirekturController::class, 'approveSptKomtek']);
     });
 
     Route::prefix('jenjang')->group(function () {
@@ -237,7 +242,6 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/apl01', [PraAsesmenController::class, 'submitApl01']);
         Route::post('/{id}/apl02', [PraAsesmenController::class, 'submitApl02']);
         Route::post('/{id}/apl02/files', [PraAsesmenController::class, 'uploadApl02Files']);
-        Route::post('/{id}/mapa01', [PraAsesmenController::class, 'generateMapa01']);
         Route::post('/{id}/mapa02', [PraAsesmenController::class, 'generateMapa02']);
         Route::post('/{id}/ak07', [PraAsesmenController::class, 'submitAk07']);
         Route::post('/{id}/ak04', [PraAsesmenController::class, 'submitAk04']);

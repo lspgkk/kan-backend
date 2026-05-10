@@ -307,6 +307,9 @@ NOMOR: <span class="highlight">{{ $nomor_sk ?? 'XXX/LSP GKK B.003-B/ROMAN/TAHUN'
 <div class="signature">
 DIREKTUR LSP GATENSI KARYA KONSTRUKSI<br>
 <div class="sign-space"></div>
+@if(isset($qr) && $qr)
+<img src="data:image/png;base64,{{ $qr }}" style="width: 100px; height: 100px;" />
+@endif
 RADINAL EFENDY, S.T.
 </div>
 
