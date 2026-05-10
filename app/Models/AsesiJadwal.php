@@ -9,6 +9,7 @@ class AsesiJadwal extends Model
     protected $fillable = [
         'jadwal_id',
         'id_izin',
+        'skema_id',
         'account',
         'password_plain',
         'kompeten',
@@ -29,6 +30,11 @@ class AsesiJadwal extends Model
             'id_izin',   // foreign key on asesijadwal
             'id_izin'    // primary key on personals
         );
+    }
+
+    public function skema()
+    {
+        return $this->belongsTo(Skema::class, 'skema_id', 'id');
     }
 
     public function jadwal()

@@ -108,7 +108,6 @@ class JadwalController extends Controller
                 'asesor_id',
                 'asesor2_id',
                 'jenis_mohon',
-                'skema_id',
                 'keterangan',
                 'jenjang_id',
                 'komtek1',
@@ -146,6 +145,7 @@ class JadwalController extends Controller
         $data['asesi'] = $jadwal->asesiJadwals->map(function ($asesi) {
             return [
                 'id_izin' => $asesi->id_izin,
+                'skema_id' => $asesi->skema_id,
                 'account' => $asesi->account,
                 'password' => $asesi->password_plain,
                 'kompeten' => $asesi->kompeten,
@@ -462,7 +462,6 @@ class JadwalController extends Controller
                             "asesor_id" => $apiData['asesor_id'],
                             "asesor2_id" => $asesor2_id,
                             "jenis_mohon" => $apiData['jenis_mohon'],
-                            "skema_id" => $apiData['skema_id'] ?? null,
                             "keterangan" => $apiData['keterangan'],
                             "jenjang_id" => $apiData['jenjang_id'],
                             "komtek1" => $request->input("komtek1"),
@@ -488,7 +487,6 @@ class JadwalController extends Controller
                             "asesor_id" => $apiData['asesor_id'],
                             "asesor2_id" => $asesor2_id,
                             "jenis_mohon" => $apiData['jenis_mohon'],
-                            "skema_id" => $apiData['skema_id'] ?? null,
                             "keterangan" => $apiData['keterangan'],
                             "jenjang_id" => $apiData['jenjang_id'],
                             "komtek1" => $request->input("komtek1"),
@@ -520,6 +518,7 @@ class JadwalController extends Controller
                     AsesiJadwal::create([
                         "jadwal_id" => $jadwal->jadwal_id,
                         "id_izin" => $id_izin,
+                        "skema_id" => $skema_id,
                         "account" => $account,
                         "password_plain" => $password,
                         "kompeten" => "BK",
@@ -1665,7 +1664,6 @@ class JadwalController extends Controller
             'tuk_id',
             'asesor_id',
             'asesor2_id',
-            'skema_id',
             'jenjang_id',
             'tanggal_uji',
             'tanggal_selesai',
@@ -1673,7 +1671,6 @@ class JadwalController extends Controller
             'is_started_praasesmen',
             'jenis_kelas',
             'tahap',
-            'sk_komtek_direktur_approved',
             'sk_pelaksanaan_uji_direktur_approved',
             'spt_asesor_direktur_approved',
             'spt_komtek_direktur_approved',
@@ -1681,7 +1678,6 @@ class JadwalController extends Controller
             'tuk:id,nama,alamat',
             'asesor:id,nama,noreg',
             'asesor2:id,nama,noreg',
-            'skema:id,nama'
         ]);
     }
 
@@ -1702,7 +1698,7 @@ class JadwalController extends Controller
         return (int) $request->get('per_page', $default);
     }
 
-    public function getKegiatanAsesi()
+    public function getKegiatanAsesi(Request $request)
     {
         if ($resp = $this->checkRole('8')) {
             return $resp;
@@ -1714,7 +1710,26 @@ class JadwalController extends Controller
         $jadwals = $this->baseJadwalQuery()
             ->where('jadwal_id', $jadwalId)
             ->where('tahap', '!=', 0)
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $q->where('nama_kegiatan', 'like', '%' . $request->search . '%');
+            })
+            ->with(['asesiJadwals.skema', 'asesiJadwals.personal'])
             ->first();
+
+        if ($jadwals) {
+            $jadwalsArray = $jadwals->toArray();
+            $jadwalsArray['asesi'] = $jadwals->asesiJadwals->map(function ($a) {
+                return [
+                    'id_izin'   => $a->id_izin,
+                    'skema_id'  => $a->skema_id,
+                    'skema'     => $a->skema ? ['id' => $a->skema->id, 'nama' => $a->skema->nama] : null,
+                    'kompeten'  => $a->kompeten,
+                    'nama'      => $a->personal?->nama,
+                ];
+            })->values();
+            unset($jadwalsArray['asesi_jadwals']);
+            $jadwals = $jadwalsArray;
+        }
 
         return response()->json([
             'message' => 'Kegiatan Asesi retrieved successfully.',
@@ -1722,7 +1737,7 @@ class JadwalController extends Controller
         ]);
     }
 
-    public function getKegiatanAsesor()
+    public function getKegiatanAsesor(Request $request)
     {
         if ($resp = $this->checkRole('5')) {
             return $resp;
@@ -1736,8 +1751,26 @@ class JadwalController extends Controller
                 $q->where('asesor_id', $asesorId)
                 ->orWhere('asesor2_id', $asesorId);
             })
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $q->where('nama_kegiatan', 'like', '%' . $request->search . '%');
+            })
             ->whereDate('tanggal_uji', today())
-            ->get();
+            ->with(['asesiJadwals.skema', 'asesiJadwals.personal'])
+            ->get()
+            ->map(function ($j) {
+                $jArr = $j->toArray();
+                $jArr['asesi'] = $j->asesiJadwals->map(function ($a) {
+                    return [
+                        'id_izin'   => $a->id_izin,
+                        'skema_id'  => $a->skema_id,
+                        'skema'     => $a->skema ? ['id' => $a->skema->id, 'nama' => $a->skema->nama] : null,
+                        'kompeten'  => $a->kompeten,
+                        'nama'      => $a->personal?->nama,
+                    ];
+                })->values();
+                unset($jArr['asesi_jadwals']);
+                return $jArr;
+            });
 
         return response()->json([
             'message' => 'Kegiatan Asesor retrieved successfully.',
@@ -1777,8 +1810,26 @@ class JadwalController extends Controller
                 });
             });
         })
-        ->select('jadwals.*') // <-- specify jadwals table explicitly
-        ->paginate($this->perPage($request));
+        ->select('jadwals.*')
+        ->when($request->filled('search'), function ($q) use ($request) {
+            $q->where('nama_kegiatan', 'like', '%' . $request->search . '%');
+        })
+        ->with(['asesiJadwals.skema', 'asesiJadwals.personal'])
+        ->paginate($this->perPage($request))
+        ->through(function ($j) {
+            $jArr = $j->toArray();
+            $jArr['asesi'] = $j->asesiJadwals->map(function ($a) {
+                return [
+                    'id_izin'   => $a->id_izin,
+                    'skema_id'  => $a->skema_id,
+                    'skema'     => $a->skema ? ['id' => $a->skema->id, 'nama' => $a->skema->nama] : null,
+                    'kompeten'  => $a->kompeten,
+                    'nama'      => $a->personal?->nama,
+                ];
+            })->values();
+            unset($jArr['asesi_jadwals']);
+            return $jArr;
+        });
 
         return response()->json([
             'message' => 'Kegiatan Komtek retrieved successfully.',
@@ -1818,7 +1869,25 @@ class JadwalController extends Controller
             ->when($stage === 'spt-komtek', function ($q) {
                 $q->where('spt_komtek_direktur_approved', false);
             })
-            ->paginate($this->perPage($request));
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $q->where('nama_kegiatan', 'like', '%' . $request->search . '%');
+            })
+            ->with(['asesiJadwals.skema', 'asesiJadwals.personal'])
+            ->paginate($this->perPage($request))
+            ->through(function ($j) {
+                $jArr = $j->toArray();
+                $jArr['asesi'] = $j->asesiJadwals->map(function ($a) {
+                    return [
+                        'id_izin'   => $a->id_izin,
+                        'skema_id'  => $a->skema_id,
+                        'skema'     => $a->skema ? ['id' => $a->skema->id, 'nama' => $a->skema->nama] : null,
+                        'kompeten'  => $a->kompeten,
+                        'nama'      => $a->personal?->nama,
+                    ];
+                })->values();
+                unset($jArr['asesi_jadwals']);
+                return $jArr;
+            });
 
         return response()->json([
             'message' => 'Kegiatan Direktur retrieved successfully.',
@@ -1837,10 +1906,28 @@ class JadwalController extends Controller
             ->when($request->filled('tanggal_uji'), function ($query) use ($request) {
                 $query->whereDate('tanggal_uji', $request->tanggal_uji);
             })
-            ->paginate($this->perPage($request));
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $q->where('nama_kegiatan', 'like', '%' . $request->search . '%');
+            })
+            ->with(['asesiJadwals.skema', 'asesiJadwals.personal'])
+            ->paginate($this->perPage($request))
+            ->through(function ($j) {
+                $jArr = $j->toArray();
+                $jArr['asesi'] = $j->asesiJadwals->map(function ($a) {
+                    return [
+                        'id_izin'   => $a->id_izin,
+                        'skema_id'  => $a->skema_id,
+                        'skema'     => $a->skema ? ['id' => $a->skema->id, 'nama' => $a->skema->nama] : null,
+                        'kompeten'  => $a->kompeten,
+                        'nama'      => $a->personal?->nama,
+                    ];
+                })->values();
+                unset($jArr['asesi_jadwals']);
+                return $jArr;
+            });
 
         return response()->json([
-            'message' => 'Kegiatan Direktur retrieved successfully.',
+            'message' => 'Kegiatan Admin TUK retrieved successfully.',
             'data' => $jadwals
         ]);
     }

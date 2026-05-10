@@ -8,7 +8,14 @@
       "Bash(php artisan:*)",
       "Bash(php *)",
       "Bash(awk 'NR>=161 && NR<=573 {print NR\": \"$0}' \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\app\\\\Http\\\\Controllers\\\\JadwalController.php\")",
-      "Bash(curl -s https://backend.devgatensi.site/api/invoice/test-midtrans)"
+      "Bash(curl -s https://backend.devgatensi.site/api/invoice/test-midtrans)",
+      "Bash(curl *)",
+      "Bash(findstr MIDTRANS)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\" -Recurse -Filter \"logo-template.png\")",
+      "Bash(Select-Object -First 5 FullName)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\database\\\\migrations\" -Name)",
+      "Bash(Sort-Object -Descending)",
+      "Bash(Select-Object -First 3)"
     ]
   }
 }

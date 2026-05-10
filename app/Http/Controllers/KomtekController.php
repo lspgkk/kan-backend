@@ -86,12 +86,18 @@ class KomtekController extends Controller
 
     public function komtekFiles($id)
     {
-        $ba_komtek = BaKomtek::where('jadwal_id', $id)->value('link');
+        $ba = BaKomtek::where('jadwal_id', $id)->first();
         $spt_komtek = SPTKomtek::where('jadwal_id', $id)->value('link');
         $absen_komtek = AbsenKomtek::where('jadwal_id', $id)->value('link');
 
         return response()->json([
-            'ba_komtek' => $ba_komtek,
+            'ba_komtek' => $ba?->link,
+            'ba_komtek_no_surat' => $ba?->no_surat,
+            'ba_komtek_ttd_progress' => [
+                'komtek1' => (bool) ($ba->has_ttd_komtek1 ?? false),
+                'komtek2' => (bool) ($ba->has_ttd_komtek2 ?? false),
+                'komtek3' => (bool) ($ba->has_ttd_komtek3 ?? false),
+            ],
             'spt_komtek' => $spt_komtek,
             'sk_komtek' => env('APP_URL') . '/files/sk_komtek.pdf',
             'pleno_komtek' => $absen_komtek

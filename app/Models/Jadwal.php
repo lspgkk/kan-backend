@@ -14,7 +14,6 @@ class Jadwal extends Model
         'asesor_id',
         'asesor2_id',
         'jenis_mohon',
-        'skema_id',
         'keterangan',
         'jenjang_id',
         'komtek1',
@@ -46,7 +45,6 @@ class Jadwal extends Model
         'admin_id' => 'integer',
         'asesor_id' => 'integer',
         'asesor2_id' => 'integer',
-        'skema_id' => 'integer',
         'jenjang_id' => 'integer',
         'komtek1' => 'integer',
         'komtek2' => 'integer',
@@ -79,11 +77,6 @@ class Jadwal extends Model
     public function asesor2()
     {
         return $this->belongsTo(AsesorBnsp::class, 'asesor2_id', 'id');
-    }
-
-    public function skema()
-    {
-        return $this->belongsTo(Skema::class, 'skema_id', 'id');
     }
 
     public function komtekRecommendations()
