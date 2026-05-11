@@ -6,27 +6,42 @@
 
 <style>
 
+@page { margin: 0cm 0cm; size: A4; }
+
 body{
+    margin-top: 3cm;
+    margin-left: 2cm;
+    margin-right: 2cm;
+    margin-bottom: 2cm;
     font-family: Arial, sans-serif;
-    background:#f3f3f3;
+    font-size: 14px;
+    background: #fff;
 }
 
-.page{
-    width:800px;
-    height:1132px;
-    margin:40px auto;
-    background:#fff;
-    padding:40px 65px 45px 65px;
-    font-size:14px;
-    line-height:1.5;
-    box-sizing:border-box;
-    overflow:hidden;
+header{
+    position: fixed;
+    top: 0cm;
+    left: 0cm;
+    right: 0cm;
+    height: 3cm;
 }
 
-.page.first{
-    background:#fff url('{{ asset('images/kop-surat-1.png') }}') no-repeat top center;
-    background-size:100% auto;
-    padding:150px 65px 45px 65px;
+header img{
+    width: 100%;
+    height: 100%;
+}
+
+footer{
+    position: fixed;
+    bottom: 0cm;
+    left: 0cm;
+    right: 0cm;
+    height: 2cm;
+}
+
+footer img{
+    width: 100%;
+    height: 100%;
 }
 
 .center{
@@ -143,7 +158,13 @@ body{
 
 <body>
 
-<div class="page first">
+<header>
+    <img src="./images/untuk-template/kop_satu.png" width="100%" />
+</header>
+
+<footer>
+    <img src="./images/untuk-template/kop_dua.png" width="100%" />
+</footer>
 
 <div class="center">
 SURAT KEPUTUSAN DIREKTUR<br>
@@ -311,8 +332,6 @@ DIREKTUR LSP GATENSI KARYA KONSTRUKSI<br>
 <img src="data:image/png;base64,{{ $qr }}" style="width: 100px; height: 100px;" />
 @endif
 RADINAL EFENDY, S.T.
-</div>
-
 </div>
 
 </div>

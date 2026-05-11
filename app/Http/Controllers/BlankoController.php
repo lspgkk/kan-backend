@@ -476,17 +476,13 @@ class BlankoController extends Controller
             'created_at' => \Carbon\Carbon::parse($response_jadwal['dataJadwal']['tanggal_mulai'])->addDay()->setTimezone('Asia/Jakarta')
         ]);
         $result = [
-            "no_surat" => $no_ba_komtek,
-            "komtek1" => $komtek1,
-            "komtek2" => $komtek2,
-            "komtek3" => $komtek3,
-            "hari_tanggal" => \Carbon\Carbon::parse($response_jadwal['dataJadwal']['tanggal_mulai'])->addDay()->setTimezone('Asia/Jakarta')->isoFormat('D MMMM YYYY'),
-            "jmlh_peserta" => $count_data,
+            "nomor" => $no_ba_komtek,
+            "tanggal" => \Carbon\Carbon::parse($response_jadwal['dataJadwal']['tanggal_mulai'])->subDay()->setTimezone('Asia/Jakarta'),
+            "nama_komtek1" => $komtek1,
+            "nama_komtek2" => $komtek2,
+            "nama_komtek3" => $komtek3,
             "nama_peserta" => $nama_peserta,
-            "svg1" => $html1,
-            "svg2" => $html2,
-            "svg3" => $html3,
-            "tanggal_surat" => \Carbon\Carbon::parse($response_jadwal['dataJadwal']['tanggal_mulai'])->subDay()->setTimezone('Asia/Jakarta')
+            "qr" => $html1,
         ];
         $pdf = PDF::loadView('template-surat.ba_komteks', $result);
         $pdfContent_BA = $pdf->output();

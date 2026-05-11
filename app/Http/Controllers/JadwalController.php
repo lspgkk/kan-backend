@@ -1098,7 +1098,7 @@ class JadwalController extends Controller
             $spt_no = $existing->no_surat;
         } else {
             $last = SPTKomtek::latest('id')->first();
-            $base = $last?->no_surat ?? '0/LSP-GATENSI/SPT-KOMTEK/I/2024';
+            $base = $last?->no_surat ?? '0/LSP GKK B.001-D/I/2024';
 
             $romawi = [
                 1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
@@ -1203,8 +1203,8 @@ class JadwalController extends Controller
          *  6. GENERATE PDF
          *  =============================== */
         $viewData = [
-            'no_surat'     => $spt_no,
-            'nama_komtek'  => $nama_komtek1,
+            'nomor'        => $spt_no,
+            'nama_komtek1' => $nama_komtek1,
             'nama_komtek2' => $nama_komtek2,
             'nama_komtek3' => $nama_komtek3,
             'nama_tuk'     => $responseJadwal['dataJadwal']['nama_tuk'],
@@ -1214,7 +1214,7 @@ class JadwalController extends Controller
             )->isoFormat('dddd, D MMMM YYYY'),
             'jmlh_peserta' => count($peserta),
             'nama_skema'   => implode(', ', $namaSkema),
-            'nama_peserta' => $peserta,
+            'peserta'      => $peserta,
             'qr'           => $qrSvg,
         ];
 
@@ -1450,7 +1450,7 @@ class JadwalController extends Controller
                 $nomorSkPelaksanaanUji = $existingPelaksanaanUji->no_surat;
             } else {
                 $last = SkPelaksanaanUji::latest('id')->first();
-                $noSk = $last?->no_surat ?? '0/LSP-GATENSI/SK-UJI/I/2024';
+                $noSk = $last?->no_surat ?? '0/LSP GKK B.003-B/I/2024';
 
                 $romawi = [
                     1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
@@ -1480,7 +1480,7 @@ class JadwalController extends Controller
                 $nomorSkKomtek = $existingKomtek->no_surat;
             } else {
                 $last = SkKomtek::latest('id')->first();
-                $noSk = $last?->no_surat ?? '0/LSP-GKK-C.003-B/I/2024';
+                $noSk = $last?->no_surat ?? '0/LSP GKK B.003-A/I/2024';
 
                 $romawi = [
                     1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
@@ -2266,7 +2266,7 @@ class JadwalController extends Controller
     private function generateSkPelaksanaanUjiWithoutTtd(int $jadwalId): array
     {
         $last = SkPelaksanaanUji::latest('id')->first();
-        $noSk = $last?->no_surat ?? '0/LSP-GATENSI/SK-UJI/I/2024';
+        $noSk = $last?->no_surat ?? '0/LSP GKK B.003-B/I/2024';
 
         $romawi = [
             1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
@@ -2333,7 +2333,7 @@ class JadwalController extends Controller
     private function generateSptAsesorWithoutTtd(int $jadwalId): array
     {
         $last = SPTAsesor::latest('id')->first();
-        $noSpt = $last?->spt_no ?? '0/SPT-ASESOR/LSP-GATENSI/I/2024';
+        $noSpt = $last?->spt_no ?? '0/LSP GKK B.012-D/I/2024';
 
         $romawi = [
             1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
@@ -2362,17 +2362,26 @@ class JadwalController extends Controller
         $asesiJadwals = AsesiJadwal::where('jadwal_id', $jadwalId)->with(['personal'])->get();
         $peserta = $asesiJadwals->pluck('personal.nama')->toArray();
 
+        $tuk = $jadwal->tuk;
+        $namaSkemaList = [];
+        foreach ($asesiJadwals as $asesi) {
+            $jabatanKerjaId = KlasifikasiKualifikasi::where('id_izin', $asesi->id_izin)->value('jabatan_kerja');
+            $skema = JabatanKerja::where('id_jabatan_kerja', $jabatanKerjaId)->value('jabatan_kerja');
+            if ($skema) $namaSkemaList[] = $skema;
+        }
+        $namaSkemaList = array_unique($namaSkemaList);
+
         $viewData = [
             'no_surat' => $noSpt,
             'nama_asesor' => $asesor1->Nama ?? '',
             'nama_met' => $asesor1->Noreg ?? '',
             'nama_asesor2' => $asesor2->Nama ?? '',
             'nama_met2' => $asesor2->Noreg ?? '',
-            'nama_tuk' => '',
-            'alamat_tuk' => '',
+            'nama_tuk' => $tuk->nama ?? '',
+            'alamat_tuk' => $tuk->alamat ?? '',
             'hari_tanggal' => Carbon::parse($jadwal->tanggal_uji)->isoFormat('dddd, D MMMM Y'),
             'jmlh_peserta' => count($peserta),
-            'nama_skema' => '',
+            'nama_skema' => implode(', ', $namaSkemaList),
             'nama_peserta' => $peserta,
             'qr' => null,
         ];
@@ -2406,7 +2415,7 @@ class JadwalController extends Controller
     private function generateSptKomtekWithoutTtd(int $jadwalId): array
     {
         $last = SPTKomtek::latest('id')->first();
-        $base = $last?->no_surat ?? '0/LSP-GATENSI/SPT-KOMTEK/I/2024';
+        $base = $last?->no_surat ?? '0/LSP GKK B.001-D/I/2024';
 
         $romawi = [
             1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
@@ -2445,12 +2454,24 @@ class JadwalController extends Controller
             ];
         }
 
+        $tuk = $jadwal->tuk;
+        $namaSkemaList = [];
+        foreach ($peserta as $p) {
+            if (!empty($p['skema'])) $namaSkemaList[] = $p['skema'];
+        }
+        $namaSkemaList = array_unique($namaSkemaList);
+
         $viewData = [
             'nomor' => $spt_no,
             'tanggal_surat' => now()->isoFormat('dddd, D MMMM Y'),
             'nama_komtek1' => $nama_komtek1,
             'nama_komtek2' => $nama_komtek2,
             'nama_komtek3' => $nama_komtek3,
+            'nama_tuk' => $tuk->nama ?? '',
+            'alamat_tuk' => $tuk->alamat ?? '',
+            'hari_tanggal' => Carbon::parse($jadwal->tanggal_uji)->isoFormat('dddd, D MMMM Y'),
+            'jmlh_peserta' => count($peserta),
+            'nama_skema' => implode(', ', $namaSkemaList),
             'peserta' => $peserta,
             'qr' => null, // No QR code
         ];
@@ -2488,7 +2509,7 @@ class JadwalController extends Controller
         $now = Carbon::now();
 
         $num = $last ? ((int) explode('/', $last->no_surat)[0] + 1) : 1;
-        $no_ba_komtek = "{$num}/BA-KOMTEK/{$roman[$now->month]}/{$now->year}";
+        $no_ba_komtek = "{$num}/LSP GKK B.002-A/{$roman[$now->month]}/{$now->year}";
 
         // Get jadwal data
         $jadwal = Jadwal::where('jadwal_id', $jadwalId)->firstOrFail();

@@ -701,8 +701,8 @@ class PenerbitanSertifikatController extends Controller
         $tanggal_surat_qr = \Carbon\Carbon::parse($response_jadwal['dataJadwal']['tanggal_mulai'])->subDay()->setTimezone('Asia/Jakarta')->isoFormat('dddd, D MMMM YYYY');
         $html = '<img src="data:image/svg+xml;base64,' . base64_encode(QrCode::margin(0)->size(70)->generate("https://barcode.lspgatensi.id/$barcode1")) . '"  width="100" height="100" />';
         $result = [
-            "no_surat" => $spt_no,
-            "nama_komtek" => $nama_komtek1,
+            "nomor" => $spt_no,
+            "nama_komtek1" => $nama_komtek1,
             "nama_komtek2" => $nama_komtek2,
             "nama_komtek3" => $nama_komtek3,
             "nama_tuk" => $response_jadwal['dataJadwal']['nama_tuk'],
@@ -710,7 +710,7 @@ class PenerbitanSertifikatController extends Controller
             "hari_tanggal" => \Carbon\Carbon::parse($response_jadwal['dataJadwal']['tanggal_mulai'])->setTimezone('Asia/Jakarta')->isoFormat('dddd, D MMMM YYYY'),
             "jmlh_peserta" => $count_data,
             "nama_skema" => join(", ", $nama_skema),
-            "nama_peserta" => $nama_peserta,
+            "peserta" => $nama_peserta,
             "qr" => QrCode::margin(0)->size(70)->generate("https://barcode.lspgatensi.id/$barcode1"),
             "svg" => $html,
             "tanggal_surat" => \Carbon\Carbon::parse($response_jadwal['dataJadwal']['tanggal_mulai'])->subDay()->setTimezone('Asia/Jakarta')
@@ -953,17 +953,11 @@ class PenerbitanSertifikatController extends Controller
 
                     $pas_foto = Personal::select("pas_foto")->where("id_izin", $dataPencatatan->id_izin)->first();
 
-                    setlocale(LC_TIME, 'id_ID');
-                    Carbon::setLocale('id');
+                    $tgl_ditetapkan = $dataPencatatan->tanggal_ditetapkan;
+                    $tanggal_ditetapkan = Carbon::parse($tgl_ditetapkan)->locale('id')->isoFormat('D MMMM Y');
 
-                    $tgl_ditetapkan =  $dataPencatatan->tanggal_ditetapkan;
-                    $tanggal_ditetapkan = Carbon::parse($tgl_ditetapkan)->isoFormat('D MMMM Y');
-
-                    setlocale(LC_TIME, 'en_EN');
-                    Carbon::setLocale('en');
-
-                    $tgl_ditetapkan_en =  $dataPencatatan->tanggal_ditetapkan;
-                    $tanggal_ditetapkan_en = Carbon::parse($tgl_ditetapkan_en)->isoFormat('MMMM, D Y');
+                    $tgl_ditetapkan_en = $dataPencatatan->tanggal_ditetapkan;
+                    $tanggal_ditetapkan_en = Carbon::parse($tgl_ditetapkan_en)->locale('en')->isoFormat('MMMM, D Y');
 
                     $uid = Uuid::uuid4();
 

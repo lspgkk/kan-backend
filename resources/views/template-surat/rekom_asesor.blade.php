@@ -11,7 +11,7 @@
 <body>
     <div class="page nobg">
         <div class="header" align="center">
-            <header><img src="./kop_satu.jpg" width="795" /></header>
+            <header><img src="./kop_satu.png" width="795" /></header>
 
         </div>
     </div>
@@ -105,11 +105,11 @@
 <body>
     <!-- Define header and footer blocks before your content -->
     <header>
-        <img src="./images/untuk-template/kop_satu.jpg" width="100%" />
+        <img src="./images/untuk-template/kop_satu.png" width="100%" />
     </header>
 
     <footer>
-        <img src="./images/untuk-template/kop_dua.jpg" width="100%" />
+        <img src="./images/untuk-template/kop_dua.png" width="100%" />
     </footer>
 
     <!-- Wrap the content of your PDF inside a main tag -->

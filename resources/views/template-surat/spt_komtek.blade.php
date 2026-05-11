@@ -4,26 +4,42 @@
 <meta charset="UTF-8">
 <title>Surat Perintah Tugas</title>
 <style>
-    body {
+    @page { margin: 0cm 0cm; size: A4; }
+
+    body{
+        margin-top: 3cm;
+        margin-left: 2cm;
+        margin-right: 2cm;
+        margin-bottom: 2cm;
         font-family: Arial, sans-serif;
-        background: #f5f5f5;
-    }
-
-    .container {
-        width: 800px;
-        height: 1132px;
-        margin: 40px auto;
+        font-size: 14px;
         background: #fff;
-        padding: 40px 60px 40px 60px;
-        box-sizing: border-box;
-        box-shadow: 0 0 8px rgba(0,0,0,0.15);
-        overflow: hidden;
     }
 
-    .container.first {
-        background: #fff url('{{ asset('images/kop-surat-1.png') }}') no-repeat top center;
-        background-size: 100% auto;
-        padding: 150px 60px 40px 60px;
+    header{
+        position: fixed;
+        top: 0cm;
+        left: 0cm;
+        right: 0cm;
+        height: 3cm;
+    }
+
+    header img{
+        width: 100%;
+        height: 100%;
+    }
+
+    footer{
+        position: fixed;
+        bottom: 0cm;
+        left: 0cm;
+        right: 0cm;
+        height: 2cm;
+    }
+
+    footer img{
+        width: 100%;
+        height: 100%;
     }
 
     .title {
@@ -116,7 +132,13 @@
 
 <body>
 
-<div class="container first">
+<header>
+    <img src="./images/untuk-template/kop_satu.png" width="100%" />
+</header>
+
+<footer>
+    <img src="./images/untuk-template/kop_dua.png" width="100%" />
+</footer>
 
     <div class="title">SURAT PERINTAH TUGAS</div>
 
@@ -221,8 +243,6 @@
             @endif
         </div>
     </div>
-
-</div>
 
 </body>
 </html>
