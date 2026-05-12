@@ -86,7 +86,7 @@ class DirekturController extends Controller
         // Get or create BA Komtek record
         $ba = BaKomtek::where('jadwal_id', $jadwal_id)->first();
 
-        if ($ba && $ba->no_surat === '-') {
+        if ($ba && (!$ba->no_surat || !str_contains($ba->no_surat, 'LSP GKK'))) {
             // Stale record with placeholder number — regenerate
             $last  = BaKomtek::latest('id')->first();
             $roman = [1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII'];
@@ -215,26 +215,12 @@ class DirekturController extends Controller
 
         $sk = SkPelaksanaanUji::where('jadwal_id', $jadwal_id)->first();
 
-        if ($sk && $sk->no_surat && $sk->no_surat !== '-') {
+        if ($sk && $sk->no_surat && str_contains($sk->no_surat, 'LSP GKK')) {
             $nomorSk = $sk->no_surat;
         } else {
-            $last = SkPelaksanaanUji::latest('id')->first();
-            $noSk = $last?->no_surat ?? '0/LSP GKK B.003-B/I/2024';
-
-            $romawi = [
-                1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
-                5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII',
-                9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
-            ];
-
-            $parts = explode('/', $noSk);
-            $year  = now()->year;
-
-            $parts[0] = ((int)($parts[3] ?? 0) === $year) ? ((int)$parts[0] + 1) : 1;
-            $parts[2] = $romawi[now()->month];
-            $parts[3] = (string)$year;
-
-            $nomorSk = implode('/', $parts);
+            $nomorSk = $this->generateNextNumber(
+                SkPelaksanaanUji::class, 'no_surat', '0/LSP GKK B.003-B/I/2024'
+            );
         }
 
         $viewData = [
@@ -287,18 +273,12 @@ class DirekturController extends Controller
 
         $spt = SPTAsesor::where('jadwal_id', $jadwal_id)->first();
 
-        if ($spt && $spt->spt_no && $spt->spt_no !== '-') {
+        if ($spt && $spt->spt_no && str_contains($spt->spt_no, 'LSP GKK')) {
             $sptNo = $spt->spt_no;
         } else {
-            $last = SPTAsesor::latest('id')->first();
-            $base = $last?->spt_no ?? '0/LSP GKK B.012-D/I/2024';
-            $romawi = [1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII'];
-            $parts = explode('/', $base);
-            $year = now()->year;
-            $parts[0] = ((int)($parts[3] ?? 0) === $year) ? ((int)$parts[0] + 1) : 1;
-            $parts[2] = $romawi[now()->month];
-            $parts[3] = (string)$year;
-            $sptNo = implode('/', $parts);
+            $sptNo = $this->generateNextNumber(
+                SPTAsesor::class, 'spt_no', '0/LSP GKK B.012-D/I/2024'
+            );
         }
 
         $viewData = [
@@ -358,18 +338,12 @@ class DirekturController extends Controller
 
         $spt = SPTKomtek::where('jadwal_id', $jadwal_id)->first();
 
-        if ($spt && $spt->no_surat && $spt->no_surat !== '-') {
+        if ($spt && $spt->no_surat && str_contains($spt->no_surat, 'LSP GKK')) {
             $sptNo = $spt->no_surat;
         } else {
-            $last = SPTKomtek::latest('id')->first();
-            $base = $last?->no_surat ?? '0/LSP GKK B.001-D/I/2024';
-            $romawi = [1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII'];
-            $parts = explode('/', $base);
-            $year = now()->year;
-            $parts[0] = ((int)($parts[3] ?? 0) === $year) ? ((int)$parts[0] + 1) : 1;
-            $parts[2] = $romawi[now()->month];
-            $parts[3] = (string)$year;
-            $sptNo = implode('/', $parts);
+            $sptNo = $this->generateNextNumber(
+                SPTKomtek::class, 'no_surat', '0/LSP GKK B.001-D/I/2024'
+            );
         }
 
         $tuk = $jadwal->tuk;
@@ -427,6 +401,35 @@ class DirekturController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Generate the next sequential document number.
+     *
+     * @param  string  $modelClass  Full model class name
+     * @param  string  $field       Column name (e.g. 'no_surat', 'spt_no')
+     * @param  string  $default     Fallback pattern like '0/LSP GKK B.XXX-X/I/2024'
+     * @return string
+     */
+    private function generateNextNumber($modelClass, $field, $default)
+    {
+        $last = $modelClass::latest('id')->first();
+        $lastVal = $last?->{$field};
+
+        // Only use the last record as base if it has a valid format
+        if (!$lastVal || !str_contains($lastVal, 'LSP GKK')) {
+            $lastVal = $default;
+        }
+
+        $romawi = [1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII'];
+        $parts = explode('/', $lastVal);
+        $year = now()->year;
+
+        $parts[0] = ((int) ($parts[3] ?? 0) === $year) ? ((int) $parts[0] + 1) : 1;
+        $parts[2] = $romawi[now()->month];
+        $parts[3] = (string) $year;
+
+        return implode('/', $parts);
     }
 
     /**

@@ -31,6 +31,7 @@ use App\Http\Controllers\PraAsesmenController;
 use App\Http\Controllers\ProvinceController;
 use App\Http\Controllers\SesiController;
 use App\Http\Controllers\SubklasifikasiController;
+use App\Http\Controllers\SurveyController;
 use App\Http\Controllers\TukController;
 
 Route::get('/migrate/personals', [MigrationController::class, 'personals']);
@@ -57,6 +58,10 @@ Route::get('/barcode/penyusun-validator/verify', [BarcodeController::class, 'get
 
 // Midtrans webhook (no auth required - must be publicly accessible for Midtrans servers)
 Route::post('/midtrans/webhook', [MidtransWebhookController::class, 'handlePaymentNotification']);
+
+// --- Public Survey (no auth required) ---
+Route::post('/survey/{id_izin}', [SurveyController::class, 'submit']);
+Route::get('/survey/{id_izin}', [SurveyController::class, 'show']);
 
 // Route::middleware(['auth:api', 'singlesession'])->group(function () {
 Route::middleware(['auth:api'])->group(function () {
@@ -155,6 +160,15 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/approve-sk-pelaksanaan-uji/{jadwal_id}', [DirekturController::class, 'approveSkPelaksanaanUji']);
         Route::post('/approve-spt-asesor/{jadwal_id}', [DirekturController::class, 'approveSptAsesor']);
         Route::post('/approve-spt-komtek/{jadwal_id}', [DirekturController::class, 'approveSptKomtek']);
+    });
+
+    // --- Survey Master Data (CRUD) ---
+    Route::prefix('survey')->group(function () {
+        Route::get('/pertanyaan', [SurveyController::class, 'indexPertanyaan']);
+        Route::get('/pertanyaan/{id}', [SurveyController::class, 'showPertanyaan']);
+        Route::post('/pertanyaan', [SurveyController::class, 'storePertanyaan']);
+        Route::put('/pertanyaan/{id}', [SurveyController::class, 'updatePertanyaan']);
+        Route::delete('/pertanyaan/{id}', [SurveyController::class, 'destroyPertanyaan']);
     });
 
     Route::prefix('jenjang')->group(function () {

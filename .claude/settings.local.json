@@ -15,7 +15,20 @@
       "Bash(Select-Object -First 5 FullName)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\database\\\\migrations\" -Name)",
       "Bash(Sort-Object -Descending)",
-      "Bash(Select-Object -First 3)"
+      "Bash(Select-Object -First 3)",
+      "Read(//c/Users/Rafie Pradipta/Downloads/**)",
+      "Bash(python3 -c ' *)",
+      "Bash(pip install *)",
+      "PowerShell(pip install *)",
+      "PowerShell(where python; python -m pip install openpyxl -q; python -c \"import openpyxl; print\\('ok'\\)\")",
+      "PowerShell(& \"C:\\\\Users\\\\Rafie Pradipta\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\" -m pip install openpyxl -q; & \"C:\\\\Users\\\\Rafie Pradipta\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\" -c \"import openpyxl; wb = openpyxl.load_workbook\\('C:/Users/Rafie Pradipta/Downloads/Master Form survey ver2.xlsx', data_only=True\\); ws = wb['Survey Kepuasan LSP']; [print\\(row\\) for row in ws.iter_rows\\(values_only=True\\)]\")",
+      "PowerShell(& \"C:\\\\Users\\\\Rafie Pradipta\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\" -c \"import openpyxl; wb = openpyxl.load_workbook\\('C:/Users/Rafie Pradipta/Downloads/Master Form survey ver2.xlsx', data_only=True\\); print\\(wb.sheetnames\\)\")",
+      "Bash(docker-compose ps *)",
+      "Bash(Get-Service MySQL* -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object Name, Status)",
+      "Bash(findstr \":3306\")",
+      "Read(//c/xampp/mysql/bin\" 2>/dev/**)",
+      "Read(//c/Program Files/MySQL\" 2>/dev/**)"
     ]
   }
 }
