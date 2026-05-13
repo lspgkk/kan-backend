@@ -59,9 +59,8 @@ Route::get('/barcode/penyusun-validator/verify', [BarcodeController::class, 'get
 // Midtrans webhook (no auth required - must be publicly accessible for Midtrans servers)
 Route::post('/midtrans/webhook', [MidtransWebhookController::class, 'handlePaymentNotification']);
 
-// --- Public Survey (no auth required) ---
-Route::post('/survey/{id_izin}', [SurveyController::class, 'submit']);
-Route::get('/survey/{id_izin}', [SurveyController::class, 'show']);
+// Public UUID resolve for WhatsApp magic link (no auth)
+Route::get('/praasesmen/by-uuid/{uuid}', [PraAsesmenController::class, 'resolveUuid']);
 
 // Route::middleware(['auth:api', 'singlesession'])->group(function () {
 Route::middleware(['auth:api'])->group(function () {
@@ -160,15 +159,6 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/approve-sk-pelaksanaan-uji/{jadwal_id}', [DirekturController::class, 'approveSkPelaksanaanUji']);
         Route::post('/approve-spt-asesor/{jadwal_id}', [DirekturController::class, 'approveSptAsesor']);
         Route::post('/approve-spt-komtek/{jadwal_id}', [DirekturController::class, 'approveSptKomtek']);
-    });
-
-    // --- Survey Master Data (CRUD) ---
-    Route::prefix('survey')->group(function () {
-        Route::get('/pertanyaan', [SurveyController::class, 'indexPertanyaan']);
-        Route::get('/pertanyaan/{id}', [SurveyController::class, 'showPertanyaan']);
-        Route::post('/pertanyaan', [SurveyController::class, 'storePertanyaan']);
-        Route::put('/pertanyaan/{id}', [SurveyController::class, 'updatePertanyaan']);
-        Route::delete('/pertanyaan/{id}', [SurveyController::class, 'destroyPertanyaan']);
     });
 
     Route::prefix('jenjang')->group(function () {
@@ -333,5 +323,17 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/cetak/{jadwal_id}', [PenerbitanSertifikatController::class, 'storePenerbitan']);
         Route::post('/create-blanko/{jadwal_id}', [BlankoController::class, 'submitHasilUji']);
         Route::post('/close/{jadwal_id}', [CetakJadwalController::class, 'storeCetakJadwal']);
+    });
+
+    // --- Survey (specific pertanyaan routes first, then wildcard) ---
+    Route::prefix('survey')->group(function () {
+        Route::get('/pertanyaan', [SurveyController::class, 'indexPertanyaan']);
+        Route::post('/pertanyaan', [SurveyController::class, 'storePertanyaan']);
+        Route::get('/pertanyaan/{id}', [SurveyController::class, 'showPertanyaan']);
+        Route::put('/pertanyaan/{id}', [SurveyController::class, 'updatePertanyaan']);
+        Route::delete('/pertanyaan/{id}', [SurveyController::class, 'destroyPertanyaan']);
+
+        Route::post('/{id_izin}', [SurveyController::class, 'submit']);
+        Route::get('/{id_izin}', [SurveyController::class, 'show']);
     });
 });

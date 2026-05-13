@@ -5,10 +5,13 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\Personal;
+use App\Models\AsesiJadwal;
+use App\Services\QontakService;
 use GuzzleHttp\Exception\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 ini_set('max_execution_time', 3800);
 
@@ -60,6 +63,15 @@ class HitStatusController extends Controller
             ]);
 
             DB::commit();
+
+            // Send WhatsApp notification to asesi
+            try {
+                $this->sendVerifikasiWhatsApp($personal, $id_izin);
+            } catch (\Throwable $waError) {
+                Log::warning('WhatsApp notification failed for ' . $id_izin . ': ' . $waError->getMessage());
+                // Don't fail the request — WhatsApp is secondary
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Verifikasi berhasil'
@@ -424,5 +436,74 @@ class HitStatusController extends Controller
             }
         }
         return redirect()->back()->with('success', 'Total ' . (string)$success_id_izin . ' ID Izin berhasil dicabut!')->with(['error_id_izin' => $error_id_izin]);
+    }
+
+    /**
+     * Send WhatsApp notification to asesi after verification.
+     */
+    private function sendVerifikasiWhatsApp(Personal $personal, string $id_izin): void
+    {
+        $telepon = $personal->telepon;
+        if (!$telepon) {
+            Log::info('Skipping WhatsApp — no phone number for ' . $id_izin);
+            return;
+        }
+
+        // Format phone number: remove non-digits, ensure 62 prefix
+        $telepon = preg_replace('/[^0-9]/', '', $telepon);
+        if (str_starts_with($telepon, '0')) {
+            $telepon = '62' . substr($telepon, 1);
+        } elseif (!str_starts_with($telepon, '62')) {
+            $telepon = '62' . $telepon;
+        }
+
+        // Find AsesiJadwal to get jadwal + skema data
+        $asesiJadwal = AsesiJadwal::where('id_izin', $id_izin)->first();
+        if (!$asesiJadwal) {
+            Log::info('Skipping WhatsApp — no jadwal found for ' . $id_izin);
+            return;
+        }
+
+        // Generate UUID for magic link if not already set
+        if (!$asesiJadwal->wa_uuid) {
+            $asesiJadwal->update(['wa_uuid' => (string) Str::uuid()]);
+        }
+        $uuid = $asesiJadwal->fresh()->wa_uuid;
+
+        // Load relationships
+        $asesiJadwal->loadMissing(['jadwal.tuk', 'skema']);
+
+        // Tanggal pelaksanaan uji
+        $tanggalUji = $asesiJadwal->jadwal?->tanggal_uji
+            ? \Carbon\Carbon::parse($asesiJadwal->jadwal->tanggal_uji)->translatedFormat('d F Y')
+            : '-';
+
+        // Nama dan alamat TUK
+        $tuk = $asesiJadwal->jadwal?->tuk;
+        $tukText = $tuk
+            ? trim($tuk->nama . ' - ' . $tuk->alamat)
+            : '-';
+
+        // Nama skema sertifikasi
+        $skemaNama = $asesiJadwal->skema?->nama ?? '-';
+
+        // Frontend magic link
+        $frontendUrl = config('app.frontend_url', 'https://devgatensi.site');
+        $link = rtrim($frontendUrl, '/') . '/praasesmen/' . $uuid;
+
+        $qontak = app(QontakService::class);
+        $result = $qontak->sendMessage($telepon, $personal->nama, [
+            'nama_asesi' => $personal->nama,
+            'tanggal_uji' => $tanggalUji,
+            'tuk' => $tukText,
+            'skema' => $skemaNama,
+            'link' => $link,
+        ]);
+
+        if ($result) {
+            Log::info('WhatsApp sent successfully to ' . $telepon . ' for ' . $id_izin);
+        } else {
+            Log::warning('WhatsApp send returned no result for ' . $id_izin);
+        }
     }
 }

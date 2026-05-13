@@ -2607,4 +2607,30 @@ class PraAsesmenController extends Controller
             ],
         ]);
     }
+
+    /**
+     * Resolve UUID magic link to id_izin for the frontend.
+     */
+    public function resolveUuid(string $uuid)
+    {
+        $asesiJadwal = AsesiJadwal::where('wa_uuid', $uuid)->first();
+
+        if (!$asesiJadwal) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Link tidak valid atau sudah kadaluwarsa.',
+            ], 404);
+        }
+
+        $asesiJadwal->loadMissing(['personal', 'jadwal', 'skema']);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id_izin' => $asesiJadwal->id_izin,
+                'nama'     => $asesiJadwal->personal?->nama,
+                'skema'    => $asesiJadwal->skema?->nama,
+            ],
+        ]);
+    }
 }

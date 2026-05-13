@@ -35,6 +35,14 @@ return [
         ],
     ],
 
+    'qontak' => [
+        'client_id' => env('QONTAK_CLIENT_ID'),
+        'client_secret' => env('QONTAK_CLIENT_SECRET'),
+        'refresh_token' => env('QONTAK_REFRESH_TOKEN'),
+        'channel_integration_id' => env('QONTAK_CHANNEL_INTEGRATION_ID'),
+        'template_id' => env('QONTAK_TEMPLATE_ID'),
+    ],
+
     'midtrans' => [
         'server_key' => env('MIDTRANS_SERVER_KEY'),
         'client_key' => env('MIDTRANS_CLIENT_KEY'),
