@@ -825,6 +825,124 @@ class InvoiceController extends Controller
     }
 
     /**
+     * Preview discount calculation before invoice creation.
+     * Mirrors the discount logic in createInvoice without persisting anything.
+     */
+    public function previewDiscount(Request $request)
+    {
+        $validatedData = $request->validate([
+            'id_izin_kompeten'   => ['required', 'array'],
+            'id_izin_kompeten.*' => ['string'],
+            'metode'             => ['required', 'string'],
+            'nama_tuk'           => ['required', 'string'],
+        ]);
+
+        // Resolve instansi (same logic as createInvoice)
+        if (Auth::user()->role === "adm_tuk") {
+            $data_instansi = DB::table("mytuk")
+                ->select(['nama_tuk as nama', 'alamat', 'id'])
+                ->where("id", Auth::user()->tuk)
+                ->first();
+        } else {
+            $data_instansi = DB::table("mytuk")
+                ->select(['nama_tuk as nama', 'alamat', 'id'])
+                ->where("nama_tuk", $validatedData['nama_tuk'])
+                ->first();
+        }
+
+        if (!$data_instansi) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Instansi tidak ditemukan',
+            ], 404);
+        }
+
+        // Discount configuration for the TUK
+        $tuk_disc = DB::table("tuk_discounts")
+            ->where("id_tuk_lpjk", $data_instansi->id)
+            ->first();
+
+        if (!$tuk_disc) {
+            return response()->json([
+                'success' => false,
+                'message' => 'TUK belum rilis diskon',
+            ], 404);
+        }
+
+        $total_harga  = 0;
+        $total_diskon = 0;
+        $items        = [];
+
+        foreach ($validatedData['id_izin_kompeten'] as $id_izin) {
+            $nama = DB::table("personals")->where("id_izin", trim($id_izin))->value("nama");
+            if (!$nama) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Asesi tidak ditemukan: {$id_izin}",
+                ], 404);
+            }
+
+            $klas_kua = KlasifikasiKualifikasi::where('id_izin', $id_izin)->first();
+            if (!$klas_kua) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Klasifikasi tidak ditemukan: {$id_izin}",
+                ], 404);
+            }
+
+            $harga = DB::table("harga_invoice")
+                ->where("jenjang", $klas_kua->jenjang)
+                ->where("tipe", $validatedData['metode'])
+                ->first();
+
+            if (!$harga) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Harga tidak ditemukan untuk jenjang ' . $klas_kua->jenjang,
+                ], 404);
+            }
+
+            $harga_item = (int) $harga->tahap1 + (int) $harga->tahap2;
+            $total_harga += $harga_item;
+
+            $jenjang_disc = DB::table("jenjang_discounts")
+                ->where("metode", ucwords($validatedData['metode']))
+                ->where("jenjang", (int) $klas_kua->jenjang)
+                ->first();
+
+            $disc_map = [
+                "1"            => $jenjang_disc->kategori_1 ?? 0,
+                "2"            => $jenjang_disc->kategori_2 ?? 0,
+                "3"            => $jenjang_disc->kategori_3 ?? 0,
+                "4"            => $jenjang_disc->kategori_4 ?? 0,
+                "Pusat"        => 0,
+                "Pemerintahan" => 0,
+            ];
+
+            $diskon = $disc_map[$tuk_disc->kategori] ?? 0;
+            $total_diskon += $diskon;
+
+            $items[] = [
+                'id_izin'    => $id_izin,
+                'nama'       => $nama,
+                'harga'      => $harga_item,
+                'diskon'     => $diskon,
+                'ditagihkan' => $harga_item - $diskon,
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'total_harga'  => $total_harga,
+                'total_diskon' => $total_diskon,
+                'total_biaya'  => $total_harga - $total_diskon,
+                'items'        => $items,
+            ],
+        ]);
+    }
+
+    /**
      * Update SIKI status helper method
      * TEMPORARILY DISABLED
      */

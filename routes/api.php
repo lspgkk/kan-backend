@@ -183,6 +183,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/unpaid', [InvoiceController::class, 'getUnpaidInvoices']);
         Route::post('/create', [InvoiceController::class, 'createInvoice']);
         Route::post('/konfirmasi', [InvoiceController::class, 'confirmInvoice']);
+        Route::post('/preview-discount', [InvoiceController::class, 'previewDiscount']);
         Route::post('/estimate-fees', [InvoiceController::class, 'estimateMidtransFees']); // New endpoint for fee estimation
         Route::post('/midtrans-pay', [InvoiceController::class, 'createMidtransPayment']);
         Route::get('/{invoice}/midtrans-status', [InvoiceController::class, 'checkMidtransStatus']);
@@ -233,6 +234,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/absen-awal', [PraAsesmenController::class, 'absenAwal']);
         Route::post('/{id}/absen-akhir', [PraAsesmenController::class, 'absenAkhir']);
         Route::get('/kebenaran-data', [KebenaranDataController::class, 'index']);
+        Route::get('/kebenaran-data/{id_izin}', [KebenaranDataController::class, 'index']);
         Route::get('/{id}/data-dokumen', [PraAsesmenController::class, 'getDokumenHeader']);
         Route::get('/{id}/apl01', [PraAsesmenController::class, 'getApl01']);
         Route::get('/{id}/apl02', [PraAsesmenController::class, 'getApl02']);

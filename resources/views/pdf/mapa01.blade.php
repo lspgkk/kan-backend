@@ -566,6 +566,7 @@
                             $td4 = 'TL';
                             $td5 = 'T';
                             $td8 = 'PW';
+                            $td9 = 'VP';
                             $td11 = 'VPK';
                         } elseif ($metode === 'observasi') {
                             // jenjang 4-9 and metode is observasi

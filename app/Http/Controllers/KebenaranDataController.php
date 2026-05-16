@@ -10,11 +10,12 @@ use Illuminate\Http\Request;
 
 class KebenaranDataController extends Controller
 {
-    public function index()
+    public function index($id_izin = null)
     {
-        $user = auth()->user();
-
-        $id_izin = AsesiJadwal::where('account', $user->email)->latest('created_at')->value('id_izin');
+        if (!$id_izin) {
+            $user = auth()->user();
+            $id_izin = AsesiJadwal::where('account', $user->email)->latest('created_at')->value('id_izin');
+        }
 
         $personal = Personal::select(['nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'telepon', 'email', 'file_npwp', 'ktp', 'pas_foto'])->where('id_izin', $id_izin)->first();
         $pendidikan = Pendidikan::select(['program_studi', 'scan_ijazah_legalisir'])->latest('created_at')->where('id_izin', $id_izin)->first();

@@ -259,7 +259,7 @@ class PermohonanController extends Controller
 
     public function skkBaruList(Request $request)
     {
-        return $this->basePermohonanList($request, 'verifikasi');
+        return $this->basePermohonanList($request, 'verifikasi', lastSixMonths: true);
     }
 
     private function skkBaruBase(Request $request, string $type)
@@ -604,7 +604,8 @@ class PermohonanController extends Controller
 
     private function basePermohonanList(
         Request $request,
-        string $status = null
+        string $status = null,
+        bool $lastSixMonths = false,
     ) {
         $type = $request->type;
 
@@ -615,6 +616,10 @@ class PermohonanController extends Controller
         $query = Personal::with('klasifikasi_kualifikasi.tuk')
             ->where('type', $type)
             ->orderBy('created', 'desc');
+
+        if ($lastSixMonths) {
+            $query->where('created', '>=', now()->subMonths(6));
+        }
 
         if ($status === 'verifikasi') {
             $query->whereNull('status');

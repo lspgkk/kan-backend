@@ -1989,12 +1989,27 @@ class AsesmenController extends Controller
         bool $forPdf = false
     ): ?array
     {
-        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja', 'jenjang', 'metode_uji')
             ->where('id_izin', $id)
             ->first();
 
         if (!$klasifikasi) {
             return null;
+        }
+
+        $jenjang = (int) $klasifikasi->jenjang;
+        $metode  = strtolower($klasifikasi->metode_uji ?? '');
+
+        $autoTrueFields = [];
+
+        if ($jenjang >= 1 && $jenjang <= 3) {
+            $autoTrueFields = ['observasi', 'pertanyaan_tertulis'];
+        } elseif ($jenjang >= 4 && $jenjang <= 9) {
+            if ($metode === 'portofolio') {
+                $autoTrueFields = ['pertanyaan_wawancara', 'portofolio'];
+            } else {
+                $autoTrueFields = ['pertanyaan_tertulis', 'proyek_kerja'];
+            }
         }
 
         $barcodes = $this->resolveDocumentBarcodes($id, 'AK02', $forPdf);
@@ -2018,19 +2033,24 @@ class AsesmenController extends Controller
                 'a.proyek_kerja',
                 'a.lainnya',
             ])
-            ->map(function ($item) {
-                return [
-                    'id' => $item->id,
+            ->map(function ($item) use ($autoTrueFields) {
+                $fields = ['observasi', 'portofolio', 'pertanyaan_wawancara', 'pertanyaan_lisan', 'pertanyaan_tertulis', 'proyek_kerja', 'lainnya'];
+
+                $result = [
+                    'id'   => $item->id,
                     'kode' => $item->kode,
                     'nama' => $item->nama,
-                    'observasi' => is_null($item->observasi) ? null : (bool) $item->observasi,
-                    'portofolio' => is_null($item->portofolio) ? null : (bool) $item->portofolio,
-                    'pertanyaan_wawancara' => is_null($item->pertanyaan_wawancara) ? null : (bool) $item->pertanyaan_wawancara,
-                    'pertanyaan_lisan' => is_null($item->pertanyaan_lisan) ? null : (bool) $item->pertanyaan_lisan,
-                    'pertanyaan_tertulis' => is_null($item->pertanyaan_tertulis) ? null : (bool) $item->pertanyaan_tertulis,
-                    'proyek_kerja' => is_null($item->proyek_kerja) ? null : (bool) $item->proyek_kerja,
-                    'lainnya' => is_null($item->lainnya) ? null : (bool) $item->lainnya,
                 ];
+
+                foreach ($fields as $field) {
+                    if (in_array($field, $autoTrueFields)) {
+                        $result[$field] = true;
+                    } else {
+                        $result[$field] = is_null($item->{$field}) ? null : (bool) $item->{$field};
+                    }
+                }
+
+                return $result;
             });
 
         $feedback = Ak2Feedback::where('id_izin', $id)->first();

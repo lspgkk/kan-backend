@@ -10,6 +10,7 @@ class AsesiJadwal extends Model
         'jadwal_id',
         'id_izin',
         'skema_id',
+        'wa_uuid',
         'account',
         'password_plain',
         'kompeten',

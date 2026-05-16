@@ -2119,6 +2119,24 @@ class PraAsesmenController extends Controller
         /** ✅ Shared barcode resolver */
         $barcodes = $this->resolveDocumentBarcodes($id, 'AK01', $forPdf);
 
+        $klasifikasi = KlasifikasiKualifikasi::where('id_izin', $id)->first();
+        $autoTrueIds = [];
+
+        if ($klasifikasi) {
+            $jenjang = (int) $klasifikasi->jenjang;
+            $metode  = strtolower($klasifikasi->metode_uji ?? '');
+
+            if ($jenjang >= 1 && $jenjang <= 3) {
+                $autoTrueIds = [62, 227]; // Daftar Pertanyaan Tertulis, Hasil Observasi Langsung
+            } elseif ($jenjang >= 4 && $jenjang <= 9) {
+                if ($metode === 'portofolio') {
+                    $autoTrueIds = [64, 226]; // Daftar Pertanyaan Wawancara, Hasil Verifikasi Portfolio
+                } else {
+                    $autoTrueIds = [60, 227]; // Hasil Kegiatan Terstruktur, Hasil Observasi Langsung
+                }
+            }
+        }
+
         $ak01 = Referensi::where('kategori', 'AK01_1')
             ->leftJoin('ak1_answers as a', function ($join) use ($id) {
                 $join->on('a.id_referensi', '=', 'referensis.id')
@@ -2130,9 +2148,8 @@ class PraAsesmenController extends Controller
                 'referensis.nama',
                 DB::raw('IFNULL(a.jawaban, 0) as jawaban')
             ])
-            ->map(function ($row) {
-                // Automatically set jawaban to true for referensi id 60 and 62
-                if (in_array($row->id, [60, 62])) {
+            ->map(function ($row) use ($autoTrueIds) {
+                if (in_array($row->id, $autoTrueIds)) {
                     $row->jawaban = true;
                 } else {
                     $row->jawaban = (bool) $row->jawaban;
@@ -2622,14 +2639,34 @@ class PraAsesmenController extends Controller
             ], 404);
         }
 
-        $asesiJadwal->loadMissing(['personal', 'jadwal', 'skema']);
+        $account = $asesiJadwal->account;
+        $password = $asesiJadwal->password_plain;
+
+        $token = null;
+        if ($account && $password) {
+            $user = User::where('email', $account)
+                ->where('is_deleted', false)
+                ->first();
+
+            if ($user) {
+                $token = auth()->attempt([
+                    'email'    => $account,
+                    'password' => $password,
+                ]);
+            }
+        }
+
+        $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja'])->where('id_izin', $asesiJadwal->id_izin)->first();
 
         return response()->json([
             'success' => true,
             'data' => [
-                'id_izin' => $asesiJadwal->id_izin,
-                'nama'     => $asesiJadwal->personal?->nama,
-                'skema'    => $asesiJadwal->skema?->nama,
+                'id_izin'        => $asesiJadwal->id_izin,
+                'jadwal_id'      => $asesiJadwal->jadwal_id,
+                'jabatan_kerja'  => $klasifikasi?->jabatan_kerja,
+                'access_token'   => $token,
+                'token_type'     => $token ? 'bearer' : null,
+                'expires_in'     => $token ? auth()->factory()->getTTL() * 60 : null,
             ],
         ]);
     }
