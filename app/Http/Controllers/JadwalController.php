@@ -37,6 +37,10 @@ class JadwalController extends Controller
     {
         $query = Jadwal::select(['id', 'jadwal_id', 'nama_kegiatan', 'tanggal_uji', 'status', 'jenis_kelas'])->whereIn('status', ['sinkronisasi-bnsp', 'draft']);
 
+        if ($request->filled('jenis_kelas')) {
+            $query->where('jenis_kelas', $request->jenis_kelas);
+        }
+
         // Search filter (by role name, you can add more fields if needed)
         if ($search = trim($request->input('search'))) {
             $query->where('nama_kegiatan', 'like', "%{$search}%");
@@ -57,6 +61,10 @@ class JadwalController extends Controller
     public function blankos(Request $request)
     {
         $query = Jadwal::select(['id', 'jadwal_id', 'nama_kegiatan', 'tanggal_uji', 'status', 'jenis_kelas'])->whereIn('status', ['buat-blanko']);
+
+        if ($request->filled('jenis_kelas')) {
+            $query->where('jenis_kelas', $request->jenis_kelas);
+        }
 
         // Search filter (by role name, you can add more fields if needed)
         if ($search = trim($request->input('search'))) {
@@ -79,6 +87,10 @@ class JadwalController extends Controller
     {
         $query = Jadwal::select(['id', 'jadwal_id', 'nama_kegiatan', 'tanggal_uji', 'status', 'jenis_kelas'])->whereIn('status', ['get-blanko', 'jadwal-selesai']);
 
+        if ($request->filled('jenis_kelas')) {
+            $query->where('jenis_kelas', $request->jenis_kelas);
+        }
+
         // Search filter (by role name, you can add more fields if needed)
         if ($search = trim($request->input('search'))) {
             $query->where('nama_kegiatan', 'like', "%{$search}%");
@@ -99,7 +111,7 @@ class JadwalController extends Controller
     public function show($id)
     {
         $jadwal = Jadwal::where('id', $id)
-            ->with(['sptAsesor', 'sptKomtek', 'asesiJadwals.personal'])
+            ->with(['sptAsesor', 'sptKomtek', 'asesiJadwals.personal', 'tuk:id,nama,alamat'])
             ->select([
                 'id',
                 'jadwal_id',
@@ -140,6 +152,13 @@ class JadwalController extends Controller
         unset($data['asesi_jadwals']); // Remove the full asesi_jadwals relationship
         $data['spt_asesor'] = $jadwal->sptAsesor ? $jadwal->sptAsesor->link : null;
         $data['spt_komtek'] = $jadwal->sptKomtek ? $jadwal->sptKomtek->link : null;
+
+        // Add TUK info
+        $data['tuk'] = $jadwal->tuk ? [
+            'id' => $jadwal->tuk->id,
+            'nama' => $jadwal->tuk->nama,
+            'alamat' => $jadwal->tuk->alamat,
+        ] : null;
 
         // Add list of asesi
         $data['asesi'] = $jadwal->asesiJadwals->map(function ($asesi) {

@@ -235,10 +235,21 @@ class InvoiceController extends Controller
         // default per page = 10
         $perPage = $request->integer('per_page', 10);
 
-        $belum_konfirm = Invoice::where('bayar_tahap2', 0);
+        $query = Invoice::where('bayar_tahap2', 0);
+
+        if ($request->filled('nama_tuk')) {
+            $query->where('nama_tuk', $request->nama_tuk);
+        }
+
+        if ($search = $request->input('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('invoice_number', 'like', "%{$search}%")
+                  ->orWhere('nama_tuk', 'like', "%{$search}%");
+            });
+        }
 
         // PAGINATED QUERY
-        $invoices = $belum_konfirm
+        $invoices = $query
             ->select(['invoice_number', 'nama_tuk', 'inv_link', 'inv_excel', 'input_date', 'total_biaya'])
             ->orderBy('input_date', 'desc')
             ->paginate($perPage);
@@ -248,7 +259,7 @@ class InvoiceController extends Controller
             return [
                 'no_invoice' => $invoice->invoice_number,
                 'tuk'        => $invoice->nama_tuk,
-                'nama_tuk'   => $invoice->nama_tuk, // Add for consistency
+                'nama_tuk'   => $invoice->nama_tuk,
                 'link'       => $invoice->inv_link,
                 'link_excel' => $invoice->inv_excel,
                 'total_biaya' => $invoice->total_biaya,
@@ -256,7 +267,7 @@ class InvoiceController extends Controller
             ];
         });
 
-        // FILTERED TUK LIST (no pagination needed)
+        // TUK LIST for filter (no pagination needed)
         $tuk_filtered = Invoice::where('bayar_tahap2', 0)
             ->select('nama_tuk')
             ->distinct()

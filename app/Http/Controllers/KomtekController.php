@@ -28,7 +28,7 @@ class KomtekController extends Controller
     {
         // If frontend explicitly asks for all data
         if ($request->boolean('all')) {
-            $komteks = User::where('role_id', 4)->select(['id', 'name'])->get();
+            $komteks = User::where('role_id', 4)->select(['id', 'name', 'noreg', 'email'])->get();
 
             return response()->json([
                 'status' => 'success',
@@ -44,7 +44,17 @@ class KomtekController extends Controller
         $perPage = (int) $request->query('per_page', 10);
         $perPage = min(max($perPage, 1), 100);
 
-        $komteks = User::where('role_id', 4)->select(['id', 'name'])->paginate($perPage);
+        $query = User::where('role_id', 4)->select(['id', 'name', 'noreg', 'email']);
+
+        if ($search = $request->query('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "{$search}%")
+                  ->orWhere('noreg', 'like', "{$search}%")
+                  ->orWhere('email', 'like', "{$search}%");
+            });
+        }
+
+        $komteks = $query->orderBy('name')->paginate($perPage);
 
         return response()->json([
             'status' => 'success',

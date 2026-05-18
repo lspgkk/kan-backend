@@ -28,7 +28,14 @@
       "Bash(Select-Object Name, Status)",
       "Bash(findstr \":3306\")",
       "Read(//c/xampp/mysql/bin\" 2>/dev/**)",
-      "Read(//c/Program Files/MySQL\" 2>/dev/**)"
+      "Read(//c/Program Files/MySQL\" 2>/dev/**)",
+      "PowerShell(& \"C:\\\\Users\\\\Rafie Pradipta\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\" -c \"import json; f = open\\(r'C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\storage\\\\app\\\\private\\\\Sistem Uji Gatensi.postman_collection.json', 'r'\\); data = json.load\\(f\\); f.close\\(\\); items = data['item']; print\\(f'Total top-level folders: {len\\(items\\)}'\\); print\\('Folder names:', [i['name'] for i in items]\\); last = items[-1]; print\\(f'\\\\nLast folder: {last[\\\\\"name\\\\\"]}'\\); print\\(f'Num items in last folder: {len\\(last.get\\(\\\\\"item\\\\\", []\\)\\)}'\\); print\\('Last item names:', [i['name'] for i in last.get\\('item', []\\)][-5:]\\)\" 2>&1)",
+      "PowerShell(& \"C:\\\\Users\\\\Rafie Pradipta\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\" \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\postman_reader.py\")",
+      "PowerShell(& \"C:\\\\Users\\\\Rafie Pradipta\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\" \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\postman_updater.py\")",
+      "Bash(dir C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-dashboard\\\\src\\\\views\\\\home\\\\data-master\\\\klasifikasi *)",
+      "Bash(php artisan *)",
+      "Bash(Get-ChildItem -Recurse -Directory \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-dashboard\\\\src\")",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

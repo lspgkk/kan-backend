@@ -627,6 +627,12 @@ class PermohonanController extends Controller
             $query->where('status', 20);
         }
 
+        if ($request->filled('tuk_id')) {
+            $query->whereHas('klasifikasi_kualifikasi', function ($q) use ($request) {
+                $q->where('tuk', $request->tuk_id);
+            });
+        }
+
         if ($search = $request->input('search')) {
             $this->applyPermohonanSearch($query, $search);
         }
