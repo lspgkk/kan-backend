@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Verifikasi TUK AJJ - LSP Gatensi</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Cambria', serif;
+      font-size: 12pt;
+      color: #1a1a2e;
+      background: #f5f5f5;
+      padding: 40px 20px;
+      line-height: 1.5;
+    }
+
+    .page {
+      width: 100%;
+      min-height: 297mm;
+      margin: 0 auto 40px auto;
+      background: #ffffff;
+      background-image: url('template_page-0001.jpg');
+      background-size: 100% 100%;
+      background-repeat: no-repeat;
+      border: 1px solid #d1d5db;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      page-break-after: always;
+      padding: 38mm 22mm 18mm 22mm;
+    }
+
+    @media print {
+      @page { size: A4; margin: 0; }
+      .page {
+        box-shadow: none;
+        border: none;
+        margin: 0 auto;
+      }
+      body { padding: 0; background: white; }
+    }
+
+    .header {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin: 0 20mm 0 20mm;
+    }
+
+    .header-logo {
+      width: 200px;
+      height: 200px;
+      flex-shrink: 0;
+    }
+
+    .header-info {
+      flex: 1;
+      padding-top: 25px;
+    }
+
+    .header-address {
+      font-size: 9pt;
+      color: #555;
+      line-height: 1.5;
+      text-align: right;
+    }
+
+    .header-contact {
+      font-size: 9pt;
+      color: #555;
+      margin-top: 2px;
+      text-align: right;
+    }
+
+    .body {
+      margin: 0;
+    }
+
+    .title-center {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .title-main {
+      font-size: 16pt;
+      font-weight: 700;
+      color: #1a1a2e;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .title-number {
+      font-size: 12pt;
+      font-weight: 600;
+      margin-top: 4px;
+      color: #333;
+    }
+
+    .body-text {
+      margin-bottom: 16px;
+      font-size: 12pt;
+      text-align: justify;
+    }
+
+    .inline-form {
+      display: grid;
+      grid-template-columns: 180px 20px 1fr;
+      gap: 0;
+      margin-bottom: 0px;
+      font-size: 12pt;
+    }
+
+    .inline-form .label { padding: 2px 0; }
+    .inline-form .dots { color: #999; text-align: center; padding: 2px 4px; }
+    .inline-form .value { padding: 2px 0; }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 12pt;
+    }
+
+    .data-table th {
+      border: 1px solid #333;
+      padding: 6px 10px;
+      text-align: center;
+      font-weight: 700;
+      background: #fff;
+    }
+
+    .data-table td {
+      border: 1px solid #333;
+      padding: 6px 10px;
+      vertical-align: top;
+    }
+
+    .data-table td:first-child {
+      text-align: center;
+      font-weight: 700;
+      width: 30px;
+    }
+
+    .sign-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 24px;
+      font-size: 12pt;
+    }
+
+    .sign-table th {
+      border: 1px solid #333;
+      padding: 8px 10px;
+      text-align: center;
+      font-weight: 700;
+      background: #fff;
+    }
+
+    .sign-table td {
+      border: 1px solid #333;
+      padding: 8px 10px;
+      text-align: center;
+      height: 80px;
+      vertical-align: top;
+      font-size: 10pt;
+      color: #555;
+    }
+
+    .doc-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+    }
+
+    .doc-table th {
+      border: 1px solid #333;
+      padding: 6px 10px;
+      text-align: center;
+      font-weight: 700;
+      background: #fff;
+    }
+
+    .doc-table td {
+      border: 1px solid #333;
+      padding: 10px;
+      vertical-align: middle;
+      text-align: center;
+    }
+
+    .doc-table td:first-child {
+      width: 30px;
+      text-align: center;
+    }
+
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11pt;
+    }
+
+    .result-table th {
+      border: 1px solid #333;
+      padding: 6px 10px;
+      text-align: center;
+      font-weight: 700;
+      background: #3fb4ea;
+    }
+
+    .result-table td {
+      border: 1px solid #333;
+      padding: 6px 10px;
+      vertical-align: top;
+    }
+
+    .rekomendasi {
+      margin-top: 12px;
+      font-size: 12pt;
+    }
+
+    .sign-row {
+      display: table;
+      width: 100%;
+      margin-top: 24px;
+      border-collapse: collapse;
+    }
+
+    .sign-cell {
+      display: table-cell;
+      width: 50%;
+      text-align: center;
+      vertical-align: bottom;
+      padding: 8px;
+    }
+
+    .sign-name {
+      font-size: 12pt;
+      text-decoration: underline;
+    }
+
+    .sign-role {
+      font-size: 11pt;
+      color: #000000;
+      margin-top: 4px;
+    }
+
+    .salutation-line {
+      display: block;
+      margin-bottom: 0px;
+    }
+
+    .paragraph {
+      margin-bottom: 16px;
+      text-align: justify;
+    }
+
+    .signature-block {
+      margin-top: 32px;
+      text-align: right;
+      padding-right: 20px;
+    }
+
+    .signature-date {
+      font-size: 12pt;
+      margin-bottom: 16px;
+    }
+
+    .signature-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .signature-role {
+      font-size: 12pt;
+      color: #555;
+    }
+
+    .section-title {
+      text-align: center;
+      font-weight: 700;
+      font-size: 12pt;
+      margin: 14px 0 6px;
+    }
+
+    .check-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10pt;
+      table-layout: fixed;
+    }
+
+    .check-table th {
+      border: 1px solid #333;
+      padding: 6px 8px;
+      text-align: center;
+      font-weight: 700;
+      background: #fff;
+      vertical-align: middle;
+    }
+
+    .check-table td {
+      border: 1px solid #333;
+      padding: 5px 8px;
+      vertical-align: top;
+    }
+
+    .check-table td:first-child {
+      text-align: center;
+      width: 30px;
+    }
+
+    .content {
+      margin: 0;
+      font-size: 11pt;
+      line-height: 1.5;
+      text-align: justify;
+    }
+
+    .content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 6px 0;
+    }
+
+    .content td {
+      vertical-align: top;
+      padding: 2px 0;
+      font-size: 11pt;
+    }
+
+    .content td.label {
+      width: 110px;
+    }
+
+    .content td.separator {
+      width: 16px;
+      text-align: center;
+    }
+
+    .content td.index {
+      width: 22px;
+    }
+
+    .decision {
+      text-align: center;
+      font-weight: 700;
+      margin: 16px 0 8px;
+      font-size: 13pt;
+    }
+
+    .section-break {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 2px solid #ccc;
+    }
+
+    ul { padding-left: 20px; margin: 4px 0; }
+    li { margin-bottom: 2px; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════ PAGE 1: SURAT TUGAS ══ -->
+<div class="page">
+
+  <div class="body">
+    <div class="title-center">
+      <div class="title-main">Surat Tugas</div>
+      <div class="title-number">Nomor: 00000/GKK B.007-E/__/202_</div>
+    </div>
+
+    <p class="body-text">
+      Yang bertandatangan di bawah ini Direktur Lembaga Sertifikasi Profesi Gatensi Karya Konstruksi dengan ini memberi tugas kepada Tim Verifikator Tempat Uji Kompetensi (TUK):
+    </p>
+
+    <ul>
+      <li><strong>Nama Asesor 1</strong></li>
+      <li><strong>Nama Asesor 2</strong></li>
+    </ul>
+
+    <p class="body-text">
+      Untuk melakukan verifikasi Persyaratan Teknis Tempat Uji Kompetensi (TUK) bidang konstruksi di:
+    </p>
+
+    <table class="data-table" style="border: none;">
+      <tr><td style="width: 180px; border: none; padding: 3px 0;">Nama TUK</td><td style="width: 20px; text-align: center; border: none; padding: 3px 0;">:</td><td style="border: none; padding: 3px 0;">TUK Sewaktu – (Nama Asesi)</td></tr>
+      <tr><td style="border: none; padding: 3px 0;">Alamat</td><td style="text-align: center; border: none; padding: 3px 0;">:</td><td style="border: none; padding: 3px 0;">(Alamat Asesi di portal)</td></tr>
+      <tr><td style="border: none; padding: 3px 0;">Hari, Tanggal</td><td style="text-align: center; border: none; padding: 3px 0;">:</td><td style="border: none; padding: 3px 0;">(Hari dan Tanggal uji)</td></tr>
+      <tr><td style="border: none; padding: 3px 0;">Metode Verifikasi</td><td style="text-align: center; border: none; padding: 3px 0;">:</td><td style="border: none; padding: 3px 0;">Daring</td></tr>
+      <tr><td style="border: none; padding: 3px 0;">Jumlah Peserta</td><td style="text-align: center; border: none; padding: 3px 0;">:</td><td style="border: none; padding: 3px 0;"></td></tr>
+      <tr><td style="border: none; padding: 3px 0;">Skema Sertifikasi</td><td style="text-align: center; border: none; padding: 3px 0;">:</td><td style="border: none; padding: 3px 0;"></td></tr>
+    </table>
+
+    <p class="body-text">Demikian Surat tugas ini diberikan untuk dilaksanakan dengan penuh tanggung jawab.</p>
+
+    <table style="width: 45%; float: right; border: none; margin-top: 20px;">
+      <tr><td style="text-align: center; border: none; padding: 4px;">Jakarta, (tanggal konfirmasi jadwal)</td></tr>
+      <tr><td style="text-align: center; border: none; padding: 4px;"><strong>LSP GATENSI KARYA KONSTRUKSI</strong></td></tr>
+      <tr><td style="text-align: center; border: none; padding: 25px 4px;">(ttd)</td></tr>
+      <tr><td style="text-align: center; border: none; padding: 4px;"><strong>Radinal Efendy, S.T.</strong></td></tr>
+      <tr><td style="text-align: center; border: none; padding: 4px;">Direktur</td></tr>
+    </table>
+  </div>
+  <div style="clear: both;"></div>
+</div>
+
+<!-- ══════════════════════════════════════════ PAGE 2: CHECKLIST ══ -->
+<div class="page">
+
+  <div class="body">
+    <div class="title-center">
+      <div class="title-main">Form Checklist Verifikasi Tempat Uji Kompetensi</div>
+    </div>
+
+    <div class="inline-form"><span class="label">Nama TUK</span><span class="dots">:</span><span class="value">TUK Sewaktu – (Nama Asesi)</span></div>
+    <div class="inline-form"><span class="label">Alamat</span><span class="dots">:</span><span class="value">(Alamat Asesi di portal)</span></div>
+    <div class="inline-form"><span class="label">Hari, Tanggal</span><span class="dots">:</span><span class="value">(Hari dan Tanggal uji)</span></div>
+    <div class="inline-form"><span class="label">Jenis Asesmen</span><span class="dots">:</span><span class="value">Daring</span></div>
+    <div class="inline-form"><span class="label">Metode Asesmen</span><span class="dots">:</span><span class="value"><strong>Observasi</strong></span></div>
+    <div class="inline-form"><span class="label">Skema Sertifikasi</span><span class="dots">:</span><span class="value">(Skema yang diujikan)</span></div>
+
+    <br/>
+    <table class="check-table">
+      <thead>
+        <tr>
+          <th rowspan="2" style="width: 30px;">No.</th>
+          <th rowspan="2">Perlengkapan<br/>Sarana dan Prasarana</th>
+          <th rowspan="2">Spesifikasi</th>
+          <th rowspan="2" style="width: 50px;">Jml</th>
+          <th colspan="2">Kondisi</th>
+          <th rowspan="2">Keterangan</th>
+        </tr>
+        <tr>
+          <th style="width: 38px;">Baik</th>
+          <th style="width: 38px;">Rusak</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>Ruangan Uji (meja & kursi)</td>
+          <td>
+            <ul>
+              <li>Ruangan Tertutup</li>
+              <li>Meja dan Kursi</li>
+              <li>Tersedia Kelistrikan</li>
+              <li>Pencahayaan cukup</li>
+            </ul>
+          </td>
+          <td>1</td>
+          <td></td>
+          <td></td>
+          <td>Sesuai/Tidak sesuai</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Laptop</td>
+          <td>
+            <ul>
+              <li>Laptop + Webcam</li>
+              <li>Min. Windows 10</li>
+              <li>Min. RAM 4 GB</li>
+              <li>Min. Memory 256 GB</li>
+              <li>Browser Google Chrome</li>
+              <li>Aplikasi Zoom</li>
+            </ul>
+          </td>
+          <td>1</td>
+          <td></td>
+          <td></td>
+          <td>Sesuai/Tidak sesuai</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Kecepatan Jaringan</td>
+          <td><ul><li>Min. 1 Mbps</li></ul></td>
+          <td>1</td>
+          <td></td>
+          <td></td>
+          <td>Sesuai/Tidak sesuai</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ PAGE 3: DOKUMENTASI TUK ══ -->
+<div class="page">
+  <div class="body">
+    <div class="title-center">
+      <div class="title-main" style="font-size: 14pt; text-align: left;">Dokumentasi TUK</div>
+    </div>
+
+    <table class="doc-table">
+      <thead>
+        <tr>
+          <th>No.</th>
+          <th>Perlengkapan Sarana dan Prasarana</th>
+          <th>Dokumentasi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1.</td>
+          <td>Ruangan Uji yang tersedia meja dan kursi</td>
+          <td><strong>Gambar</strong></td>
+        </tr>
+        <tr>
+          <td>2.</td>
+          <td>Laptop</td>
+          <td><strong>Gambar</strong></td>
+        </tr>
+        <tr>
+          <td>3.</td>
+          <td>Kecepatan Jaringan</td>
+          <td><strong>Gambar</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ PAGE 4: HASIL VERIFIKASI ══ -->
+<div class="page">
+  <div class="body">
+    <div class="title-center">
+      <div class="title-main" style=" padding-bottom: 6px; text-align: left ;">Hasil Verifikasi dan Standardisasi TUK</div>
+    </div>
+
+    
+
+    <p class="rekomendasi"><strong>Rekomendasi :</strong> Layak / Tidak Layak</p>
+    <p style="margin-top: 4px; font-size: 12pt; padding-left: 95px;">Sebagai Tempat Penyelenggaraan Uji Sertifikasi Kompetensi</p>
+
+    <br/>
+    <p><strong>Penanggung jawab TUK</strong></p>
+    <table class="sign-table" style="margin-top: 8px;">
+      <thead>
+        <tr>
+          <th style="width: 50px;">No.</th>
+          <th>Ketua TUK</th>
+          <th style="width: 120px;">Tanda Tangan</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1.</td>
+          <td>(Nama Asesi)</td>
+          <td>(Barcode Asesi)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <br/>
+    <div style="text-align: right; margin-bottom: 8px;">Jakarta, (Tanggal Verifikasi)</div>
+
+    <table class="sign-table">
+      <thead>
+        <tr>
+          <th style="width: 50px;">No.</th>
+          <th>Tim Verifikator</th>
+          <th style="width: 120px;">Tanda Tangan</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1.</td>
+          <td>(Nama Asesor)</td>
+          <td>(Barcode Asesor)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ PAGE 5: BERITA ACARA ══ -->
+<div class="page" style="page-break-before: always;">
+
+  <div class="body">
+    <div class="title-center">
+      <div class="title-main">Berita Acara Verifikasi TUK</div>
+      <div class="title-number">Nomor: 00000/GKK B.008-E/__/202_</div>
+    </div>
+
+    <p class="body-text">Bahwa telah dilakukan Verifikasi TUK Sewaktu terhadap:</p>
+
+    <div class="inline-form"><span class="label">Nama TUK</span><span class="dots">:</span><span class="value">TUK Sewaktu – (Nama Asesi)</span></div>
+    <div class="inline-form"><span class="label">Alamat</span><span class="dots">:</span><span class="value">(Alamat Asesi di portal)</span></div>
+    <div class="inline-form"><span class="label">Hari, Tanggal</span><span class="dots">:</span><span class="value">(Hari dan Tanggal uji)</span></div>
+    <div class="inline-form"><span class="label">Jenis Asesmen</span><span class="dots">:</span><span class="value">Daring</span></div>
+    <div class="inline-form"><span class="label">Metode Asesmen</span><span class="dots">:</span><span class="value"><strong>Observasi / Portofolio</strong></span></div>
+
+    <br/>
+    <p class="body-text">Untuk menyelenggarakan Uji Kompetensi dengan Skema sertifikasi:</p>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>No.</th>
+          <th>Skema Sertifikasi</th>
+          <th>Jenjang</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1.</td>
+          <td>(Skema yang diujikan)</td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <br/>
+    <p class="body-text">
+      Dengan ini menetapkan TUK Sewaktu tersebut di atas <strong>Layak / Tidak Layak</strong> sebagai Tempat Uji Kompetensi (TUK) terverifikasi.
+    </p>
+
+    <div style="text-align: right; margin-bottom: 16px;">Jakarta, (Tanggal Verifikasi)</div>
+
+    <table class="sign-table">
+      <thead>
+        <tr>
+          <th style="width: 50px;">No.</th>
+          <th>Tim Verifikator</th>
+          <th style="width: 120px;">Tanda Tangan</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1.</td>
+          <td>(Nama Asesor)</td>
+          <td>(Barcode ttd)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ PAGE 6: SK (Preamble) ══ -->
+<div class="page">
+  <div class="title-center">
+    <h1 style="font-size: 14pt; font-weight: 700; text-transform: uppercase;">Surat Keputusan</h1>
+    <p style="font-size: 11pt; margin: 4px 0;">Direktur Lembaga Sertifikasi Profesi Gatensi Karya Konstruksi</p>
+    <p style="font-size: 11pt; margin: 4px 0;">Nomor: 00000/LSP GKK C.003-G/__/202_</p>
+    <div class="section-title">Tentang</div>
+    <p style="font-size: 11pt;">Penetapan Tempat Uji Kompetensi (TUK) Terverifikasi</p>
+  </div>
+
+  <div class="content">
+    <table>
+      <tr>
+        <td class="label">Menimbang</td>
+        <td class="separator">:</td>
+        <td class="index">a.</td>
+        <td>bahwa dalam rangka menjamin mutu pelaksanaan sertifikasi kompetensi kerja, diperlukan Tempat Uji Kompetensi (TUK) yang memenuhi persyaratan dan prosedur yang telah ditetapkan;</td>
+      </tr>
+      <tr><td></td><td></td><td class="index">b.</td><td>bahwa berdasarkan hasil verifikasi kelayakan Tempat Uji Kompetensi (TUK), perlu menetapkan TUK yang telah memenuhi persyaratan sebagai TUK Terverifikasi;</td></tr>
+      <tr><td></td><td></td><td class="index">c.</td><td>bahwa berdasarkan pertimbangan sebagaimana dimaksud pada huruf a dan huruf b, perlu menetapkan Keputusan Direktur tentang Penetapan Tempat Uji Kompetensi (TUK) Terverifikasi.</td></tr>
+
+      <tr>
+        <td class="label">Mengingat</td>
+        <td class="separator">:</td>
+        <td class="index">a.</td>
+        <td>Undang-Undang Republik Indonesia Nomor 13 Tahun 2003 Tentang Ketenagakerjaan;</td>
+      </tr>
+      <tr><td></td><td></td><td class="index">b.</td><td>Undang-undang (UU) Nomor 6 Tahun 2023 tentang Penetapan Peraturan Pemerintah Pengganti Undang-Undang Nomor 2 Tahun 2022 tentang Cipta Kerja menjadi Undang-Undang;</td></tr>
+      <tr><td></td><td></td><td class="index">c.</td><td>Peraturan Pemerintah Nomor: 10 Tahun 2018 tentang Badan Nasional Sertifikasi Profesi;</td></tr>
+      <tr><td></td><td></td><td class="index">d.</td><td>Peraturan Badan Nasional Sertifikasi Profesi Nomor: 05/BNSP.508/X/2013 Tentang Pedoman Manajemen Sistem Informasi Sertifikasi LSP dan BNSP;</td></tr>
+      <tr><td></td><td></td><td class="index">e.</td><td>Peraturan Badan Nasional Sertifikasi Profesi Nomor: 1/BNSP/III/2014 tentang pedoman penilaian kesesuaian persyaratan umum Lembaga Sertifikasi Profesi;</td></tr>
+      <tr><td></td><td></td><td class="index">f.</td><td>Peraturan Badan Nasional Sertifikasi Profesi Nomor: 5/BNSP/VII/2014 tentang pedoman persyaratan umum tempat uji kompetensi;</td></tr>
+      <tr><td></td><td></td><td class="index">g.</td><td>ISO/IEC 17024:2012, IDT Tentang Penilaian Kesesuaian – Persyaratan Umum untuk Lembaga Sertifikasi Person.</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ PAGE 7: MEMUTUSKAN ══ -->
+<div class="page">
+  <div class="content">
+    <div class="decision">M E M U T U S K A N</div>
+
+    <table>
+      <tr><td class="label">Menetapkan</td><td class="separator">:</td><td>SURAT KEPUTUSAN DIREKTUR LEMBAGA SERTIFIKASI PROFESI GATENSI KARYA KONSTRUKSI TENTANG PENETAPAN TEMPAT UJI KOMPETENSI (TUK) TERVERIFIKASI</td></tr>
+      <tr><td class="label">Kesatu</td><td class="separator">:</td><td>TUK Sewaktu – (Nama Asesi), sebagai TUK Sewaktu Terverifikasi.</td></tr>
+      <tr><td class="label">Kedua</td><td class="separator">:</td><td>(Nama Asesi) sebagai Penanggung jawab TUK Sewaktu – (Nama Asesi)</td></tr>
+      <tr><td class="label">Ketiga</td><td class="separator">:</td><td>Nama Skema Sertifikasi yang di Asesmen:<br/>(Masukan nama skema sertifikasi) Jenjang (Masukan Jenjang Skema)</td></tr>
+      <tr><td class="label">Keempat</td><td class="separator">:</td><td>Berdasarkan hasil berita acara verifikasi TUK Sewaktu – (Nama Asesi) ditetapkan <strong>"Layak"</strong> untuk melaksanakan Uji Kompetensi Pada tanggal dd/mm/yyyy (masukan tanggal uji).</td></tr>
+      <tr><td class="label">Kelima</td><td class="separator">:</td><td>Keputusan ini berlaku sejak tanggal ditetapkan.</td></tr>
+    </table>
+
+    <br/>
+    <div style="float: right; width: 50%; text-align: center;">
+      <div>Ditetapkan di : Jakarta</div>
+      <div>Tanggal : __(Nama Bulan) 202_</div>
+      <br/>
+      <div><strong>LSP GATENSI KARYA KONSTRUKSI</strong></div>
+      <div style="padding: 20px 0;">(ttd)</div>
+      <div><strong>Radinal Efendy, S.T.</strong></div>
+      <div>Direktur</div>
+    </div>
+    <div style="clear: both;"></div>
+  </div>
+</div>
+
+
+
+<!-- ══════════════════════════════════════════ PAGE 7: SURAT PEMINJAMAN TUK ══ -->
+<div class="page">
+
+  <div class="body">
+    <table class="data-table" style="border: none; width: auto;">
+      <tr><td style="border: none; width: 100px;">Nomor</td><td style="border: none; width: 20px; text-align: center;">:</td><td style="border: none;">.../LSP GKK B.006-C/.../2026</td></tr>
+      <tr><td style="border: none;">Lampiran</td><td style="border: none; text-align: center;">:</td><td style="border: none;">1 (satu) lembar</td></tr>
+      <tr><td style="border: none;">Perihal</td><td style="border: none; text-align: center;">:</td><td style="border: none;">Permohonan Peminjaman Tempat Uji Kompetensi</td></tr>
+    </table>
+
+    <div class="salutation" style="margin-top: 16px;">
+      <span class="salutation-line">Kepada Yth.</span>
+      <span class="salutation-line">Ketua TUK Sewaktu – (Nama Asesi)</span>
+      <span class="salutation-line">di Tempat</span>
+    </div>
+
+    <p class="paragraph" style="margin-top: 16px;">
+      Sehubungan dengan adanya pelaksanaan kegiatan Asesmen atau uji kompetensi oleh Lembaga Sertifikasi Profesi Gatensi Karya Konstruksi yang akan dilaksanakan pada:
+    </p>
+
+    <table class="data-table" style="border: none; width: auto;">
+      <tr><td style="border: none; width: 130px;">Hari, Tanggal</td><td style="border: none; width: 20px; text-align: center;">:</td><td style="border: none;">(Tanggal uji)</td></tr>
+      <tr><td style="border: none;">Pukul</td><td style="border: none; text-align: center;">:</td><td style="border: none;">(Jam Uji)</td></tr>
+      <tr><td style="border: none;">Tempat</td><td style="border: none; text-align: center;">:</td><td style="border: none;">(Alamat Asesi di Portal)</td></tr>
+    </table>
+
+    <p class="paragraph">
+      Dengan ini mengajukan permohonan pemakaian Tempat Uji Kompetensi untuk Skema sertifikasi sebagaimana terlampir.
+    </p>
+    <p class="paragraph">
+      Demikian permohonan ini kami sampaikan, atas perhatian dan kerja samanya kami ucapkan terima kasih.
+    </p>
+
+    <div class="signature-block">
+      <div class="signature-date">Jakarta, (tanggal konfirmasi jadwal)</div>
+      <div class="signature-title">LSP GATENSI KARYA KONSTRUKSI</div>
+      <div class="signature-role">&nbsp;</div>
+      <div style="margin-top: 48px; font-weight: 700; text-decoration: underline;">Radinal Efendy, S.T.</div>
+      <div class="signature-role">Direktur</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

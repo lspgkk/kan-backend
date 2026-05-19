@@ -56,7 +56,14 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // 4️⃣ Return token
+        // 4️⃣ Invalidate all other sessions by bumping token_version
+        auth()->user()->increment('token_version');
+
+        // 5️⃣ Generate a fresh token with the updated token_version claim
+        $freshUser = User::find(auth()->id());
+        $token = auth()->login($freshUser);
+
+        // 6️⃣ Return token
         return $this->respondWithToken($token);
     }
 
@@ -120,5 +127,30 @@ class AuthController extends Controller
                 'message' => 'Password changed successfully',
             ]);
         }
+    }
+
+    public function logs(Request $request)
+    {
+        $perPage = (int) $request->query('per_page', 10);
+        $perPage = min(max($perPage, 1), 100);
+
+        $query = AuthLog::with('user:id,name');
+
+        if ($search = $request->query('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('description', 'like', "%{$search}%")
+                  ->orWhere('login_ip', 'like', "%{$search}%")
+                  ->orWhereHas('user', function ($u) use ($search) {
+                      $u->where('name', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        $logs = $query->orderBy('created_at', 'desc')->paginate($perPage);
+
+        return response()->json([
+            'message' => 'Auth logs retrieved successfully',
+            'data' => $logs,
+        ]);
     }
 }

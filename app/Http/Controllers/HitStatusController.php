@@ -489,7 +489,7 @@ class HitStatusController extends Controller
 
         // Frontend magic link
         $frontendUrl = config('app.frontend_url', 'https://devgatensi.site');
-        $link = rtrim($frontendUrl, '/') . '/praasesmen/' . $uuid;
+        $link = rtrim($frontendUrl, '/') . '/persiapan-asesmen/' . $uuid;
 
         $qontak = app(QontakService::class);
         $result = $qontak->sendMessage($telepon, $personal->nama, [

@@ -33,6 +33,13 @@ use App\Http\Controllers\SesiController;
 use App\Http\Controllers\SubklasifikasiController;
 use App\Http\Controllers\SurveyController;
 use App\Http\Controllers\TukController;
+use App\Http\Controllers\JenisKegiatanController;
+use App\Http\Controllers\DiskonController;
+use App\Http\Controllers\MetodePembayaranController;
+use App\Http\Controllers\NegaraController;
+use App\Http\Controllers\PekerjaanController;
+use App\Http\Controllers\JenjangJabatanKerjaController;
+use App\Http\Controllers\TarifController;
 
 Route::get('/migrate/personals', [MigrationController::class, 'personals']);
 Route::get('/migrate/klasifikasis', [MigrationController::class, 'klasifikasis']);
@@ -60,7 +67,7 @@ Route::get('/barcode/penyusun-validator/verify', [BarcodeController::class, 'get
 Route::post('/midtrans/webhook', [MidtransWebhookController::class, 'handlePaymentNotification']);
 
 // Public UUID resolve for WhatsApp magic link (no auth)
-Route::get('/praasesmen/by-uuid/{uuid}', [PraAsesmenController::class, 'resolveUuid']);
+Route::get('/persiapan-asesmen/{uuid}', [PraAsesmenController::class, 'resolveUuid']);
 
 // Route::middleware(['auth:api', 'singlesession'])->group(function () {
 Route::middleware(['auth:api'])->group(function () {
@@ -116,6 +123,10 @@ Route::middleware(['auth:api'])->group(function () {
     Route::prefix('tuk')->group(function () {
         Route::get('/siki', [TukController::class, 'allTukSiki']);
         Route::get('/bnsp', [TukController::class, 'allTukBnsp']);
+    });
+
+    Route::prefix('klasifikasi')->group(function () {
+        Route::get('/', [KlasifikasiController::class, 'index']);
     });
 
     Route::prefix('subklasifikasi')->group(function () {
@@ -337,5 +348,33 @@ Route::middleware(['auth:api'])->group(function () {
 
         Route::post('/{id_izin}', [SurveyController::class, 'submit']);
         Route::get('/{id_izin}', [SurveyController::class, 'show']);
+    });
+
+    Route::prefix('jenis-kegiatan')->group(function () {
+        Route::get('/', [JenisKegiatanController::class, 'index']);
+    });
+
+    Route::prefix('diskon')->group(function () {
+        Route::get('/', [DiskonController::class, 'index']);
+    });
+
+    Route::prefix('metode-pembayaran')->group(function () {
+        Route::get('/', [MetodePembayaranController::class, 'index']);
+    });
+
+    Route::prefix('negara')->group(function () {
+        Route::get('/', [NegaraController::class, 'index']);
+    });
+
+    Route::prefix('pekerjaan')->group(function () {
+        Route::get('/', [PekerjaanController::class, 'index']);
+    });
+
+    Route::prefix('jenjang-jabatan-kerja')->group(function () {
+        Route::get('/', [JenjangJabatanKerjaController::class, 'index']);
+    });
+
+    Route::prefix('tarif')->group(function () {
+        Route::get('/', [TarifController::class, 'index']);
     });
 });

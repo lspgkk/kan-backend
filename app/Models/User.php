@@ -33,7 +33,8 @@ class User extends Authenticatable implements JWTSubject
         'is_deleted',
         'deleted_at',
         'deleted_by',
-        'noreg'
+        'noreg',
+        'token_version',
     ];
 
     /**
@@ -56,6 +57,7 @@ class User extends Authenticatable implements JWTSubject
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'token_version' => 'integer',
         ];
     }
 
@@ -66,7 +68,9 @@ class User extends Authenticatable implements JWTSubject
 
     public function getJWTCustomClaims()
     {
-        return [];
+        return [
+            'token_version' => $this->token_version,
+        ];
     }
 
     public function role() { return $this->belongsTo(Role::class, 'role_id'); }

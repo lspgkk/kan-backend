@@ -314,36 +314,25 @@ class BlankoController extends Controller
         $komtek2 = DB::connection("mygatensi")->table("mypersonillsp")->where("Nomor", $satu_orang->komtek2)->first()->Nama;
         $komtek3 = DB::connection("mygatensi")->table("mypersonillsp")->where("Nomor", $satu_orang->komtek3)->first()->Nama;
 
-        // Generate spt terbaru
+        // Generate nomor BA Komtek
         $check_if_exist = BaKomtek::where("jadwal_id", trim($request->jadwal_id))->first();
-        if ($check_if_exist) {
+        if ($check_if_exist && $check_if_exist->no_surat && str_contains($check_if_exist->no_surat, 'LSP GKK')) {
             $no_ba_komtek = $check_if_exist->no_surat;
         } else {
-            $no_ba_komtek = BaKomtek::latest("id")->first();
-            $no_ba_komtek = $no_ba_komtek->no_surat;
+            $last = BaKomtek::latest("id")->first();
+            $lastVal = ($last && $last->no_surat && str_contains($last->no_surat, 'LSP GKK'))
+                ? $last->no_surat
+                : '0/LSP GKK B.002-A/I/2024';
 
-            $monthsInRomanNumerals = [
-                1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
-                5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII',
-                9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
-            ];
+            $romawi = [1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII'];
+            $parts = explode("/", $lastVal);
+            $year = now()->year;
 
-            $currentMonthNumber = Carbon::now()->month;
-            $currentYearNumber = Carbon::now()->year;
+            $parts[0] = ((int) ($parts[3] ?? 0) === $year) ? ((int) $parts[0] + 1) : 1;
+            $parts[2] = $romawi[now()->month];
+            $parts[3] = (string) $year;
 
-            $bulan = $monthsInRomanNumerals[$currentMonthNumber];
-
-            $no_ba_komtek = explode("/", $no_ba_komtek);
-
-            if ((int)$no_ba_komtek[3] == $currentYearNumber) {
-                $no_ba_komtek[0] = str((int)$no_ba_komtek[0] + 1);
-            } else {
-                $no_ba_komtek[0] = str(0);
-            }
-
-            $no_ba_komtek[2] = $bulan;
-            $no_ba_komtek[3] = str($currentYearNumber);
-            $no_ba_komtek = implode("/", $no_ba_komtek);
+            $no_ba_komtek = implode("/", $parts);
         }
 
 

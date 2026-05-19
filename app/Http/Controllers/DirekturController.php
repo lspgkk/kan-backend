@@ -199,7 +199,7 @@ class DirekturController extends Controller
 
         $jadwal = Jadwal::where('jadwal_id', $jadwal_id)->firstOrFail();
 
-        $jadwal->update(['sk_pelaksanaan_uji_direktur_approved' => true]);
+        $jadwal->update(['sk_pelaksanaan_uji_direktur_approved' => true, 'status' => 'buat-blanko']);
 
         // Get peserta list
         $asesiJadwals = AsesiJadwal::where('jadwal_id', $jadwal_id)->with(['personal'])->get();
