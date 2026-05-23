@@ -2402,12 +2402,8 @@ class JadwalController extends Controller
 
         // Get jadwal data
         $jadwal = Jadwal::where('jadwal_id', $jadwalId)->firstOrFail();
-        $asesor1 = DB::table('asesor_bnsp')->where('id', $jadwal->asesor_id)->first();
-        $asesor2 = $jadwal->asesor2_id ? DB::table('asesor_bnsp')->where('id', $jadwal->asesor2_id)->first() : null;
-
-        if (!$asesor1) {
-            throw new \Exception('Asesor 1 tidak ditemukan untuk jadwal ' . $jadwalId);
-        }
+        $asesor1 = AsesorBnsp::where('id', $jadwal->asesor_id)->first();
+        $asesor2 = $jadwal->asesor2_id ? AsesorBnsp::where('id', $jadwal->asesor2_id)->first() : null;
 
         $asesiJadwals = AsesiJadwal::where('jadwal_id', $jadwalId)->with(['personal'])->get();
         $peserta = $asesiJadwals->pluck('personal.nama')->toArray();

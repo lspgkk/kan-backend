@@ -17,6 +17,9 @@ use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use App\Traits\ResolvesKomtekDecision;
@@ -285,10 +288,10 @@ class DirekturController extends Controller
 
         $viewData = [
             'no_surat' => $sptNo,
-            'nama_asesor' => $asesor1?->Nama ?? '',
-            'nama_met' => $asesor1?->Noreg ?? '',
-            'nama_asesor2' => $asesor2?->Nama ?? '',
-            'nama_met2' => $asesor2?->Noreg ?? '',
+            'nama_asesor' => $asesor1?->nama ?? '',
+            'nama_met' => $asesor1?->noreg ?? '',
+            'nama_asesor2' => $asesor2?->nama ?? '',
+            'nama_met2' => $asesor2?->noreg ?? '',
             'nama_tuk' => $tuk->nama ?? '',
             'alamat_tuk' => $tuk->alamat ?? '',
             'hari_tanggal' => Carbon::parse($jadwal->tanggal_uji)->isoFormat('dddd, D MMMM Y'),
@@ -305,10 +308,50 @@ class DirekturController extends Controller
 
         SPTAsesor::updateOrCreate(
             ['jadwal_id' => $jadwal_id],
-            ['link' => $fileUrl, 'spt_no' => $sptNo, 'asesor_id' => $jadwal->asesor_id ?? 0]
+            ['link' => $fileUrl, 'spt_no' => $sptNo, 'asesor_id' => $jadwal->asesor_id ?? 0, 'send' => 1]
         );
 
-        return response()->json(['message' => 'SPT Asesor berhasil disetujui']);
+        // Post SPT Asesor to BNSP
+        $authData = DB::table('b_n_s_p_auths')->value('x_authorization');
+        $bnspUrl = 'https://konstruksi.bnsp.go.id/api/v1/jadwal/asesor/surat-tugas';
+        $headers = [
+            'Content-Type' => 'application/json',
+            'x-authorization' => $authData,
+        ];
+
+        // Post asesor 1 — use id_asesor from asesor_bnsp (matching generateSkKomtek)
+        $bnspPayload = null;
+        $bnspResponse = null;
+        $bnspOk = false;
+        if ($asesor1) {
+            $bnspPayload = [
+                'jadwal_id'       => $jadwal_id,
+                'asesor_id'       => $asesor1->id_asesor,
+                'url_surat_tugas' => $fileUrl,
+            ];
+            try {
+                $response1 = Http::retry(8, 1000)->withHeaders($headers)->post($bnspUrl, $bnspPayload);
+                $bnspResponse = $response1->json();
+                $bnspOk = ($bnspResponse['code'] ?? '') === 'OK';
+
+                Log::info('BNSP SPT Asesor response', [
+                    'jadwal_id'  => $jadwal_id,
+                    'asesor_id'  => $jadwal->asesor_id,
+                    'status'     => $response1->status(),
+                    'body'       => $response1->body(),
+                ]);
+            } catch (\Exception $e) {
+                $bnspResponse = ['error' => $e->getMessage()];
+                Log::error('BNSP post SPT Asesor failed', [
+                    'jadwal_id' => $jadwal_id,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return response()->json([
+            'message'       => $bnspOk ? 'SPT Asesor berhasil disetujui dan dikirim ke BNSP' : 'SPT Asesor disetujui, namun gagal dikirim ke BNSP',
+        ], $bnspOk ? 200 : 502);
     }
 
     public function approveSptKomtek($jadwal_id)
