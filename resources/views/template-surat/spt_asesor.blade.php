@@ -259,11 +259,10 @@ Untuk melaksanakan uji kompetensi bidang konstruksi di:
 LSP Gatensi Karya Konstruksi<br>
 <div class="sign-space"></div>
 @if($qr)
-{!! $qr !!}
-@else
+{!! $qr !!}<br>
+@endif
 {{ $direktur_name ?? 'Radinal Efendy, S.T.' }}<br>
 Direktur
-@endif
 </div>
 
 </div>
