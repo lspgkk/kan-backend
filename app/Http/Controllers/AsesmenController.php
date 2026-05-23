@@ -599,7 +599,7 @@ class AsesmenController extends Controller
         $directory = 'dok_asesmen/ia01';
 
         // unique + traceable filename
-        $filename = 'FR-IA-01-' . $id . '-' . Str::uuid() . '.pdf';
+        $filename = 'FR-IA-01-' . $id . '.pdf';
         $path = $directory . '/' . $filename;
 
         // save PDF bytes to FTP
@@ -723,7 +723,7 @@ class AsesmenController extends Controller
         $directory = 'dok_asesmen/ia02';
 
         // unique + traceable filename
-        $filename = 'FR-IA-02-' . $id . '-' . Str::uuid() . '.pdf';
+        $filename = 'FR-IA-02-' . $id . '.pdf';
         $path = $directory . '/' . $filename;
 
         // save PDF bytes to FTP
@@ -967,7 +967,7 @@ class AsesmenController extends Controller
         $directory = 'dok_asesmen/ia03';
 
         // unique + traceable filename
-        $filename = 'FR-IA-03-' . $id . '-' . Str::uuid() . '.pdf';
+        $filename = 'FR-IA-03-' . $id . '.pdf';
         $path = $directory . '/' . $filename;
 
         // save PDF bytes to FTP
@@ -1156,7 +1156,7 @@ class AsesmenController extends Controller
         $directory = 'dok_asesmen/ia04a';
 
         // unique + traceable filename
-        $filename = 'FR-IA-04A-' . $id . '-' . Str::uuid() . '.pdf';
+        $filename = 'FR-IA-04A-' . $id . '.pdf';
         $path = $directory . '/' . $filename;
 
         // save PDF bytes to FTP
@@ -1484,7 +1484,7 @@ class AsesmenController extends Controller
         $directory = 'dok_asesmen/ia04b';
 
         // unique + traceable filename
-        $filename = 'FR-IA-04B-' . $id . '-' . Str::uuid() . '.pdf';
+        $filename = 'FR-IA-04B-' . $id . '.pdf';
         $path = $directory . '/' . $filename;
 
         // save PDF bytes to FTP
@@ -1675,7 +1675,7 @@ class AsesmenController extends Controller
         $directory = 'dok_asesmen/ia05';
 
         // unique + traceable filename
-        $filename = 'FR-IA-05-' . $id . '-' . Str::uuid() . '.pdf';
+        $filename = 'FR-IA-05-' . $id . '.pdf';
         $path = $directory . '/' . $filename;
 
         // save PDF bytes to FTP
@@ -2182,7 +2182,7 @@ class AsesmenController extends Controller
         $directory = 'dok_asesmen/ak02';
 
         // unique + traceable filename
-        $filename = 'FR-AK-02-' . $id . '-' . Str::uuid() . '.pdf';
+        $filename = 'FR-AK-02-' . $id . '.pdf';
         $path = $directory . '/' . $filename;
 
         // save PDF bytes to FTP
@@ -2356,7 +2356,7 @@ class AsesmenController extends Controller
         $disk = 'str_moon';
         $directory = 'dok_asesmen/ak03';
 
-        $filename = 'FR-AK-03-' . $id . '-' . Str::uuid() . '.pdf';
+        $filename = 'FR-AK-03-' . $id . '.pdf';
         $path = $directory . '/' . $filename;
 
         Storage::disk($disk)->put($path, $pdf->output());
@@ -2619,7 +2619,7 @@ class AsesmenController extends Controller
         $directory = 'dok_asesmen/ak05';
 
         // unique + traceable filename
-        $filename = 'FR-AK-05-' . $id . '-' . Str::uuid() . '.pdf';
+        $filename = 'FR-AK-05-' . $id . '.pdf';
         $path = $directory . '/' . $filename;
 
         // save PDF bytes to FTP
@@ -2850,7 +2850,7 @@ class AsesmenController extends Controller
         $directory = 'dok_asesmen/ak06';
 
         // unique + traceable filename
-        $filename = 'FR-AK-06-' . $id . '-' . Str::uuid() . '.pdf';
+        $filename = 'FR-AK-06-' . $id . '.pdf';
         $path = $directory . '/' . $filename;
 
         // save PDF bytes to FTP
@@ -3281,7 +3281,7 @@ class AsesmenController extends Controller
         $directory = 'dok_asesmen/ia08';
 
         // unique + traceable filename
-        $filename = 'FR-IA-08-' . $id . '-' . Str::uuid() . '.pdf';
+        $filename = 'FR-IA-08-' . $id . '.pdf';
         $path = $directory . '/' . $filename;
 
         // save PDF bytes to FTP
@@ -3383,7 +3383,7 @@ class AsesmenController extends Controller
         $directory = 'dok_asesmen/ia09';
 
         // unique + traceable filename
-        $filename = 'FR-IA-09-' . $id . '-' . Str::uuid() . '.pdf';
+        $filename = 'FR-IA-09-' . $id . '.pdf';
         $path = $directory . '/' . $filename;
 
         // save PDF bytes to FTP
@@ -3555,7 +3555,7 @@ class AsesmenController extends Controller
         $directory = 'dok_asesmen/ia10';
 
         // unique + traceable filename
-        $filename = 'FR-IA-10-' . $id . '-' . Str::uuid() . '.pdf';
+        $filename = 'FR-IA-10-' . $id . '.pdf';
         $path = $directory . '/' . $filename;
 
         // save PDF bytes to FTP

@@ -205,11 +205,13 @@ td {
         <!-- Tabel Instrumen Asesmen -->
         <table width="100%" cellpadding="5" cellspacing="0" align="center" style="font-size: 11pt;">
             <tr>
-                <td class="hd-dok" style="width: 5%;" rowspan="2" align="center"><strong>No.</strong></td>
-                <td class="hd-dok" rowspan="2"><strong>Instrumen Asesmen</strong></td>
+                <td class="hd-dok" style="width: 5%; border-bottom-color: #c00000;" align="center"><strong>No.</strong></td>
+                <td class="hd-dok" style="border-bottom-color: #c00000;"><strong>Instrumen Asesmen</strong></td>
                 <td class="hd-dok" colspan="5" align="center"><strong>Potensi Asesi **</strong></td>
             </tr>
             <tr>
+                <td class="hd-dok" style="border-top-color: #c00000;"></td>
+                <td class="hd-dok" style="border-top-color: #c00000;"></td>
                 <td class="hd-dok" style="width: 8%;" align="center"><strong>1</strong></td>
                 <td class="hd-dok" style="width: 8%;" align="center"><strong>2</strong></td>
                 <td class="hd-dok" style="width: 8%;" align="center"><strong>3</strong></td>

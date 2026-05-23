@@ -203,7 +203,7 @@
             @endforeach
             <tr>
                 <td style="font-weight: bold;">Rekomendasi hasil asesmen</td>
-                <td colspan="6" style="text-align: center;">
+                <td colspan="7" style="text-align: center;">
                     <span class="checkbox @if($is_kompeten === true) checked @endif"></span> Kompeten
                     &nbsp;&nbsp;&nbsp;&nbsp;
                     <span class="checkbox @if($is_kompeten === false) checked @endif"></span> Belum kompeten
@@ -214,11 +214,11 @@
                     <b>Tindak lanjut yang dibutuhkan</b><br />
                     <span style="font-size: 13px;">(Masukkan pekerjaan tambahan dan asesmen yang diperlukan untuk mencapai kompetensi)</span>
                 </td>
-                <td colspan="6">{{ $tindak_lanjut }}</td>
+                <td colspan="7">{{ $tindak_lanjut }}</td>
             </tr>
             <tr>
                 <td style="font-weight: bold;">Komentar / Observasi oleh asesor</td>
-                <td colspan="6">{{ $komentar }}</td>
+                <td colspan="7">{{ $komentar }}</td>
             </tr>
         </table>
         <br />
