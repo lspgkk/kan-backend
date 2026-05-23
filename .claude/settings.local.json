@@ -35,7 +35,12 @@
       "Bash(dir C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-dashboard\\\\src\\\\views\\\\home\\\\data-master\\\\klasifikasi *)",
       "Bash(php artisan *)",
       "Bash(Get-ChildItem -Recurse -Directory \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-dashboard\\\\src\")",
-      "Bash(Select-Object -ExpandProperty FullName)"
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "PowerShell(\\(Get-Content \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\storage\\\\app\\\\private\\\\Sistem Uji Gatensi.postman_collection.json\" | Measure-Object -Line\\).Lines)",
+      "PowerShell(ConvertFrom-Json *)",
+      "Bash(Get-ChildItem *)",
+      "Bash(Select-Object -First 30)",
+      "Bash(Select-Object Name)"
     ]
   }
 }

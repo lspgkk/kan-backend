@@ -38,6 +38,8 @@ class VerifikasiTuk extends Model
         'ketua_tuk_qr',
         'direktur_id',
         'direktur_qr',
+        'has_ttd_sk',
+        'direktur_sk_qr',
         'status',
         'pdf_link',
     ];
@@ -47,6 +49,7 @@ class VerifikasiTuk extends Model
         'laptop_images' => 'array',
         'kecepatan_jaringan_images' => 'array',
         'hari_tanggal' => 'date',
+        'has_ttd_sk' => 'boolean',
     ];
 
     public function jadwal()

@@ -156,7 +156,7 @@ class DirekturController extends Controller
             $nama_peserta[] = [
                 'nama'     => $nama,
                 'skema'    => $namaSkema,
-                'kompeten' => $asesi->kompeten,
+                'kompeten' => $this->resolveKomtekDecision($asesi->id_izin),
             ];
         }
 
@@ -401,6 +401,23 @@ class DirekturController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Determine K/BK from majority vote of the 3 komtek members.
+     */
+    private function resolveKomtekDecision(string $id_izin): ?string
+    {
+        $votes = \App\Models\KomtekRecommendation::where('id_izin', $id_izin)
+            ->pluck('rekomendasi')
+            ->toArray();
+
+        if (count($votes) < 2) return null;
+
+        $kCount  = count(array_filter($votes, fn($v) => $v === 'K'));
+        $bkCount = count(array_filter($votes, fn($v) => $v === 'BK'));
+
+        return $kCount > $bkCount ? 'K' : 'BK';
     }
 
     /**

@@ -431,12 +431,22 @@ class MigrationController extends Controller
                     continue;
                 }
 
+                // Reuse credentials from Personal (set during verification) if available
+                $personal = Personal::where('id_izin', $idIzin)->first();
+                if ($personal && $personal->account && $personal->password_plain) {
+                    $account = $personal->account;
+                    $passwordPlain = $personal->password_plain;
+                } else {
+                    $account = Str::upper(Str::random(8));
+                    $passwordPlain = Str::upper(Str::random(8));
+                }
+
                 AsesiJadwal::create([
-                    'jadwal_id' => $jadwalId,
-                    'id_izin'   => $idIzin,
-                    'account'   => Str::upper(Str::random(8)),
-                    'password'  => Str::upper(Str::random(8)),
-                    'kompeten'  => $data['kompeten']
+                    'jadwal_id'      => $jadwalId,
+                    'id_izin'        => $idIzin,
+                    'account'        => $account,
+                    'password_plain' => $passwordPlain,
+                    'kompeten'       => $data['kompeten']
                 ]);
 
                 Log::info('Asesi Jadwal created', [

@@ -121,6 +121,25 @@ footer img{
 .underline{
     text-decoration:underline;
 }
+
+/* Checkbox for K/BK columns */
+.checkbox {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid #333;
+    position: relative;
+}
+
+.checkbox.checked::after {
+    content: "✔";
+    font-size: 12px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    line-height: 1;
+}
 </style>
 </head>
 
@@ -250,8 +269,12 @@ Tim Pemutus sepakat memutuskan hal-hal sebagai berikut:
 <td>{{ $index + 1 }}.</td>
 <td><span class="highlight">{{ $asesi['nama'] }}</span></td>
 <td><span class="highlight">{{ $asesi['skema'] }}</span></td>
-<td style="text-align:center;">@if($asesi['kompeten'] === 'K' || $asesi['kompeten'] === true)✔@endif</td>
-<td style="text-align:center;">@if($asesi['kompeten'] === 'BK' || $asesi['kompeten'] === false)✔@endif</td>
+<td style="text-align:center;">
+  <span class="checkbox @if($asesi['kompeten'] === 'K' || $asesi['kompeten'] === true) checked @endif"></span>
+</td>
+<td style="text-align:center;">
+  <span class="checkbox @if($asesi['kompeten'] === 'BK' || $asesi['kompeten'] === false) checked @endif"></span>
+</td>
 </tr>
 @endforeach
 

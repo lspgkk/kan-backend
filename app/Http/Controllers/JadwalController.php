@@ -316,7 +316,25 @@ class JadwalController extends Controller
 
         foreach ($validated['all_id_izin'] as $id_izin) {
             try {
-                $personalsData = Personal::where('id_izin', $id_izin)->select('nik', 'nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kabupaten', 'propinsi', 'telepon', 'email', 'account', 'password_plain')->first();
+                $personalsData = Personal::where('id_izin', $id_izin)->select('nik', 'nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kabupaten', 'propinsi', 'telepon', 'email', 'account', 'password_plain', 'type')->first();
+
+                // SIKI pre-check with type-specific endpoint
+                $personalType = $personalsData->type ?? 'reguler';
+                $suffixMap = ['reguler' => '/', 'balai' => '-balai/', 'fg' => '-fg/'];
+                $sikiSuffix = $suffixMap[$personalType] ?? '/';
+                $sikiUrl = 'https://siki.pu.go.id/siki-api/v1/permohonan-skk' . $sikiSuffix . $id_izin;
+                try {
+                    $sikiResponse = \Illuminate\Support\Facades\Http::withHeaders([
+                        'Content-Type' => 'application/json',
+                        'token' => env('SIKI_TOKEN'),
+                    ])->timeout(15)->get($sikiUrl);
+                    if (!$sikiResponse->successful()) {
+                        \Illuminate\Support\Facades\Log::warning("SIKI pre-check failed for {$id_izin} (type: {$personalType})");
+                    }
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning("SIKI pre-check unreachable for {$id_izin}: {$e->getMessage()}");
+                }
+
                 $jadwal_id = $jadwalId;
                 $asesor_id  = (int) $validated['asesor1'];
                 $asesor2_id = $validated['asesor2'] ?? null;
@@ -380,9 +398,11 @@ class JadwalController extends Controller
                 $jenjang_id = $pendidikansData->jenjang;
 
 
+                $personalType = $personalsData->type ?? 'reguler';
+                $isFg = $personalType === 'fg';
+
                 if ($jenjang_id == 99) {
-                    // this came from unannounced bnsp update kekw
-                    $jenjang_id = 3; // not 20 why?
+                    $jenjang_id = $isFg ? 20 : 3;
                     $no_ijasah = "1";
                     $nama_sekolah = "Non Pendidikan";
                     $prodi = "UMUM";
@@ -395,8 +415,7 @@ class JadwalController extends Controller
                     "jadwal_id" => $jadwal_id,
                     "tuk_id" => $tuk_id->id,
                     "asesor_id" => $asesor_id,
-                    "asesor2_id" => $asesor2_id,
-                    "is_fg" => 0,
+                    "is_fg" => $isFg ? 1 : 0,
                     "nik" => $nik,
                     "nib" => "",
                     "nama" => $nama,
@@ -429,6 +448,11 @@ class JadwalController extends Controller
                     "file_nib" => "-",
                     "file_ijazah" => $file_ijazah
                 ];
+
+                // Include second asesor when set (optional for balai/fg)
+                if ($asesor2_id) {
+                    $apiData["asesor2_id"] = $asesor2_id;
+                }
 
                 // 🚨 TEMPORARY: Skip BNSP participant API call, directly create local records
                 // Original BNSP API code commented out:
@@ -705,7 +729,7 @@ class JadwalController extends Controller
         foreach ($idIzinList as $id_izin) {
             try {
                 $personalsData = Personal::where('id_izin', $id_izin)
-                    ->select('nik', 'nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kabupaten', 'propinsi', 'telepon', 'email')
+                    ->select('nik', 'nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kabupaten', 'propinsi', 'telepon', 'email', 'type')
                     ->first();
 
                 if (!$personalsData) {
@@ -783,8 +807,11 @@ class JadwalController extends Controller
 
                 $jenjang_id = $pendidikansData->jenjang;
 
+                $personalType = $personalsData->type ?? 'reguler';
+                $isFg = $personalType === 'fg';
+
                 if ($jenjang_id == 99) {
-                    $jenjang_id = 3;
+                    $jenjang_id = $isFg ? 20 : 3;
                     $no_ijasah = "1";
                     $nama_sekolah = "Non Pendidikan";
                     $prodi = "UMUM";
@@ -797,8 +824,7 @@ class JadwalController extends Controller
                     "jadwal_id"         => $realJadwalId,
                     "tuk_id"            => $tuk_id->id,
                     "asesor_id"         => $asesor_id,
-                    "asesor2_id"        => $asesor2_id,
-                    "is_fg"             => 0,
+                    "is_fg"             => $isFg ? 1 : 0,
                     "nik"               => $nik,
                     "nib"               => "",
                     "nama"              => $nama,
@@ -831,6 +857,11 @@ class JadwalController extends Controller
                     "file_nib"          => "-",
                     "file_ijazah"       => $file_ijazah,
                 ];
+
+                // Include second asesor when set (optional for balai/fg)
+                if ($asesor2_id) {
+                    $apiData["asesor2_id"] = $asesor2_id;
+                }
 
                 $httpClient = new \GuzzleHttp\Client([
                     'timeout' => 30,
@@ -2527,6 +2558,23 @@ class JadwalController extends Controller
     /**
      * Generate BA Komtek without TTD/QR
      */
+    /**
+     * Determine K/BK from majority vote of the 3 komtek members.
+     */
+    private function resolveKomtekDecision(string $id_izin): ?string
+    {
+        $votes = \App\Models\KomtekRecommendation::where('id_izin', $id_izin)
+            ->pluck('rekomendasi')
+            ->toArray();
+
+        if (count($votes) < 2) return null;
+
+        $kCount  = count(array_filter($votes, fn($v) => $v === 'K'));
+        $bkCount = count(array_filter($votes, fn($v) => $v === 'BK'));
+
+        return $kCount > $bkCount ? 'K' : 'BK';
+    }
+
     private function generateBaKomtekWithoutTtd(int $jadwalId): array
     {
         $last = BaKomtek::latest('id')->first();
@@ -2556,7 +2604,7 @@ class JadwalController extends Controller
             $nama_peserta[] = [
                 'nama' => $asesi->personal->nama ?? '',
                 'skema' => $namaSkema ?? '',
-                'kompeten' => $asesi->kompeten,
+                'kompeten' => $this->resolveKomtekDecision($asesi->id_izin),
             ];
         }
 

@@ -452,11 +452,12 @@ class PenerbitanSertifikatController extends Controller
                 ], 404);
             }
             try {
-                // Hit api bnsp
-                // Fill the json
+                // Hit api bnsp — type-specific payload
+                $pesertaType = Personal::where('id_izin', $peserta->id_izin)->value('type') ?? 'reguler';
+                $isBalaiFg = in_array($pesertaType, ['balai', 'fg']);
+
                 $request_api_asesor = [
                     "id_asesor" => $id_asesor,
-                    "id_asesor_2" => $id_asesor_2,
                     "rekomendasi" => "K",
                     "catatan" => "",
                     "tgl_surat_tugas" => \Carbon\Carbon::parse($response_jadwal['dataJadwal']['tanggal_mulai'])->subDay()->setTimezone('Asia/Jakarta')->isoFormat('YYYY-MM-DD'),
@@ -470,7 +471,13 @@ class PenerbitanSertifikatController extends Controller
                     "uji_tulis" => "1",
                     "uji_lisan" => "1",
                     "wawancara" => "0",
-                    "penyelenggaraan_uji" => $klas_kua->metode_uji === 'onsite' ? '4' : '1',
+                    "penyelenggaraan_uji" => $isBalaiFg ? '1' : ($klas_kua->metode_uji === 'onsite' ? '4' : '1'),
+                ];
+
+                // Include second asesor when set (optional for balai/fg)
+                if ($id_asesor_2) {
+                    $request_api_asesor["id_asesor_2"] = $id_asesor_2;
+                }
                     "url_surat_tugas" => $link_asesor,
                     "url_surat_rekomendasi_akhir" => $bukti->url_ak02,
                     "url_apl01" => $bukti->url_apl_01,
@@ -867,11 +874,15 @@ class PenerbitanSertifikatController extends Controller
         /* PENCATATAN */
         $peserta_kompeten = Jadwal::where(["jadwal_id" => $request->input('jadwal_id'), "kompeten" => "K"])->get();
 
+        $suffixMap = ['reguler' => '', 'balai' => '-balai', 'fg' => '-fg'];
+
         foreach ($peserta_kompeten as $peserta) {
             $id_izin = DataPencatatan::where("id_izin", $peserta->id_izin)->first();
 
-            // Hit api bnsp
-            $url = 'https://siki.pu.go.id/siki-api/v1/pencatatan-skk/' . $peserta->id_izin;
+            // Hit api bnsp with type-specific endpoint
+            $type = Personal::where('id_izin', $peserta->id_izin)->value('type') ?? 'reguler';
+            $suffix = $suffixMap[$type] ?? '';
+            $url = 'https://siki.pu.go.id/siki-api/v1/pencatatan-skk' . $suffix . '/' . $peserta->id_izin;
 
             $headers = [
                 'Content-Type' => 'application/json',
@@ -979,17 +990,24 @@ class PenerbitanSertifikatController extends Controller
                         "tanggal_ditetapkan" => $tanggal_ditetapkan,
                         "tanggal_ditetapkan_en" => $tanggal_ditetapkan_en,
                         "qr" => $dataPencatatan->qr,
-                        "qr_ketua" => QrCode::margin(0)->size(70)->generate("https://reguler.lspgatensi.id/validasi-signature/" .  $uid)
+                        "qr_ketua" => QrCode::margin(0)->size(70)->generate("https://backend.devgatensi.id/validasi-signature/" .  $uid)
                     ];
 
-                    // Export to html and save to lspgatensi.id/files/reguler/sertifikat/
-                    // $nama_file = (string) Uuid::uuid4();
+                    // Determine type-based paths
+                    $personalType = Personal::where('id_izin', $peserta->id_izin)->value('type') ?? 'reguler';
+                    $typePath = match ($personalType) {
+                        'balai' => 'balai',
+                        'fg' => 'fg',
+                        default => 'reguler',
+                    };
+
+                    // Export to html and save by type
                     $nama_file = strtolower($dataPencatatan->nomor_blangko_bnsp);
                     $html = view('certificate.sertifikat', $result)->render();
-                    Storage::disk("str_moon")->put("/reguler/sertifikat/" . $nama_file . ".html", $html);
+                    Storage::disk("str_moon")->put("/{$typePath}/sertifikat/" . $nama_file . ".html", $html);
 
                     DataPencatatan::where("nomor_blangko_bnsp", $dataPencatatan->nomor_blangko_bnsp)->update([
-                        "link_e_sertifikat" => "https://lspgatensi.id/files/reguler/sertifikat/" . $nama_file . ".html",
+                        "link_e_sertifikat" => "https://lspgatensi.id/files/{$typePath}/sertifikat/" . $nama_file . ".html",
                         "qr_signature" => $uid,
                     ]);
                 }

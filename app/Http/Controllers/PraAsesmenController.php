@@ -1005,8 +1005,8 @@ class PraAsesmenController extends Controller
         $submission = Apl2Submission::where('id_izin', $id)->first();
         $answers = Apl2Answer::where('id_izin', $id)->with('files')->get();
 
-        // Broadcast the event to asesor(s) in real-time
-        broadcast(new Apl02Updated($id, $submission, $answers, $asesorIds));
+        // Broadcast disabled — keep for later
+        // broadcast(new Apl02Updated($id, $submission, $answers, $asesorIds));
 
         return response()->json([
             'message' => 'APL-02 successfully submitted'
@@ -1178,25 +1178,24 @@ class PraAsesmenController extends Controller
         // Get the authenticated asesor ID
         $asesorId = auth()->id();
 
-        // Broadcast the signature update to the asesi
-        broadcast(new Apl02AsesorUpdated(
-            $id,
-            'signature',
-            [
-                'document_type' => 'APL02',
-                'pdf_url' => $fullUrl,
-                'filename' => $filename,
-                'barcode_data' => $data,
-                'signed_by' => $asesorId,
-                'signed_at' => now()->toISOString(),
-            ],
-            $asesorId
-        ));
+        // Broadcast disabled — keep for later
+        // broadcast(new Apl02AsesorUpdated(
+        //     $id,
+        //     'signature',
+        //     [
+        //         'document_type' => 'APL02',
+        //         'pdf_url' => $fullUrl,
+        //         'filename' => $filename,
+        //         'barcode_data' => $data,
+        //         'signed_by' => $asesorId,
+        //         'signed_at' => now()->toISOString(),
+        //     ],
+        //     $asesorId
+        // ));
 
         return response()->json([
             'message' => 'Success',
             'data'    => $data,
-            'broadcasted' => true,
         ]);
     }
 
@@ -2616,17 +2615,17 @@ class PraAsesmenController extends Controller
             }
         }
 
-        // Broadcast test event
-        broadcast(new Apl02Updated(
-            $validated['id_izin'],
-            $testSubmission,
-            $testAnswers,
-            $asesorIds
-        ));
+        // Broadcast test event — disabled, keep for later
+        // broadcast(new Apl02Updated(
+        //     $validated['id_izin'],
+        //     $testSubmission,
+        //     $testAnswers,
+        //     $asesorIds
+        // ));
 
         return response()->json([
             'success' => true,
-            'message' => 'Test broadcast sent successfully',
+            'message' => 'Test broadcast skipped (disabled)',
             'data' => [
                 'id_izin' => $validated['id_izin'],
                 'asesor_ids' => $asesorIds,
