@@ -52,6 +52,7 @@ class Personal extends Model
         'deleted_at',
         'rencana_tanggal_uji',
         'metode_uji',
+        'jenis_kelas_id',
         'wa_uuid',
         'account',
         'password_plain',

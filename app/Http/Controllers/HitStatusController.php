@@ -24,7 +24,7 @@ class HitStatusController extends Controller
         // Validate payload
         $validated = $request->validate([
             'rencana_tanggal_uji' => 'required|date',
-            'metode_uji'          => 'nullable|string',
+            'jenis_kelas_id'      => 'nullable|integer|exists:jenis_kelas,id',
         ]);
 
         // Get the personal record to determine type
@@ -78,7 +78,7 @@ class HitStatusController extends Controller
                 'verifby_id' => Auth::user()->id,
                 'verif_time' => now(),
                 'rencana_tanggal_uji' => \Carbon\Carbon::parse($validated['rencana_tanggal_uji'])->format('Y-m-d'),
-                'metode_uji' => $validated['metode_uji'] ?? null,
+                'jenis_kelas_id' => $validated['jenis_kelas_id'] ?? null,
                 'wa_uuid' => $personal->wa_uuid,
                 'account' => $personal->account,
                 'password_plain' => $personal->password_plain,
