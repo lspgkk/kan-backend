@@ -97,7 +97,7 @@ class InvoiceController extends Controller
 
         // 1️⃣ Paginate FIRST (with search)
         $asesiPaginated = Personal::query()
-            ->where('status', 10)
+            ->where('status', 30)
             ->where('type', 'balai')
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($w) use ($search) {
@@ -639,21 +639,7 @@ class InvoiceController extends Controller
                     $invoice_pdf = "https://moon.lspgatensi.id/files/new_gatensi/invoice-tuk/" . $pdf_filename;
                 }
 
-                foreach ($data_asesi_beserta_harga as $asesi) {
-                    $this->updateSikiStatus(
-                        "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi['id_izin'],
-                        [
-                            'Content-Type' => 'application/json',
-                            'token' => env('SIKI_TOKEN'),
-                        ],
-                        ['kd_status' => '30', 'keterangan' => 'Invoice'],
-                        30,
-                        $asesi['id_izin']
-                    );
-
-                    Personal::where('id_izin', $asesi['id_izin'])->update(['status' => 30]);
-                    usleep(500000);
-                }
+                $this->sendInvoiceStatuses($data_asesi_beserta_harga);
 
                 /* =====================================================
                 * 5. CREATE INVOICE
@@ -690,6 +676,15 @@ class InvoiceController extends Controller
                         'jenis_permohonan' => 1, // Jenis baru, nanti ganti aja id nya
                         'deposit' => $asesi['harga'],
                     ]);
+                }
+
+                // Balai/FG auto-confirm: mark invoice as paid
+                $hasBalaiFg = Personal::whereIn('id_izin', array_column($data_asesi_beserta_harga, 'id_izin'))
+                    ->whereIn('type', ['balai', 'fg'])
+                    ->exists();
+
+                if ($hasBalaiFg) {
+                    Invoice::where('invoice_number', $latest_invno)->update(['payment_status' => 'paid']);
                 }
 
                 DB::commit();
@@ -784,23 +779,6 @@ class InvoiceController extends Controller
                     throw new \Exception('Failed to create Midtrans Snap transaction: ' . $snapError->getMessage());
                 }
 
-                // Update SIKI status to 30 (Verifikasi Pembayaran) for Midtrans
-                foreach ($data_asesi_beserta_harga as $asesi) {
-                    $this->updateSikiStatus(
-                        "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi['id_izin'],
-                        [
-                            'Content-Type' => 'application/json',
-                            'token' => env('SIKI_TOKEN'),
-                        ],
-                        ['kd_status' => '30', 'keterangan' => 'Invoice'],
-                        30,
-                        $asesi['id_izin']
-                    );
-
-                    Personal::where('id_izin', $asesi['id_izin'])->update(['status' => 30]);
-                    usleep(500000);
-                }
-
             } catch (\Exception $e) {
                 Log::error('Midtrans transaction creation failed', [
                     'invoice_number' => $latest_invno,
@@ -813,26 +791,86 @@ class InvoiceController extends Controller
                     'invoice_number' => $latest_invno,
                 ], 500);
             }
-        } else {
-            // For manual payment, update SIKI status to 30 (Verifikasi Pembayaran)
-            foreach ($data_asesi_beserta_harga as $asesi) {
-                $this->updateSikiStatus(
-                    "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi['id_izin'],
-                    [
-                        'Content-Type' => 'application/json',
-                        'token' => env('SIKI_TOKEN'),
-                    ],
-                    ['kd_status' => '30', 'keterangan' => 'Invoice'],
-                    30,
-                    $asesi['id_izin']
-                );
-
-                Personal::where('id_izin', $asesi['id_izin'])->update(['status' => 30]);
-                usleep(500000);
-            }
         }
 
         return response()->json($responseData);
+    }
+
+    /**
+     * Send the appropriate SIKI status sequence and update local DB per asesi type.
+     *
+     * Reguler : status 30 only (Verifikasi Pembayaran)
+     * Balai   : status 30 → 32 → 33 → 31 (auto-confirm)
+     * FG      : status 30 → 32 → 33 → 31 (auto-confirm)
+     */
+    private function sendInvoiceStatuses(array $data_asesi_beserta_harga): void
+    {
+        $suffixMap = [
+            'reguler' => '/',
+            'balai'   => '-balai/',
+            'fg'      => '-fg/',
+        ];
+
+        foreach ($data_asesi_beserta_harga as $asesi) {
+            $personal = Personal::where('id_izin', $asesi['id_izin'])->first();
+            $type = $personal?->type ?? 'reguler';
+            $suffix = $suffixMap[$type] ?? '/';
+            $baseUrl = "https://siki.pu.go.id/siki-api/v1/permohonan-skk{$suffix}{$asesi['id_izin']}";
+
+            $headers = [
+                'Content-Type' => 'application/json',
+                'token' => env('SIKI_TOKEN'),
+            ];
+
+            // Step 1: Status 30 (Invoice) — all types
+            $this->updateSikiStatus(
+                $baseUrl,
+                $headers,
+                ['kd_status' => '30', 'keterangan' => 'Invoice'],
+                30,
+                $asesi['id_izin']
+            );
+
+            if ($type === 'balai' || $type === 'fg') {
+                // Balai/FG auto-confirm: continue to 32 → 33 → 31
+                usleep(500000);
+
+                $this->updateSikiStatus(
+                    $baseUrl,
+                    $headers,
+                    ['kd_status' => '32', 'keterangan' => 'Tahap 1'],
+                    32,
+                    $asesi['id_izin']
+                );
+
+                usleep(500000);
+
+                $this->updateSikiStatus(
+                    $baseUrl,
+                    $headers,
+                    ['kd_status' => '33', 'keterangan' => 'BA Ujikom'],
+                    33,
+                    $asesi['id_izin']
+                );
+
+                usleep(500000);
+
+                $this->updateSikiStatus(
+                    $baseUrl,
+                    $headers,
+                    ['kd_status' => '31', 'keterangan' => 'Konfirmasi Pembayaran'],
+                    31,
+                    $asesi['id_izin']
+                );
+
+                Personal::where('id_izin', $asesi['id_izin'])->update(['status' => 31]);
+            } else {
+                // Reguler: status 30 only
+                Personal::where('id_izin', $asesi['id_izin'])->update(['status' => 30]);
+            }
+
+            usleep(500000);
+        }
     }
 
     /**
@@ -1389,6 +1427,20 @@ class InvoiceController extends Controller
             ];
 
             $asesi_invoice = InvoiceDetail::where("no_invoice", $validatedData['no_invoice'])->get();
+
+            // Balai/FG invoices are auto-confirmed during createInvoice — skip manual confirmation
+            $idIzinList = $asesi_invoice->pluck('id_izin')->toArray();
+            $hasBalaiFg = Personal::whereIn('id_izin', $idIzinList)
+                ->whereIn('type', ['balai', 'fg'])
+                ->exists();
+
+            if ($hasBalaiFg) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Invoice balai/fg sudah dikonfirmasi otomatis saat pembuatan.',
+                    'no_invoice' => $validatedData['no_invoice'],
+                ], 200);
+            }
 
             DB::beginTransaction();
 

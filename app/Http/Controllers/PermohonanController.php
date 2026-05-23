@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\JabatanKerja;
+use App\Models\Jenjang;
 use Illuminate\Http\Request;
 use App\Models\Personal;
 use Illuminate\Support\Facades\DB;
@@ -87,6 +88,7 @@ class PermohonanController extends Controller
         $pendidikans->transform(function ($item) {
             $item->propinsi_nama = $item->province ? $item->province->nama : null;
             $item->kabupaten_nama = $item->city ? $item->city->nama_kabupaten_dagri : null;
+            $item->jenjang_nama = Jenjang::where('id_siki', $item->jenjang)->value('nama');
             unset($item->province, $item->city);
             return $item;
         });

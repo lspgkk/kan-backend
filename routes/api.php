@@ -40,6 +40,7 @@ use App\Http\Controllers\NegaraController;
 use App\Http\Controllers\PekerjaanController;
 use App\Http\Controllers\JenjangJabatanKerjaController;
 use App\Http\Controllers\TarifController;
+use App\Http\Controllers\VerifikasiTukController;
 
 Route::get('/migrate/personals', [MigrationController::class, 'personals']);
 Route::get('/migrate/klasifikasis', [MigrationController::class, 'klasifikasis']);
@@ -60,6 +61,7 @@ Route::middleware('guest')->group(function () {
 });
 
 // --- Public Barcode Verification ---
+Route::get('/get-barcode/{id}', [BarcodeController::class, 'getBarcode']);
 Route::get('/barcode/verify', [BarcodeController::class, 'getBarcodeByUrlTtd']);
 Route::get('/barcode/penyusun-validator/verify', [BarcodeController::class, 'getPenyusunValidatorByUrl']);
 
@@ -329,6 +331,7 @@ Route::middleware(['auth:api'])->group(function () {
     Route::post('/verifikasi/{id_izin}', [HitStatusController::class, 'hitVerifikasi']);
     Route::post('/validasi/lengkap/{id_izin}', [HitStatusController::class, 'hitLengkap']);
     Route::post('/validasi/tidak-lengkap/{id_izin}', [HitStatusController::class, 'hitTidakLengkap']);
+    Route::post('/validasi/pj/{id_izin}', [HitStatusController::class, 'hitValidasiPJ']);
     Route::post('/tolak/{id_izin}', [HitStatusController::class, 'hitTolak']);
 
     // --- Penerbitan Sertifikat ---
@@ -376,5 +379,21 @@ Route::middleware(['auth:api'])->group(function () {
 
     Route::prefix('tarif')->group(function () {
         Route::get('/', [TarifController::class, 'index']);
+    });
+
+    Route::prefix('verifikasi-tuk')->group(function () {
+        // Step 1: Admin TUK mengajukan
+        Route::post('/', [VerifikasiTukController::class, 'submit']);
+        // Step 2: Asesi upload dokumentasi + TTD Ketua TUK
+        Route::post('/{id}/dokumentasi', [VerifikasiTukController::class, 'uploadDokumentasi']);
+        // Step 3: Direktur TTD (belum SK)
+        Route::post('/{id}/ttd-direktur', [VerifikasiTukController::class, 'ttdDirektur']);
+        // Step 4: Asesor verifikasi kondisi & TTD Verifikator
+        Route::post('/{id}/verifikasi', [VerifikasiTukController::class, 'verifikasi']);
+        // Step 5: Direktur TTD SK (final)
+        Route::post('/{id}/ttd-sk', [VerifikasiTukController::class, 'ttdSk']);
+        // List & detail
+        Route::get('/', [VerifikasiTukController::class, 'index']);
+        Route::get('/{id}', [VerifikasiTukController::class, 'show']);
     });
 });

@@ -174,23 +174,6 @@ class PraAsesmenController extends Controller
             ->first();
         $jabatanKerja = JabatanKerja::where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->value('jabatan_kerja');
         $jabatanConfig = JabatanConfigA::select(['no_skema'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
-        $jadwal = Jadwal::select([
-            'jadwal_id',
-            'tuk_id',
-            'asesor_id',
-            'asesor2_id',
-            'tanggal_uji',
-            'tanggal_selesai',
-            'jenis_kelas',
-            'tahap'
-        ])->with([
-            'tuk:id,nama',
-            'asesor:id,nama,noreg',
-            'asesor2:id,nama,noreg',
-        ])->where('jadwal_id', $jadwalId)->first();
-
-        $idAsesor1 = User::where('noreg', $jadwal->asesor ? $jadwal->asesor->noreg : null)->value('id');
-        $idAsesor2 = User::where('noreg', $jadwal->asesor2 ? $jadwal->asesor2->noreg : null)->value('id');
 
         $penyusun_validator = JabatanConfigA::with([
             'penyusun:id,name,noreg',
@@ -199,23 +182,50 @@ class PraAsesmenController extends Controller
 
         $apl2Submission = \App\Models\Apl2Submission::where('id_izin', $id)->first();
 
+        $namaManajer = User::where('role_id', 7)->where('is_deleted', false)->first()?->name;
+
+        // Jadwal-dependent fields — may be null when jadwal hasn't been created yet
+        if ($jadwalId) {
+            $jadwal = Jadwal::select([
+                'jadwal_id',
+                'tuk_id',
+                'asesor_id',
+                'asesor2_id',
+                'tanggal_uji',
+                'tanggal_selesai',
+                'jenis_kelas',
+                'tahap'
+            ])->with([
+                'tuk:id,nama',
+                'asesor:id,nama,noreg',
+                'asesor2:id,nama,noreg',
+            ])->where('jadwal_id', $jadwalId)->first();
+
+            $idAsesor1 = $jadwal ? User::where('noreg', $jadwal->asesor?->noreg)->value('id') : null;
+            $idAsesor2 = $jadwal ? User::where('noreg', $jadwal->asesor2?->noreg)->value('id') : null;
+        } else {
+            $jadwal = null;
+            $idAsesor1 = null;
+            $idAsesor2 = null;
+        }
+
         return response()->json([
             'message' => 'Success',
             'data' => [
                 'jabatan_kerja' => $jabatanKerja,
                 'nomor_skema' => $jabatanConfig->no_skema,
-                'tuk' => $jadwal->tuk ? $jadwal->tuk->nama : null,
+                'tuk' => $jadwal?->tuk?->nama,
                 'id_asesor_1' => $idAsesor1,
                 'id_asesor_2' => $idAsesor2,
                 'nama_asesi' => $namaAsesi,
                 'jenjang' => $klasifikasi->jenjang,
-                'asesor_1' => $jadwal->asesor ? $jadwal->asesor->nama : null,
-                'asesor_2' => $jadwal->asesor2 ? $jadwal->asesor2->nama : null,
-                'noreg_asesor_1' => $jadwal->asesor ? $jadwal->asesor->noreg : null,
-                'noreg_asesor_2' => $jadwal->asesor2 ? $jadwal->asesor2->noreg : null,
-                'tanggal_uji' => $jadwal->tanggal_uji,
-                'tanggal_selesai' => $jadwal->tanggal_selesai,
-                'jenis_kelas' => $jadwal->jenis_kelas,
+                'asesor_1' => $jadwal?->asesor?->nama,
+                'asesor_2' => $jadwal?->asesor2?->nama,
+                'noreg_asesor_1' => $jadwal?->asesor?->noreg,
+                'noreg_asesor_2' => $jadwal?->asesor2?->noreg,
+                'tanggal_uji' => $jadwal?->tanggal_uji,
+                'tanggal_selesai' => $jadwal?->tanggal_selesai,
+                'jenis_kelas' => $jadwal?->jenis_kelas,
                 'nama_penyusun' => $penyusun_validator->penyusun?->name,
                 'nama_validator' => $penyusun_validator->validator?->name,
                 'tanggal_penyusun' => $penyusun_validator->penyusun_tgl,
@@ -225,8 +235,10 @@ class PraAsesmenController extends Controller
                 'noreg_penyusun' => $penyusun_validator->penyusun?->noreg,
                 'noreg_validator' => $penyusun_validator->validator?->noreg,
                 'metode' => $apl2Submission?->metode,
-                'tahap' => $jadwal->tahap,
+                'tahap' => $jadwal?->tahap,
                 'jadwal_id' => $jadwalId,
+                'nama_manajer' => $namaManajer,
+                'tanggal_manajer' => $penyusun_validator->penyusun_tgl,
             ]
         ]);
     }
@@ -522,7 +534,7 @@ class PraAsesmenController extends Controller
                         ['id' => '5', 'label' => 'Lainnya:', 'checked' => false]
                     ]
                 ],
-                'is_diterima' => true,
+                'is_diterima' => $apl1Answer?->is_diterima,
                 'skkni' => $jabatanKerja->acuan,
                 'data_unit_kompetensi' => $unitKompetensi,
                 'bukti_persyaratan' => $persyaratan,
@@ -554,6 +566,7 @@ class PraAsesmenController extends Controller
             'telepon_kantor'  => 'nullable|string',
             'fax'             => 'nullable|string',
             'email_kantor'    => 'nullable|email',
+            'is_diterima'     => 'nullable|boolean',
         ]);
 
         $apl01 = Apl1Answer::updateOrCreate(
@@ -2127,12 +2140,12 @@ class PraAsesmenController extends Controller
             $metode  = strtolower($klasifikasi->metode_uji ?? '');
 
             if ($jenjang >= 1 && $jenjang <= 3) {
-                $autoTrueIds = [62, 227]; // Daftar Pertanyaan Tertulis, Hasil Observasi Langsung
+                $autoTrueIds = [60, 227]; // Daftar Pertanyaan Tertulis, Hasil Observasi Langsung
             } elseif ($jenjang >= 4 && $jenjang <= 9) {
                 if ($metode === 'portofolio') {
                     $autoTrueIds = [64, 226]; // Daftar Pertanyaan Wawancara, Hasil Verifikasi Portfolio
                 } else {
-                    $autoTrueIds = [60, 227]; // Hasil Kegiatan Terstruktur, Hasil Observasi Langsung
+                    $autoTrueIds = [60, 62]; // Hasil Kegiatan Terstruktur, Hasil Observasi Langsung
                 }
             }
         }
@@ -2627,20 +2640,22 @@ class PraAsesmenController extends Controller
 
     /**
      * Resolve UUID magic link to id_izin for the frontend.
+     *
+     * Looks up from Personal (set during verification) — no Jadwal/AsesiJadwal dependency.
      */
     public function resolveUuid(string $uuid)
     {
-        $asesiJadwal = AsesiJadwal::where('wa_uuid', $uuid)->first();
+        $personal = Personal::where('wa_uuid', $uuid)->first();
 
-        if (!$asesiJadwal) {
+        if (!$personal) {
             return response()->json([
                 'success' => false,
                 'message' => 'Link tidak valid atau sudah kadaluwarsa.',
             ], 404);
         }
 
-        $account = $asesiJadwal->account;
-        $password = $asesiJadwal->password_plain;
+        $account = $personal->account;
+        $password = $personal->password_plain;
 
         $token = null;
         if ($account && $password) {
@@ -2656,13 +2671,15 @@ class PraAsesmenController extends Controller
             }
         }
 
-        $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja'])->where('id_izin', $asesiJadwal->id_izin)->first();
+        $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja'])->where('id_izin', $personal->id_izin)->first();
+
+        $jadwalId = AsesiJadwal::where('id_izin', $personal->id_izin)->value('jadwal_id');
 
         return response()->json([
             'success' => true,
             'data' => [
-                'id_izin'        => $asesiJadwal->id_izin,
-                'jadwal_id'      => $asesiJadwal->jadwal_id,
+                'id_izin'        => $personal->id_izin,
+                'jadwal_id'      => $jadwalId,
                 'jabatan_kerja'  => $klasifikasi?->jabatan_kerja,
                 'access_token'   => $token,
                 'token_type'     => $token ? 'bearer' : null,

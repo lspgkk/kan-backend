@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Models\JabatanKerja;
+use App\Models\KlasifikasiKualifikasi;
 use App\Models\Personal;
-use App\Models\AsesiJadwal;
+use App\Models\User;
 use App\Services\QontakService;
 use GuzzleHttp\Exception\RequestException;
 use Illuminate\Http\Request;
@@ -19,6 +21,11 @@ class HitStatusController extends Controller
 {
     public function hitVerifikasi(Request $request, $id_izin)
     {
+        // Validate payload
+        $validated = $request->validate([
+            'rencana_tanggal_uji' => 'required|date',
+        ]);
+
         // Get the personal record to determine type
         $personal = Personal::where('id_izin', $id_izin)->first();
         if (!$personal) {
@@ -44,29 +51,54 @@ class HitStatusController extends Controller
             'keterangan' => 'Verifikasi Data'
         ];
 
+        // Generate credentials for the asesi if not already set
+        if (!$personal->wa_uuid) {
+            $account = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 8));
+            $passwordPlain = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 8));
+            $personal->wa_uuid = (string) Str::uuid();
+            $personal->account = $account;
+            $personal->password_plain = $passwordPlain;
+        }
+
         DB::beginTransaction();
         try {
-            $httpClient = new \GuzzleHttp\Client();
-            $httpClient->request('POST', $apiEndpoint, [
-                'headers' => [
-                    'Content-Type' => 'application/json',
-                    'token' => env('SIKI_TOKEN'),
-                ],
-                'json' => $apiData,
-            ]);
+            // $httpClient = new \GuzzleHttp\Client();
+            // $httpClient->request('POST', $apiEndpoint, [
+            //     'headers' => [
+            //         'Content-Type' => 'application/json',
+            //         'token' => env('SIKI_TOKEN'),
+            //     ],
+            //     'json' => $apiData,
+            // ]);
 
-            // Update verification status in database
+            // Update verification status and wa fields in database
             $personal->update([
                 'status' => '20',
                 'verifby_id' => Auth::user()->id,
                 'verif_time' => now(),
+                'rencana_tanggal_uji' => \Carbon\Carbon::parse($validated['rencana_tanggal_uji'])->format('Y-m-d'),
+                'wa_uuid' => $personal->wa_uuid,
+                'account' => $personal->account,
+                'password_plain' => $personal->password_plain,
             ]);
+
+            // Create User for asesi if not already exists
+            if (!User::where('email', $personal->account)->exists()) {
+                User::create([
+                    'name' => $personal->nama,
+                    'email' => $personal->account,
+                    'phone' => $personal->telepon ?? null,
+                    'password' => bcrypt($personal->password_plain),
+                    'address' => $personal->alamat ?? null,
+                    'role_id' => 8,
+                ]);
+            }
 
             DB::commit();
 
             // Send WhatsApp notification to asesi
             try {
-                $this->sendVerifikasiWhatsApp($personal, $id_izin);
+                $this->sendVerifikasiWhatsApp($personal->fresh(), $id_izin);
             } catch (\Throwable $waError) {
                 Log::warning('WhatsApp notification failed for ' . $id_izin . ': ' . $waError->getMessage());
                 // Don't fail the request — WhatsApp is secondary
@@ -185,6 +217,93 @@ class HitStatusController extends Controller
                 'id_izin' => $id_izin,
                 'status'  => '10',
             ]
+        ]);
+    }
+
+    public function hitValidasiPJ(Request $request, $id_izin)
+    {
+        $personal = Personal::where('id_izin', $id_izin)->first();
+
+        if (!$personal) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data asesi tidak ditemukan.',
+            ], 404);
+        }
+
+        if ($personal->type !== 'balai') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi PJ hanya tersedia untuk permohonan balai.',
+            ], 422);
+        }
+
+        $type = $personal->type;
+        $endpointMap = [
+            'reguler' => '/',
+            'balai'   => '-balai/',
+            'fg'      => '-fg/',
+        ];
+
+        $suffix = $endpointMap[$type] ?? '/';
+        $api_url = 'https://siki.pu.go.id/siki-api/v1/permohonan-skk' . $suffix . $id_izin;
+
+        $headers = [
+            'Content-Type' => 'application/json',
+            'token' => env('SIKI_TOKEN'),
+        ];
+
+        $payload = [
+            'kd_status'  => '30',
+            'keterangan' => 'Validasi PJ',
+        ];
+
+        $response = Http::withHeaders($headers)->post($api_url, $payload);
+
+        if (!$response->successful()) {
+            $message = $response->json()['message'] ?? 'Terjadi kesalahan pada SIKI';
+
+            if (in_array($message, [
+                'tidak dapat mengirim kode status 30, kode status saat ini 32',
+                'tidak dapat mengirim kode status 30, kode status saat ini 30',
+                'tidak dapat mengirim kode status 30, kode status saat ini 31',
+            ])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'ID Izin sudah divalidasi PJ!',
+                ], 409);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => "Terjadi masalah pada ID Izin ($id_izin)",
+                'detail'  => $message,
+            ], 500);
+        }
+
+        $responseData = $response->json();
+
+        if (($responseData['status'] ?? null) !== 'success') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat validasi PJ',
+                'detail'  => $responseData['message'] ?? null,
+            ], 422);
+        }
+
+        Personal::where('id_izin', $id_izin)->update([
+            'status'        => '30',
+            'validpjby_id' => Auth::id(),
+            'validpj_time' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Sukses Validasi PJ!',
+            'data' => [
+                'id_izin' => $id_izin,
+                'status'  => '30',
+            ],
         ]);
     }
 
@@ -440,6 +559,8 @@ class HitStatusController extends Controller
 
     /**
      * Send WhatsApp notification to asesi after verification.
+     *
+     * Uses Personal + KlasifikasiKualifikasi data — no Jadwal/AsesiJadwal dependency.
      */
     private function sendVerifikasiWhatsApp(Personal $personal, string $id_izin): void
     {
@@ -457,35 +578,31 @@ class HitStatusController extends Controller
             $telepon = '62' . $telepon;
         }
 
-        // Find AsesiJadwal to get jadwal + skema data
-        $asesiJadwal = AsesiJadwal::where('id_izin', $id_izin)->first();
-        if (!$asesiJadwal) {
-            Log::info('Skipping WhatsApp — no jadwal found for ' . $id_izin);
+        $uuid = $personal->wa_uuid;
+        if (!$uuid) {
+            Log::info('Skipping WhatsApp — no wa_uuid on personal for ' . $id_izin);
             return;
         }
 
-        // Generate UUID for magic link if not already set
-        if (!$asesiJadwal->wa_uuid) {
-            $asesiJadwal->update(['wa_uuid' => (string) Str::uuid()]);
+        // Tanggal pelaksanaan uji (from Personal)
+        $tanggalUji = $personal->rencana_tanggal_uji
+            ? \Carbon\Carbon::parse($personal->rencana_tanggal_uji)->translatedFormat('d F Y')
+            : '-';
+
+        // TUK from KlasifikasiKualifikasi → MyTuk
+        $klasifikasi = KlasifikasiKualifikasi::where('id_izin', $id_izin)->first();
+        $tukId = $klasifikasi?->tuk;
+        $tukModel = is_numeric($tukId) ? \App\Models\MyTuk::find($tukId) : null;
+        $tukText = $tukModel
+            ? trim($tukModel->nama_tuk . ' - ' . $tukModel->alamat)
+            : '-';
+
+        // Skema from KlasifikasiKualifikasi → JabatanKerja
+        $skemaNama = '-';
+        if ($klasifikasi?->jabatan_kerja) {
+            $skemaNama = JabatanKerja::where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)
+                ->value('jabatan_kerja') ?? '-';
         }
-        $uuid = $asesiJadwal->fresh()->wa_uuid;
-
-        // Load relationships
-        $asesiJadwal->loadMissing(['jadwal.tuk', 'skema']);
-
-        // Tanggal pelaksanaan uji
-        $tanggalUji = $asesiJadwal->jadwal?->tanggal_uji
-            ? \Carbon\Carbon::parse($asesiJadwal->jadwal->tanggal_uji)->translatedFormat('d F Y')
-            : '-';
-
-        // Nama dan alamat TUK
-        $tuk = $asesiJadwal->jadwal?->tuk;
-        $tukText = $tuk
-            ? trim($tuk->nama . ' - ' . $tuk->alamat)
-            : '-';
-
-        // Nama skema sertifikasi
-        $skemaNama = $asesiJadwal->skema?->nama ?? '-';
 
         // Frontend magic link
         $frontendUrl = config('app.frontend_url', 'https://devgatensi.site');

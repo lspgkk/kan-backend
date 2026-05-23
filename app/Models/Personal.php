@@ -47,9 +47,15 @@ class Personal extends Model
         'validby_id',
         'valid2_time',
         'valid2by_id',
+        'validpjby_id',
+        'validpj_time',
         'is_deleted',
         'deletedby_id',
         'deleted_at',
+        'rencana_tanggal_uji',
+        'wa_uuid',
+        'account',
+        'password_plain',
     ];
 
     public function pendidikans()

@@ -111,7 +111,7 @@ class JadwalController extends Controller
     public function show($id)
     {
         $jadwal = Jadwal::where('id', $id)
-            ->with(['sptAsesor', 'sptKomtek', 'asesiJadwals.personal', 'tuk:id,nama,alamat'])
+            ->with(['sptAsesor', 'sptKomtek', 'asesiJadwals.personal', 'asesiJadwals.skema', 'tuk:id,nama,alamat'])
             ->select([
                 'id',
                 'jadwal_id',
@@ -165,6 +165,7 @@ class JadwalController extends Controller
             return [
                 'id_izin' => $asesi->id_izin,
                 'skema_id' => $asesi->skema_id,
+                'skema' => $asesi->skema ? $asesi->skema->nama : null,
                 'account' => $asesi->account,
                 'password' => $asesi->password_plain,
                 'kompeten' => $asesi->kompeten,
@@ -309,25 +310,13 @@ class JadwalController extends Controller
         }
 
         /** ===============================
-         *  6️⃣ GENERATE & SEND SPT ASESOR
-         *  =============================== */
-        try {
-            $this->generateAndSendSptAsesor($jadwalId);
-        } catch (\Throwable $e) {
-            Log::error('SPT Asesor gagal', [
-                'jadwal_id' => $jadwalId,
-                'error' => $e->getMessage()
-            ]);
-        }
-
-        /** ===============================
-         *  7️⃣ ADD PESERTA (COLLECT ERRORS)
+         *  6️⃣ ADD PESERTA (COLLECT ERRORS)
          *  =============================== */
         $errors = [];
 
         foreach ($validated['all_id_izin'] as $id_izin) {
             try {
-                $personalsData = Personal::where('id_izin', $id_izin)->select('nik', 'nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kabupaten', 'propinsi', 'telepon', 'email')->first();
+                $personalsData = Personal::where('id_izin', $id_izin)->select('nik', 'nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kabupaten', 'propinsi', 'telepon', 'email', 'account', 'password_plain')->first();
                 $jadwal_id = $jadwalId;
                 $asesor_id  = (int) $validated['asesor1'];
                 $asesor2_id = $validated['asesor2'] ?? null;
@@ -529,9 +518,16 @@ class JadwalController extends Controller
                         $jadwal->save();
                     }
 
-                    // Generate random account and password for this AsesiJadwal
-                    $account = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 8));
-                    $password = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 8));
+                    // Reuse credentials from Personal (set during verification) if available
+                    if ($personalsData->account && $personalsData->password_plain) {
+                        $account = $personalsData->account;
+                        $password = $personalsData->password_plain;
+                        $userExists = User::where('email', $account)->exists();
+                    } else {
+                        $account = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 8));
+                        $password = strtoupper(substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 8));
+                        $userExists = false;
+                    }
 
                     // Create AsesiJadwal for each asesi
                     AsesiJadwal::create([
@@ -544,15 +540,17 @@ class JadwalController extends Controller
                         "is_started" => false,
                     ]);
 
-                    // Create User with email and hashed password
-                    User::create([
-                        "name" => $personalsData->nama,
-                        "email" => $account,
-                        "phone" => $personalsData->telepon ?? null,
-                        "password" => bcrypt($password),
-                        "address" => $personalsData->alamat ?? null,
-                        "role_id" => 8, // Asesi role
-                    ]);
+                    // Create User only if not already created during verification
+                    if (!$userExists) {
+                        User::create([
+                            "name" => $personalsData->nama,
+                            "email" => $account,
+                            "phone" => $personalsData->telepon ?? null,
+                            "password" => bcrypt($password),
+                            "address" => $personalsData->alamat ?? null,
+                            "role_id" => 8, // Asesi role
+                        ]);
+                    }
                 } catch (\Throwable $e) {
                 $errors[] = [
                     'id_izin' => $id_izin,
@@ -998,21 +996,25 @@ class JadwalController extends Controller
             $qrSvg = QrCode::margin(0)->size(70)->generate($qrUrl);
         }
 
+        $direkturName = User::where('role_id', 6)->where('is_deleted', false)->value('name')
+            ?? 'Radinal Efendy, S.T.';
+
         $viewData = [
-            'no_surat'     => $noSpt,
-            'nama_asesor'  => $asesor1->Nama,
-            'nama_met'     => $asesor1->Noreg,
-            'nama_asesor2' => $asesor2->Nama ?? '',
-            'nama_met2'    => $asesor2->Noreg ?? '',
-            'nama_tuk'     => $responseJadwal['dataJadwal']['nama_tuk'],
-            'alamat_tuk'   => $tuk->Alamat,
-            'hari_tanggal' => Carbon::parse(
+            'no_surat'      => $noSpt,
+            'nama_asesor'   => $asesor1->nama,
+            'nama_met'      => $asesor1->noreg,
+            'nama_asesor2'  => $asesor2->nama ?? '',
+            'nama_met2'     => $asesor2->noreg ?? '',
+            'nama_tuk'      => $responseJadwal['dataJadwal']['nama_tuk'],
+            'alamat_tuk'    => $tuk->alamat,
+            'hari_tanggal'  => Carbon::parse(
                 $responseJadwal['dataJadwal']['tanggal_mulai']
             )->isoFormat('dddd, D MMMM YYYY'),
-            'jmlh_peserta' => count($peserta),
-            'nama_skema'   => implode(', ', $namaSkema),
-            'nama_peserta' => $peserta,
-            'qr'           => $qrSvg, // null if no ttd
+            'jmlh_peserta'  => count($peserta),
+            'nama_skema'    => implode(', ', $namaSkema),
+            'nama_peserta'  => $peserta,
+            'qr'            => $qrSvg, // null if no ttd
+            'direktur_name' => $direkturName,
         ];
 
         $pdf = PDF::loadView('template-surat.spt_asesor', $viewData);
@@ -2390,12 +2392,15 @@ class JadwalController extends Controller
         }
         $namaSkemaList = array_unique($namaSkemaList);
 
+        $direkturName = User::where('role_id', 6)->where('is_deleted', false)->value('name')
+            ?? 'Radinal Efendy, S.T.';
+
         $viewData = [
             'no_surat' => $noSpt,
-            'nama_asesor' => $asesor1->Nama ?? '',
-            'nama_met' => $asesor1->Noreg ?? '',
-            'nama_asesor2' => $asesor2->Nama ?? '',
-            'nama_met2' => $asesor2->Noreg ?? '',
+            'nama_asesor' => $asesor1->nama ?? '',
+            'nama_met' => $asesor1->noreg ?? '',
+            'nama_asesor2' => $asesor2->nama ?? '',
+            'nama_met2' => $asesor2->noreg ?? '',
             'nama_tuk' => $tuk->nama ?? '',
             'alamat_tuk' => $tuk->alamat ?? '',
             'hari_tanggal' => Carbon::parse($jadwal->tanggal_uji)->isoFormat('dddd, D MMMM Y'),
@@ -2403,6 +2408,7 @@ class JadwalController extends Controller
             'nama_skema' => implode(', ', $namaSkemaList),
             'nama_peserta' => $peserta,
             'qr' => null,
+            'direktur_name' => $direkturName,
         ];
 
         $pdf = PDF::loadView('template-surat.spt_asesor', $viewData);

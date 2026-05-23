@@ -282,4 +282,31 @@ class BarcodeController extends Controller
             ]
         ]);
     }
+
+    public function getBarcode($id)
+    {
+        $fullUrl = "https://barcode.lspgatensi.id/{$id}";
+
+        $barcode = Barcode::where('url', $fullUrl)->first();
+
+        if (!$barcode) {
+            return response()->json([
+                'message' => 'Barcode not found',
+            ], 404);
+        }
+
+        return response()->json([
+            'nama'     => $barcode->nama,
+            'id_izin'  => $barcode->id_izin,
+            'noreg'    => $barcode->id_izin,
+            'jabatan'  => $barcode->jabatan,
+            'tanggal'  => $barcode->created_at
+                ? \Carbon\Carbon::parse($barcode->created_at)->locale('id')->isoFormat('dddd, D MMMM YYYY')
+                : null,
+            'waktu'    => $barcode->created_at
+                ? \Carbon\Carbon::parse($barcode->created_at)->setTimezone('Asia/Jakarta')->format('H:i')
+                : null,
+            'lsp'      => 'gkk',
+        ]);
+    }
 }

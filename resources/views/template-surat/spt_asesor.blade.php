@@ -261,7 +261,7 @@ LSP Gatensi Karya Konstruksi<br>
 @if($qr)
 {!! $qr !!}
 @else
-Radihal Efendy, S.T.<br>
+{{ $direktur_name ?? 'Radinal Efendy, S.T.' }}<br>
 Direktur
 @endif
 </div>

@@ -168,22 +168,6 @@ class AsesmenController extends Controller
             ->first();
         $jabatanKerja = JabatanKerja::where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->value('jabatan_kerja');
         $jabatanConfig = JabatanConfigA::select(['no_skema'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
-        $jadwal = Jadwal::select([
-            'jadwal_id',
-            'tuk_id',
-            'asesor_id',
-            'asesor2_id',
-            'tanggal_uji',
-            'tanggal_selesai',
-            'jenis_kelas',
-        ])->with([
-            'tuk:id,nama',
-            'asesor:id,nama,noreg',
-            'asesor2:id,nama,noreg',
-        ])->where('jadwal_id', $jadwalId)->first();
-
-        $idAsesor1 = User::where('noreg', $jadwal->asesor ? $jadwal->asesor->noreg : null)->value('id');
-        $idAsesor2 = User::where('noreg', $jadwal->asesor2 ? $jadwal->asesor2->noreg : null)->value('id');
 
         $penyusun_validator = JabatanConfigA::with([
             'penyusun:id,name,noreg',
@@ -192,23 +176,49 @@ class AsesmenController extends Controller
 
         $apl2Submission = \App\Models\Apl2Submission::where('id_izin', $id)->first();
 
+        $namaManajer = User::where('role_id', 7)->where('is_deleted', false)->first()?->name;
+
+        // Jadwal-dependent fields — may be null when jadwal hasn't been created yet
+        if ($jadwalId) {
+            $jadwal = Jadwal::select([
+                'jadwal_id',
+                'tuk_id',
+                'asesor_id',
+                'asesor2_id',
+                'tanggal_uji',
+                'tanggal_selesai',
+                'jenis_kelas',
+            ])->with([
+                'tuk:id,nama',
+                'asesor:id,nama,noreg',
+                'asesor2:id,nama,noreg',
+            ])->where('jadwal_id', $jadwalId)->first();
+
+            $idAsesor1 = $jadwal ? User::where('noreg', $jadwal->asesor?->noreg)->value('id') : null;
+            $idAsesor2 = $jadwal ? User::where('noreg', $jadwal->asesor2?->noreg)->value('id') : null;
+        } else {
+            $jadwal = null;
+            $idAsesor1 = null;
+            $idAsesor2 = null;
+        }
+
         return response()->json([
             'message' => 'Success',
             'data' => [
                 'jabatan_kerja' => $jabatanKerja,
                 'nomor_skema' => $jabatanConfig->no_skema,
-                'tuk' => $jadwal->tuk ? $jadwal->tuk->nama : null,
+                'tuk' => $jadwal?->tuk?->nama,
                 'id_asesor_1' => $idAsesor1,
                 'id_asesor_2' => $idAsesor2,
                 'nama_asesi' => $namaAsesi,
                 'jenjang' => $klasifikasi->jenjang,
-                'asesor_1' => $jadwal->asesor ? $jadwal->asesor->nama : null,
-                'asesor_2' => $jadwal->asesor2 ? $jadwal->asesor2->nama : null,
-                'noreg_asesor_1' => $jadwal->asesor ? $jadwal->asesor->noreg : null,
-                'noreg_asesor_2' => $jadwal->asesor2 ? $jadwal->asesor2->noreg : null,
-                'tanggal_uji' => $jadwal->tanggal_uji,
-                'tanggal_selesai' => $jadwal->tanggal_selesai,
-                'jenis_kelas' => $jadwal->jenis_kelas,
+                'asesor_1' => $jadwal?->asesor?->nama,
+                'asesor_2' => $jadwal?->asesor2?->nama,
+                'noreg_asesor_1' => $jadwal?->asesor?->noreg,
+                'noreg_asesor_2' => $jadwal?->asesor2?->noreg,
+                'tanggal_uji' => $jadwal?->tanggal_uji,
+                'tanggal_selesai' => $jadwal?->tanggal_selesai,
+                'jenis_kelas' => $jadwal?->jenis_kelas,
                 'nama_penyusun' => $penyusun_validator->penyusun?->name,
                 'nama_validator' => $penyusun_validator->validator?->name,
                 'tanggal_penyusun' => $penyusun_validator->penyusun_tgl,
@@ -219,6 +229,8 @@ class AsesmenController extends Controller
                 'noreg_validator' => $penyusun_validator->validator?->noreg,
                 'metode' => $apl2Submission?->metode,
                 'jadwal_id' => $jadwalId,
+                'nama_manajer' => $namaManajer,
+                'tanggal_manajer' => $penyusun_validator->penyusun_tgl,
             ]
         ]);
     }

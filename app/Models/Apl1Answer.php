@@ -17,6 +17,7 @@ class Apl1Answer extends Model
         'telepon_kantor',
         'fax',
         'email_kantor',
+        'is_diterima',
     ];
 
     public $timestamps = true;

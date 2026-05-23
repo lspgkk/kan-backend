@@ -19,6 +19,14 @@ class KebenaranDataController extends Controller
 
         $personal = Personal::select(['nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'telepon', 'email', 'file_npwp', 'ktp', 'pas_foto'])->where('id_izin', $id_izin)->first();
         $pendidikan = Pendidikan::select(['program_studi', 'scan_ijazah_legalisir'])->latest('created_at')->where('id_izin', $id_izin)->first();
+
+        if (!$personal) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data asesi tidak ditemukan. Pastikan sudah diverifikasi.',
+            ], 404);
+        }
+
         $referensi = Proyek::where('id_izin', $id_izin)->latest('created_at')->value('surat_referensi');
         return response()->json([
             'success' => true,
@@ -31,12 +39,12 @@ class KebenaranDataController extends Controller
                 'alamat' => $personal->alamat,
                 'telepon' => $personal->telepon,
                 'email' => $personal->email,
-                'pendidikan' => $pendidikan->program_studi,
+                'pendidikan' => $pendidikan?->program_studi,
                 'npwp' => $personal->file_npwp,
                 'ktp' => $personal->ktp,
                 'pas_foto' => $personal->pas_foto,
                 'referensi_kerja' => $referensi,
-                'ijazah' => $pendidikan->scan_ijazah_legalisir,
+                'ijazah' => $pendidikan?->scan_ijazah_legalisir,
             ]
         ]);
     }
