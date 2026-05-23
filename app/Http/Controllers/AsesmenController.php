@@ -48,9 +48,12 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use App\Traits\ResolvesKomtekDecision;
 
 class AsesmenController extends Controller
 {
+    use ResolvesKomtekDecision;
+
     public function absenAwal(Request $request, $id)
     {
         return $this->handleAbsen($request, $id, 'awal');
@@ -2404,7 +2407,7 @@ class AsesmenController extends Controller
 
         unset($barcodes['asesi']);
 
-        $kompeten = AsesiJadwal::where('id_izin', $id)->value('kompeten');
+        $kompeten = $this->resolveKomtekDecision($id);
 
         return [
             'kompeten' => $kompeten === 'K' ? true : false,

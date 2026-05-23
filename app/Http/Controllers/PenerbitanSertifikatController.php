@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use App\Models\AbsenKomtek;
+use App\Models\AsesiJadwal;
 use App\Models\AsesorBnsp;
 use App\Models\BaKomtek;
 use App\Models\Barcode;
@@ -25,9 +26,12 @@ use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf as PDF;
 use Ramsey\Uuid\Uuid;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use App\Traits\ResolvesKomtekDecision;
 
 class PenerbitanSertifikatController extends Controller
 {
+    use ResolvesKomtekDecision;
+
     public function storePenerbitan(Request $request, $jadwal_id)
     {
         try {
@@ -91,8 +95,8 @@ class PenerbitanSertifikatController extends Controller
 
         // Check jika blanko masih null
         foreach ($peserta_blanko as $blanko) {
-            $temp_check = Jadwal::where(["jadwal_id" => trim($request->input('jadwal_id')), "nik" => $blanko['nik']])->first();
-            if ($temp_check->kompeten == "BK") {
+            $idIzinBlanko = Personal::where('nik', $blanko['nik'])->value('id_izin');
+            if ($idIzinBlanko && $this->resolveKomtekDecision($idIzinBlanko) === 'BK') {
                 continue;
             }
 
@@ -105,7 +109,7 @@ class PenerbitanSertifikatController extends Controller
         }
 
         // Get peserta yang kompeten dan masukkan dalam database list pencatatan
-        $peserta = Jadwal::where(["jadwal_id" => trim($request->input('jadwal_id')), "kompeten" => "K"])->get();
+        $peserta = AsesiJadwal::where('jadwal_id', $request->input('jadwal_id'))->get()->filter(fn($a) => $this->resolveKomtekDecision($a->id_izin) === 'K');
 
         DB::beginTransaction();
         $curr_index = 0;
@@ -247,7 +251,7 @@ class PenerbitanSertifikatController extends Controller
         /* PENUGASAN ASESOR */
 
         // Get asesi kompeten berdasarkan jadwal_id
-        $peserta_kompeten = Jadwal::where(["jadwal_id" => $request->input('jadwal_id'), "kompeten" => "K"])->get();
+        $peserta_kompeten = AsesiJadwal::where('jadwal_id', $request->input('jadwal_id'))->get()->filter(fn($a) => $this->resolveKomtekDecision($a->id_izin) === 'K');
 
         // Get asesor, tuk, link spt asesor
         $id_asesor = $asesor_mygatensi->Noreg;
@@ -872,7 +876,7 @@ class PenerbitanSertifikatController extends Controller
 
 
         /* PENCATATAN */
-        $peserta_kompeten = Jadwal::where(["jadwal_id" => $request->input('jadwal_id'), "kompeten" => "K"])->get();
+        $peserta_kompeten = AsesiJadwal::where('jadwal_id', $request->input('jadwal_id'))->get()->filter(fn($a) => $this->resolveKomtekDecision($a->id_izin) === 'K');
 
         $suffixMap = ['reguler' => '', 'balai' => '-balai', 'fg' => '-fg'];
 
@@ -935,7 +939,7 @@ class PenerbitanSertifikatController extends Controller
 
 
         /* GENERATE SERTIFIKAT */
-        $peserta_kompeten = Jadwal::where(["jadwal_id" => $request->input('jadwal_id'), "kompeten" => "K"])->get();
+        $peserta_kompeten = AsesiJadwal::where('jadwal_id', $request->input('jadwal_id'))->get()->filter(fn($a) => $this->resolveKomtekDecision($a->id_izin) === 'K');
         foreach ($peserta_kompeten as $peserta) {
             $semua_data = DataPencatatan::where("id_izin", $peserta->id_izin)->get();
 
@@ -1024,7 +1028,7 @@ class PenerbitanSertifikatController extends Controller
 
 
         /* SUBMIT HASIL UJI 2 */
-        $peserta_kompeten = Jadwal::where(["jadwal_id" => $request->input('jadwal_id'), "kompeten" => "K"])->get();
+        $peserta_kompeten = AsesiJadwal::where('jadwal_id', $request->input('jadwal_id'))->get()->filter(fn($a) => $this->resolveKomtekDecision($a->id_izin) === 'K');
 
         foreach ($peserta_kompeten as $peserta) {
             $pencatatan_peserta = DataPencatatan::where("id_izin", $peserta->id_izin)->first();

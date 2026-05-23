@@ -17,9 +17,12 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Ramsey\Uuid\Uuid;
 use mikehaertl\pdftk\Pdf;
+use App\Traits\ResolvesKomtekDecision;
 
 class CetakJadwalController extends Controller
 {
+    use ResolvesKomtekDecision;
+
     private function suratPernyataan($pdfUrl, $idIzin, $filename, $jabker, $nama, $noreg)
     {
         // Download the PDF from the URL
@@ -171,8 +174,9 @@ class CetakJadwalController extends Controller
         // Auth from bnsp
         $authData = DB::table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
 
-        // Get competent asesies from AsesiJadwal
-        $asesiKompeten = AsesiJadwal::where(["jadwal_id" => $jadwal_id, "kompeten" => "K"])->get();
+        // Get competent asesies by komtek majority decision
+        $allAsesi = AsesiJadwal::where('jadwal_id', $jadwal_id)->get();
+        $asesiKompeten = $allAsesi->filter(fn($a) => $this->resolveKomtekDecision($a->id_izin) === 'K');
 
         if ($asesiKompeten->isEmpty()) {
             return response()->json([
@@ -318,8 +322,8 @@ class CetakJadwalController extends Controller
         /* END OF CETAK JADWAL */
 
         /* STATUS 90 */
-        // Get non-competent asesies from AsesiJadwal
-        $asesiBelumKompeten = AsesiJadwal::where(["jadwal_id" => $jadwal_id, "kompeten" => "BK"])->get();
+        // Get non-competent asesies by komtek majority decision
+        $asesiBelumKompeten = $allAsesi->filter(fn($a) => $this->resolveKomtekDecision($a->id_izin) === 'BK');
 
         foreach ($asesiBelumKompeten as $asesiJadwal) {
             $url = 'https://siki.pu.go.id/siki-api/v1/permohonan-skk/' . $asesiJadwal->id_izin;

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AbsenKomtek;
+use App\Traits\ResolvesKomtekDecision;
 use App\Models\AsesiJadwal;
 use App\Models\AsesorBnsp;
 use App\Models\BaKomtek;
@@ -33,6 +34,8 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class JadwalController extends Controller
 {
+    use ResolvesKomtekDecision;
+
     public function index(Request $request)
     {
         $query = Jadwal::select(['id', 'jadwal_id', 'nama_kegiatan', 'tanggal_uji', 'status', 'jenis_kelas'])->whereIn('status', ['sinkronisasi-bnsp', 'draft']);
@@ -168,7 +171,7 @@ class JadwalController extends Controller
                 'skema' => $asesi->skema ? $asesi->skema->nama : null,
                 'account' => $asesi->account,
                 'password' => $asesi->password_plain,
-                'kompeten' => $asesi->kompeten,
+                'kompeten' => $this->resolveKomtekDecision($asesi->id_izin),
                 'nama' => $asesi->personal ? $asesi->personal->nama : null,
             ];
         })->values();
@@ -1391,14 +1394,9 @@ class JadwalController extends Controller
         /** ===============================
          *  4. PREPARE HASIL SERTIFIKASI DATA
          *  =============================== */
-        // Get all KomtekRecommendation for these id_izin in one query
-        $rekomendasiMap = KomtekRecommendation::whereIn('id_izin', $idIzinList)
-            ->pluck('rekomendasi', 'id_izin');
-
         $hasilSertifikasi = [];
         foreach ($asesiData as $index => $asesi) {
-            // Get recommendation from map using the asesi's id_izin
-            $hasil = $rekomendasiMap->get($asesi['id_izin'], 'K');
+            $hasil = $this->resolveKomtekDecision($asesi['id_izin']) ?? '-';
 
             $hasilSertifikasi[] = [
                 'no' => $index + 1,
@@ -1813,7 +1811,7 @@ class JadwalController extends Controller
                         'id_izin'   => $a->id_izin,
                         'skema_id'  => $a->skema_id,
                         'skema'     => $a->skema ? ['id' => $a->skema->id, 'nama' => $a->skema->nama] : null,
-                        'kompeten'  => $a->kompeten,
+                        'kompeten'  => $this->resolveKomtekDecision($a->id_izin),
                         'nama'      => $a->personal?->nama,
                     ];
                 })->values();
@@ -1893,7 +1891,7 @@ class JadwalController extends Controller
                     'id_izin'   => $a->id_izin,
                     'skema_id'  => $a->skema_id,
                     'skema'     => $a->skema ? ['id' => $a->skema->id, 'nama' => $a->skema->nama] : null,
-                    'kompeten'  => $a->kompeten,
+                    'kompeten'  => $this->resolveKomtekDecision($a->id_izin),
                     'nama'      => $a->personal?->nama,
                 ];
             })->values();
@@ -1951,7 +1949,7 @@ class JadwalController extends Controller
                         'id_izin'   => $a->id_izin,
                         'skema_id'  => $a->skema_id,
                         'skema'     => $a->skema ? ['id' => $a->skema->id, 'nama' => $a->skema->nama] : null,
-                        'kompeten'  => $a->kompeten,
+                        'kompeten'  => $this->resolveKomtekDecision($a->id_izin),
                         'nama'      => $a->personal?->nama,
                     ];
                 })->values();
@@ -1988,7 +1986,7 @@ class JadwalController extends Controller
                         'id_izin'   => $a->id_izin,
                         'skema_id'  => $a->skema_id,
                         'skema'     => $a->skema ? ['id' => $a->skema->id, 'nama' => $a->skema->nama] : null,
-                        'kompeten'  => $a->kompeten,
+                        'kompeten'  => $this->resolveKomtekDecision($a->id_izin),
                         'nama'      => $a->personal?->nama,
                     ];
                 })->values();
@@ -2291,7 +2289,7 @@ class JadwalController extends Controller
      * Generate initial documents for jadwal without QR codes
      * Creates: SkPelaksanaanUji, SPTAsesor, SPTKomtek, BaKomtek
      */
-    private function generateInitialDocuments(int $jadwalId): void
+    public function generateInitialDocuments(int $jadwalId): void
     {
         $generators = [
             'sk_pelaksanaan_uji' => fn () => $this->generateSkPelaksanaanUjiWithoutTtd($jadwalId),
@@ -2558,22 +2556,6 @@ class JadwalController extends Controller
     /**
      * Generate BA Komtek without TTD/QR
      */
-    /**
-     * Determine K/BK from majority vote of the 3 komtek members.
-     */
-    private function resolveKomtekDecision(string $id_izin): ?string
-    {
-        $votes = \App\Models\KomtekRecommendation::where('id_izin', $id_izin)
-            ->pluck('rekomendasi')
-            ->toArray();
-
-        if (count($votes) < 2) return null;
-
-        $kCount  = count(array_filter($votes, fn($v) => $v === 'K'));
-        $bkCount = count(array_filter($votes, fn($v) => $v === 'BK'));
-
-        return $kCount > $bkCount ? 'K' : 'BK';
-    }
 
     private function generateBaKomtekWithoutTtd(int $jadwalId): array
     {

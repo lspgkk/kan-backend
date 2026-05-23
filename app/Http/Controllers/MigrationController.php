@@ -412,6 +412,17 @@ class MigrationController extends Controller
                     $data['tanggal_uji'] = $data['created_at'];
 
                     $jadwalModel = Jadwal::create($data);
+
+                    // Generate initial documents (SPT Asesor, SPT Komtek, BA Komtek, SK Pelaksanaan Uji)
+                    try {
+                        (new \App\Http\Controllers\JadwalController())->generateInitialDocuments($jadwalModel->jadwal_id);
+                        Log::info('Initial documents generated', ['jadwal_id' => $jadwalId]);
+                    } catch (\Throwable $e) {
+                        Log::warning('Failed to generate initial documents for jadwal', [
+                            'jadwal_id' => $jadwalId,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
                 }else {
                     Log::info('Jadwal exists, skipping create', [
                         'jadwal_id' => $jadwalId

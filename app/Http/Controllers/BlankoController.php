@@ -18,10 +18,13 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Ramsey\Uuid\Uuid;
+use App\Traits\ResolvesKomtekDecision;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class BlankoController extends Controller
 {
+    use ResolvesKomtekDecision;
+
     public function submitHasilUji(Request $request, $jadwal_id)
     {
         // Get all asesi from AsesiJadwal for this jadwal_id
@@ -48,9 +51,9 @@ class BlankoController extends Controller
             }
         }
 
-        // Get competent (K) and not competent (BK) asesies from AsesiJadwal
-        $asesiKompeten = $allAsesiJadwal->where('kompeten', 'K');
-        $asesiBelumKompeten = $allAsesiJadwal->where('kompeten', 'BK');
+        // Get competent (K) and not competent (BK) asesies by komtek majority decision
+        $asesiKompeten = $allAsesiJadwal->filter(fn($a) => $this->resolveKomtekDecision($a->id_izin) === 'K');
+        $asesiBelumKompeten = $allAsesiJadwal->filter(fn($a) => $this->resolveKomtekDecision($a->id_izin) === 'BK');
 
         // Process each competent asesi
         foreach ($asesiKompeten as $asesiJadwal) {
