@@ -254,11 +254,11 @@ td {
                 <td class="hd-dok" style="width: 25%;">Tanda Tangan dan Tanggal</td>
             </tr>
             <tr>
-                <td rowspan="2">Penyusun</td>
+                <td>Penyusun</td>
                 <td align="center">1</td>
                 <td>{{ $dokumenHeader['nama_penyusun'] ?? '' }}</td>
                 <td>{{ $dokumenHeader['noreg_penyusun'] ?? '' }}</td>
-                <td rowspan="2">
+                <td>
                     @if($dokumenHeader['barcode_penyusun'] ?? null)
                     <img src="{{ $dokumenHeader['barcode_penyusun'] }}" width="80" height="80" /><br />
                     @endif
@@ -266,26 +266,16 @@ td {
                 </td>
             </tr>
             <tr>
-                <td align="center">2</td>
-                <td></td>
-                <td></td>
-            </tr>
-            <tr>
-                <td rowspan="2">Validator</td>
+                <td>Validator</td>
                 <td align="center">1</td>
                 <td>{{ $dokumenHeader['nama_validator'] ?? '' }}</td>
                 <td>{{ $dokumenHeader['noreg_validator'] ?? '' }}</td>
-                <td rowspan="2">
+                <td>
                     @if($dokumenHeader['barcode_validator'] ?? null)
                     <img src="{{ $dokumenHeader['barcode_validator'] }}" width="80" height="80" /><br />
                     @endif
                     {{ $dokumenHeader['tanggal_validator'] ? \Carbon\Carbon::parse($dokumenHeader['tanggal_validator'])->locale('id')->translatedFormat('d F Y') : '' }}
                 </td>
-            </tr>
-            <tr>
-                <td align="center">2</td>
-                <td></td>
-                <td></td>
             </tr>
         </table>
 

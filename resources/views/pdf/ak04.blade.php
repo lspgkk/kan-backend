@@ -196,8 +196,11 @@
             </tr>
             <tr>
                 <td colspan="4" style="height: 80px;">
+                    @php
+                        $hasAnswers = collect($kelompoks[0]['referensis'] ?? [])->contains(fn($p) => $p['jawaban'] !== null);
+                    @endphp
                     Tanda tangan Asesi : {{ strtoupper($dokumenHeader['nama_asesi']) }}<br /><br />
-                    @if($barcodes['asesi']['url'] ?? null)
+                    @if($hasAnswers && ($barcodes['asesi']['url'] ?? null))
                         <img src="{{ $barcodes['asesi']['url'] }}" style="height: 50px; width: 50px; object-fit: contain;" /><br />
                         Tanggal : {{ \Carbon\Carbon::parse($barcodes['asesi']['tanggal'])->locale('id')->translatedFormat('d F Y')}}
                     @else
