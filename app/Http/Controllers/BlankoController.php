@@ -405,9 +405,9 @@ class BlankoController extends Controller
 
         $pdf_sk = PDF::loadView('template-surat.permohonan_blanko', $result);
         $pdfContent_sk = $pdf_sk->output();
-        Storage::disk("str_moon")->put("/surat_blanko/" . trim($jadwal_id) . ".pdf", $pdfContent_sk);
+        Storage::disk("str_moon")->put("surat_blanko/" . trim($jadwal_id) . ".pdf", $pdfContent_sk);
 
-        $full_url_file_blanko = 'https://lspgatensi.id/files/baru/surat_blanko/' . trim($jadwal_id) . ".pdf";
+        $full_url_file_blanko = 'https://moon.lspgatensi.id/files/new_gatensi/surat_blanko/' . trim($jadwal_id) . ".pdf";
 
 
         // Get existing SK Pelaksanaan Uji from jadwal flow

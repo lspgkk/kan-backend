@@ -16,6 +16,92 @@ use Ramsey\Uuid\Uuid;
 
 class BuktiController extends Controller
 {
+    public function indexDokumenAsesi(Request $request)
+    {
+        $perPage = min((int) $request->input('per_page', 10), 100);
+        $search  = trim($request->input('search', ''));
+
+        // Paginated base query (lightweight — no bukti_asesmens join)
+        $query = AsesiJadwal::select([
+            'asesi_jadwals.id_izin',
+            'asesi_jadwals.jadwal_id',
+            'personals.nama',
+        ])->join('personals', 'personals.id_izin', '=', 'asesi_jadwals.id_izin');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('asesi_jadwals.id_izin', 'like', "%{$search}%")
+                  ->orWhere('personals.nama', 'like', "%{$search}%");
+            });
+        }
+
+        $data = $query->orderByDesc('asesi_jadwals.id_izin')->paginate($perPage);
+
+        // Batch-load dokumen for this page only
+        $idIzins = collect($data->items())->pluck('id_izin');
+        $dokumenRows = BuktiAsesmen::whereIn('id_izin', $idIzins)->get()->keyBy('id_izin');
+
+        // Map dokumen into each row
+        $data->getCollection()->transform(function ($item) use ($dokumenRows) {
+            $dok = $dokumenRows->get($item->id_izin);
+            if ($dok) {
+                $item->bukti_id_izin = $dok->id_izin;
+                $item->url_apl_01 = $dok->url_apl_01;
+                $item->url_apl_02 = $dok->url_apl_02;
+                $item->url_mapa01 = $dok->url_mapa01;
+                $item->url_mapa02 = $dok->url_mapa02;
+                $item->url_ak01 = $dok->url_ak01;
+                $item->url_ak02 = $dok->url_ak02;
+                $item->url_ak03 = $dok->url_ak03;
+                $item->url_ak04 = $dok->url_ak04;
+                $item->url_ak05 = $dok->url_ak05;
+                $item->url_ak06 = $dok->url_ak06;
+                $item->url_ak07 = $dok->url_ak07;
+                $item->url_ia_01 = $dok->url_ia_01;
+                $item->url_ia_02 = $dok->url_ia_02;
+                $item->url_ia_03 = $dok->url_ia_03;
+                $item->url_ia_04a = $dok->url_ia_04a;
+                $item->url_ia_04b = $dok->url_ia_04b;
+                $item->url_ia_05 = $dok->url_ia_05;
+                $item->url_ia_08 = $dok->url_ia_08;
+                $item->url_ia_09 = $dok->url_ia_09;
+                $item->url_ia_10 = $dok->url_ia_10;
+                $item->url_paparan = $dok->url_paparan;
+                $item->url_docs_asesmen = $dok->url_docs_asesmen;
+            } else {
+                $item->bukti_id_izin = null;
+                $item->url_apl_01 = null;
+                $item->url_apl_02 = null;
+                $item->url_mapa01 = null;
+                $item->url_mapa02 = null;
+                $item->url_ak01 = null;
+                $item->url_ak02 = null;
+                $item->url_ak03 = null;
+                $item->url_ak04 = null;
+                $item->url_ak05 = null;
+                $item->url_ak06 = null;
+                $item->url_ak07 = null;
+                $item->url_ia_01 = null;
+                $item->url_ia_02 = null;
+                $item->url_ia_03 = null;
+                $item->url_ia_04a = null;
+                $item->url_ia_04b = null;
+                $item->url_ia_05 = null;
+                $item->url_ia_08 = null;
+                $item->url_ia_09 = null;
+                $item->url_ia_10 = null;
+                $item->url_paparan = null;
+                $item->url_docs_asesmen = null;
+            }
+            return $item;
+        });
+
+        return response()->json([
+            'message' => 'Dokumen Asesi retrieved successfully.',
+            'data'    => $data,
+        ]);
+    }
+
     public function getKebenaranData($id)
     {
         $personal = Personal::select(['nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'alamat', 'telepon', 'email', 'file_npwp', 'ktp', 'pas_foto'])->where('id_izin', $id)->first();

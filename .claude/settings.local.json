@@ -40,7 +40,8 @@
       "PowerShell(ConvertFrom-Json *)",
       "Bash(Get-ChildItem *)",
       "Bash(Select-Object -First 30)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(findstr /i \"bukti\")"
     ]
   }
 }

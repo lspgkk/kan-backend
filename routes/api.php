@@ -396,4 +396,8 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/', [VerifikasiTukController::class, 'index']);
         Route::get('/{id}', [VerifikasiTukController::class, 'show']);
     });
+
+    Route::prefix('dokumen-asesi')->group(function () {
+        Route::get('/', [BuktiController::class, 'indexDokumenAsesi']);
+    });
 });
