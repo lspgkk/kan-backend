@@ -286,8 +286,11 @@ Keputusan ini berlaku sejak tanggal ditetapkan.
 <span style="font-weight:normal">Ditetapkan di : Jakarta<br>
 Tanggal : {{ now()->isoFormat('D MMMM Y') }}</span><br>
 LSP GATENSI KARYA KONSTRUKSI<br>
-<div class="sign-space"></div>
-RADINAL EFENDY, S.T.<br>
+<br>
+@if(!empty($qr))
+<img src="data:image/png;base64,{{ $qr }}" style="width: 100px; height: 100px;" /><br>
+@endif
+{{ $direktur_name ?? 'Radinal Efendy, S.T.' }}<br>
 Direktur
 </div>
 
@@ -327,11 +330,11 @@ NOMOR: <span class="highlight">{{ $nomor_sk ?? 'XXX/LSP GKK B.003-B/ROMAN/TAHUN'
 
 <div class="signature">
 DIREKTUR LSP GATENSI KARYA KONSTRUKSI<br>
-<div class="sign-space"></div>
-@if(isset($qr) && $qr)
-<img src="data:image/png;base64,{{ $qr }}" style="width: 100px; height: 100px;" />
+<br>
+@if(!empty($qr))
+<img src="data:image/png;base64,{{ $qr }}" style="width: 100px; height: 100px;" /><br>
 @endif
-RADINAL EFENDY, S.T.
+{{ $direktur_name ?? 'Radinal Efendy, S.T.' }}
 </div>
 
 </div>

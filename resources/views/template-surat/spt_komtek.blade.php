@@ -110,7 +110,7 @@
     }
 
     .footer {
-        margin-top: 40px;
+        margin-top: 20px;
         display: flex;
         justify-content: flex-end;
         font-size: 14px;
@@ -120,12 +120,6 @@
         text-align: left;
         margin-top: 5px;
         font-weight: bold;
-    }
-
-    .director .sign-space {
-        display: inline-block;
-        width: 100%;
-        height: 80px;
     }
 </style>
 </head>
@@ -234,13 +228,11 @@
         <div class="director">
             <span style="font-weight:normal">Jakarta, <span>{{ now()->isoFormat('D MMMM Y') }}</span></span><br>
             LSP Gatensi Karya Konstruksi<br>
-            <div class="sign-space"></div>
             @if($qr)
-            {!! $qr !!}
-            @else
-            Radihal Efendy, S.T.<br>
-            Direktur
+            {!! $qr !!}<br>
             @endif
+            {{ $direktur_name ?? 'Radinal Efendy, S.T.' }}<br>
+            Direktur
         </div>
     </div>
 

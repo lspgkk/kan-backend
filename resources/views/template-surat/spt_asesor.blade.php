@@ -92,14 +92,14 @@ footer img{
 /* FOOTER */
 
 .footer{
-    margin-top:55px;
+    margin-top:25px;
     display:flex;
     justify-content:flex-end;
 }
 
 .signature{
     text-align:left;
-    margin-top:40px;
+    margin-top:20px;
     font-weight:bold;
 }
 
@@ -257,7 +257,7 @@ Untuk melaksanakan uji kompetensi bidang konstruksi di:
 <span style="font-weight:normal">Jakarta,
 <span class="highlight">{{ now()->isoFormat('D MMMM Y') }}</span></span><br>
 LSP Gatensi Karya Konstruksi<br>
-<div class="sign-space"></div>
+<br>
 @if($qr)
 {!! $qr !!}<br>
 @endif

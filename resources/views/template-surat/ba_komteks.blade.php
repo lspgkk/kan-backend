@@ -106,15 +106,6 @@ footer img{
     vertical-align:middle;
 }
 
-/* QR PLACEHOLDER */
-
-.qr{
-    width:92px;
-    height:92px;
-    border:2px solid black;
-    margin:auto;
-}
-
 .footer{
     margin-top:14px;
 }
@@ -134,6 +125,7 @@ footer img{
 .checkbox.checked::after {
     content: "✔";
     font-size: 12px;
+    font-family: "DejaVu Sans", sans-serif;
     position: absolute;
     top: 50%;
     left: 50%;
@@ -304,7 +296,7 @@ Demikian berita acara keputusan hasil uji kompetensi ini dibuat dengan sebenarny
 <tr>
 <td><span class="highlight">{{ $nama_komtek1 }}</span></td>
 <td style="text-align:center;">Ketua</td>
-<td>@if($qr){!! $qr !!}<div class="qr"></div>@else<div class="qr"></div>@endif</td>
+<td>@if(!empty($qr1)){!! $qr1 !!}@endif</td>
 </tr>
 @endif
 
@@ -312,7 +304,7 @@ Demikian berita acara keputusan hasil uji kompetensi ini dibuat dengan sebenarny
 <tr>
 <td><span class="highlight">{{ $nama_komtek2 }}</span></td>
 <td style="text-align:center;">Anggota</td>
-<td>@if($qr){!! $qr !!}<div class="qr"></div>@else<div class="qr"></div>@endif</td>
+<td>@if(!empty($qr2)){!! $qr2 !!}@endif</td>
 </tr>
 @endif
 
@@ -320,7 +312,7 @@ Demikian berita acara keputusan hasil uji kompetensi ini dibuat dengan sebenarny
 <tr>
 <td><span class="highlight">{{ $nama_komtek3 }}</span></td>
 <td style="text-align:center;">Anggota</td>
-<td>@if($qr){!! $qr !!}<div class="qr"></div>@else<div class="qr"></div>@endif</td>
+<td>@if(!empty($qr3)){!! $qr3 !!}@endif</td>
 </tr>
 @endif
 

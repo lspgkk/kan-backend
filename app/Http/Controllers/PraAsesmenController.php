@@ -2677,9 +2677,10 @@ class PraAsesmenController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'id_izin'        => $personal->id_izin,
-                'jadwal_id'      => $jadwalId,
-                'jabatan_kerja'  => $klasifikasi?->jabatan_kerja,
+                'id_izin'          => $personal->id_izin,
+                'jadwal_id'        => $jadwalId,
+                'jabatan_kerja'    => $klasifikasi?->jabatan_kerja,
+                'jenis_kelas_id'   => $personal->jenis_kelas_id,
                 'access_token'   => $token,
                 'token_type'     => $token ? 'bearer' : null,
                 'expires_in'     => $token ? auth()->factory()->getTTL() * 60 : null,

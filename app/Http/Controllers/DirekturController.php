@@ -123,6 +123,8 @@ class DirekturController extends Controller
             'updated_at' => now(),
         ]);
 
+        $ba->refresh();
+
         // -- Regenerate BA Komtek PDF with updated signatures --
 
         // Komtek names
@@ -133,23 +135,47 @@ class DirekturController extends Controller
         $komtek2Name = $komtekNames[$jadwal->komtek2] ?? null;
         $komtek3Name = $komtekNames[$jadwal->komtek3] ?? null;
 
-        // QR barcode for each komtek (generated earlier in KomtekController)
+        // QR barcode for each komtek — only generate for those who have signed
         $svg1 = $svg2 = $svg3 = null;
 
-        $getBarcodeSvg = function ($komtekId) use ($jadwal_id) {
-            if (!$komtekId) return null;
+        $getBarcodeSvg = function ($komtekId, $hasSigned) use ($jadwal_id) {
+            if (!$komtekId || !$hasSigned) return null;
+
             $barcode = Barcode::where('id_user', $komtekId)
                 ->where('id_jadwal', $jadwal_id)
                 ->where('jenis_dokumen', 'BA Komtek')
                 ->first();
-            return $barcode
-                ? '<img src="' . $barcode->url_image . '" width="100" height="100">'
-                : null;
+
+            if (!$barcode) {
+                $uuid = (string) \Ramsey\Uuid\Uuid::uuid4();
+                $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
+                $qrImage = QrCode::format('png')->size(300)->margin(1)->generate($urlTtd);
+                $filename = "komtek_" . \Illuminate\Support\Str::uuid() . '.png';
+                $path = "barcodes/{$filename}";
+                Storage::disk('str_moon')->put($path, $qrImage);
+                $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+                $barcode = Barcode::create([
+                    'id_user'       => $komtekId,
+                    'id_jadwal'     => $jadwal_id,
+                    'jenis_dokumen' => 'BA Komtek',
+                    'url_ttd'       => $urlTtd,
+                    'url_image'     => $urlImage,
+                    'id_role'       => 4,
+                ]);
+            }
+
+            return '<img src="' . $barcode->url_image . '" width="100" height="100">';
         };
 
-        $svg1 = $getBarcodeSvg($jadwal->komtek1);
-        $svg2 = $getBarcodeSvg($jadwal->komtek2);
-        $svg3 = $getBarcodeSvg($jadwal->komtek3);
+        // Read current signed status
+        $signed1 = (bool) ($ba->has_ttd_komtek1 ?? false);
+        $signed2 = (bool) ($ba->has_ttd_komtek2 ?? false);
+        $signed3 = (bool) ($ba->has_ttd_komtek3 ?? false);
+
+        $svg1 = $getBarcodeSvg($jadwal->komtek1, $signed1);
+        $svg2 = $getBarcodeSvg($jadwal->komtek2, $signed2);
+        $svg3 = $getBarcodeSvg($jadwal->komtek3, $signed3);
 
         // Peserta list
         $asesiList = AsesiJadwal::where('jadwal_id', $jadwal_id)->get();
@@ -176,7 +202,9 @@ class DirekturController extends Controller
             'nama_komtek2'   => $komtek2Name,
             'nama_komtek3'   => $komtek3Name,
             'nama_peserta'   => $nama_peserta,
-            'qr'             => $svg1,
+            'qr1'            => $svg1,
+            'qr2'            => $svg2,
+            'qr3'            => $svg3,
         ];
 
         $pdf = Pdf::loadView('template-surat.ba_komteks', $viewData);
@@ -228,11 +256,15 @@ class DirekturController extends Controller
             );
         }
 
+        $direkturName = User::where('role_id', 6)->where('is_deleted', false)->value('name')
+            ?? 'Radinal Efendy, S.T.';
+
         $viewData = [
-            'nomor_sk' => $nomorSk,
-            'tanggal_uji' => Carbon::parse($jadwal->tanggal_uji)->isoFormat('dddd, D MMMM Y'),
-            'peserta' => $peserta,
-            'qr' => $qrData['base64'],
+            'nomor_sk'      => $nomorSk,
+            'tanggal_uji'   => Carbon::parse($jadwal->tanggal_uji)->isoFormat('dddd, D MMMM Y'),
+            'peserta'       => $peserta,
+            'qr'            => $qrData['base64'],
+            'direktur_name' => $direkturName,
         ];
 
         $pdf = Pdf::loadView('template-surat.sk_pelaksanaan_uji', $viewData);
@@ -398,6 +430,9 @@ class DirekturController extends Controller
         }
         $namaSkemaList = array_unique($namaSkemaList);
 
+        $direkturName = User::where('role_id', 6)->where('is_deleted', false)->value('name')
+            ?? 'Radinal Efendy, S.T.';
+
         $viewData = [
             'nomor' => $sptNo,
             'tanggal_surat' => now()->isoFormat('dddd, D MMMM Y'),
@@ -411,6 +446,7 @@ class DirekturController extends Controller
             'nama_skema' => implode(', ', $namaSkemaList),
             'peserta' => $peserta,
             'qr' => $qrData['html'],
+            'direktur_name' => $direkturName,
         ];
 
         $pdf = Pdf::loadView('template-surat.spt_komtek', $viewData);

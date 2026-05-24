@@ -1801,6 +1801,9 @@ class JadwalController extends Controller
             ->when($request->filled('search'), function ($q) use ($request) {
                 $q->where('nama_kegiatan', 'like', '%' . $request->search . '%');
             })
+            ->when($request->has('tahap'), function ($q) use ($request) {
+                $q->where('tahap', (int) $request->tahap);
+            })
             ->whereDate('tanggal_uji', today())
             ->with(['asesiJadwals.skema', 'asesiJadwals.personal'])
             ->get()
@@ -2594,7 +2597,7 @@ class JadwalController extends Controller
             'nama_komtek3' => $nama_komtek3,
             'nama_peserta' => $nama_peserta,
             'jml_peserta' => count($nama_peserta),
-            'qr' => null, // No QR code
+            'qr1' => null, 'qr2' => null, 'qr3' => null, // No QR code
         ];
 
         $pdf = PDF::loadView('template-surat.ba_komteks', $viewData);
