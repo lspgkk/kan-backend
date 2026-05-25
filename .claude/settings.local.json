@@ -41,7 +41,10 @@
       "Bash(Get-ChildItem *)",
       "Bash(Select-Object -First 30)",
       "Bash(Select-Object Name)",
-      "Bash(findstr /i \"bukti\")"
+      "Bash(findstr /i \"bukti\")",
+      "Bash(rm \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-dashboard\\\\src\\\\views\\\\home\\\\data-master\\\\jenis-kegiatan\\\\JenisKegiatanIndex.vue\")",
+      "Bash(rm \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-dashboard\\\\src\\\\views\\\\home\\\\data-master\\\\jenis-kegiatan\\\\JenisKegiatanView.vue\")",
+      "Bash(rm -r \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-dashboard\\\\src\\\\views\\\\home\\\\data-master\\\\jenis-kegiatan\")"
     ]
   }
 }

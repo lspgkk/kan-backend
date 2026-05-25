@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\City;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 
 class CityController extends Controller
 {
@@ -47,6 +48,81 @@ class CityController extends Controller
             'status' => 'success',
             'data' => $city,
         ]);
+    }
+
+    public function sync(Request $request)
+    {
+        try {
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'token' => env('SIKI_TOKEN'),
+            ])->timeout(60)->get('https://siki.pu.go.id/siki-api/v1/kabupaten');
+
+            if (!$response->successful()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Gagal mengambil data kabupaten dari SIKI API',
+                ], 502);
+            }
+
+            $apiData = $response->json();
+
+            if (($apiData['status'] ?? '') !== 'success' || !isset($apiData['data'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Respon SIKI API tidak valid',
+                ], 502);
+            }
+
+            $items = $apiData['data'];
+            $added = 0;
+            $skipped = 0;
+            $errors = [];
+
+            foreach ($items as $item) {
+                $kode = $item['kode_kabupaten_bps'] ?? '';
+
+                if (City::where('kode_kabupaten_bps', $kode)->exists()) {
+                    $skipped++;
+                    continue;
+                }
+
+                try {
+                    City::create([
+                        'id_propinsi_bps' => $item['id_propinsi_bps'] ?? '',
+                        'nama_kabupaten_bps' => $item['nama_kabupaten_bps'] ?? '',
+                        'kode_kabupaten_bps' => $kode,
+                        'id_propinsi_dagri' => $item['id_propinsi_dagri'] ?? '',
+                        'nama_kabupaten_dagri' => $item['nama_kabupaten_dagri'] ?? '',
+                        'kode_kabupaten_dagri' => $item['kode_kabupaten_dagri'] ?? '',
+                        'cek' => $item['cek'] ?? '',
+                        'created_by' => $request->user()?->name ?? 'system',
+                    ]);
+                    $added++;
+                } catch (\Exception $e) {
+                    $errors[] = [
+                        'kode_kabupaten_bps' => $kode,
+                        'message' => $e->getMessage(),
+                    ];
+                }
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => "Sinkronisasi selesai. {$added} kabupaten baru ditambahkan, {$skipped} sudah ada.",
+                'data' => [
+                    'total_from_api' => count($items),
+                    'added' => $added,
+                    'skipped' => $skipped,
+                    'errors' => $errors,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal sinkronisasi: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**

@@ -33,14 +33,15 @@ use App\Http\Controllers\SesiController;
 use App\Http\Controllers\SubklasifikasiController;
 use App\Http\Controllers\SurveyController;
 use App\Http\Controllers\TukController;
-use App\Http\Controllers\JenisKegiatanController;
 use App\Http\Controllers\DiskonController;
 use App\Http\Controllers\MetodePembayaranController;
 use App\Http\Controllers\NegaraController;
 use App\Http\Controllers\PekerjaanController;
 use App\Http\Controllers\JenjangJabatanKerjaController;
+use App\Http\Controllers\KlasifikasiController;
 use App\Http\Controllers\TarifController;
 use App\Http\Controllers\VerifikasiTukController;
+use App\Http\Controllers\PengajuanTukController;
 
 Route::get('/migrate/personals', [MigrationController::class, 'personals']);
 Route::get('/migrate/klasifikasis', [MigrationController::class, 'klasifikasis']);
@@ -70,6 +71,10 @@ Route::post('/midtrans/webhook', [MidtransWebhookController::class, 'handlePayme
 
 // Public UUID resolve for WhatsApp magic link (no auth)
 Route::get('/persiapan-asesmen/{uuid}', [PraAsesmenController::class, 'resolveUuid']);
+
+// Public — Pengajuan TUK via static API key (for landing page)
+Route::post('/pengajuan-tuk', [PengajuanTukController::class, 'submit'])
+    ->middleware('static-api-key');
 
 // Route::middleware(['auth:api', 'singlesession'])->group(function () {
 Route::middleware(['auth:api'])->group(function () {
@@ -124,11 +129,15 @@ Route::middleware(['auth:api'])->group(function () {
 
     Route::prefix('tuk')->group(function () {
         Route::get('/siki', [TukController::class, 'allTukSiki']);
+        Route::post('/siki/sync', [TukController::class, 'syncTukSiki']);
+        Route::get('/siki/{id}', [TukController::class, 'showTukSiki']);
+        Route::put('/siki/{id}', [TukController::class, 'updateKategori']);
         Route::get('/bnsp', [TukController::class, 'allTukBnsp']);
     });
 
     Route::prefix('klasifikasi')->group(function () {
         Route::get('/', [KlasifikasiController::class, 'index']);
+        Route::post('/sync', [KlasifikasiController::class, 'sync']);
     });
 
     Route::prefix('subklasifikasi')->group(function () {
@@ -180,10 +189,12 @@ Route::middleware(['auth:api'])->group(function () {
 
     Route::prefix('kabupaten')->group(function () {
         Route::get('/', [CityController::class, 'index']);
+        Route::post('/sync', [CityController::class, 'sync']);
     });
 
     Route::prefix('province')->group(function () {
         Route::get('/', [ProvinceController::class, 'index']);
+        Route::post('/sync', [ProvinceController::class, 'sync']);
     });
 
     Route::prefix('invoice')->group(function () {
@@ -353,11 +364,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{id_izin}', [SurveyController::class, 'show']);
     });
 
-    Route::prefix('jenis-kegiatan')->group(function () {
-        Route::get('/', [JenisKegiatanController::class, 'index']);
-    });
-
-    Route::prefix('diskon')->group(function () {
+Route::prefix('diskon')->group(function () {
         Route::get('/', [DiskonController::class, 'index']);
     });
 
@@ -395,6 +402,11 @@ Route::middleware(['auth:api'])->group(function () {
         // List & detail
         Route::get('/', [VerifikasiTukController::class, 'index']);
         Route::get('/{id}', [VerifikasiTukController::class, 'show']);
+    });
+
+    Route::prefix('pengajuan-tuk')->group(function () {
+        Route::get('/', [PengajuanTukController::class, 'index']);
+        Route::get('/{id}', [PengajuanTukController::class, 'show']);
     });
 
     Route::prefix('dokumen-asesi')->group(function () {

@@ -9,8 +9,8 @@ class Klasifikasi extends Model
     protected $table = 'klasifikasis';
 
     protected $fillable = [
-        'kode',
-        'name',
-        'deskripsi',
+        'id_klasifikasi',
+        'klasifikasi',
+        'klasifikasi_en',
     ];
 }

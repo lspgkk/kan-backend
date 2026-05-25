@@ -18,10 +18,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
-ini_set('max_execution_time', 12000);
-
 class MigrationController extends Controller
 {
+    public function __construct()
+    {
+        set_time_limit(12000);
+    }
+
+
     public function personals()
     {
         $asesi_reguler = DB::connection('fg')

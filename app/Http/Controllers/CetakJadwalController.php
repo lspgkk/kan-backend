@@ -17,11 +17,12 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Ramsey\Uuid\Uuid;
 use mikehaertl\pdftk\Pdf;
+use App\Traits\BantuanTrait;
 use App\Traits\ResolvesKomtekDecision;
 
 class CetakJadwalController extends Controller
 {
-    use ResolvesKomtekDecision;
+    use BantuanTrait, ResolvesKomtekDecision;
 
     private function suratPernyataan($pdfUrl, $idIzin, $filename, $jabker, $nama, $noreg)
     {
@@ -57,16 +58,10 @@ class CetakJadwalController extends Controller
                 $no_surat = $no_surat_balai;
             }
 
-            $monthsInRomanNumerals = [
-                1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
-                5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII',
-                9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
-            ];
-
             $currentMonthNumber = Carbon::now()->month;
             $currentYearNumber = Carbon::now()->year;
 
-            $bulan = $monthsInRomanNumerals[$currentMonthNumber];
+            $bulan = $this->bulanRomawi($currentMonthNumber);
 
             if ((int)$no_surat[3] == $currentYearNumber) {
                 $no_surat[0] = str((int)$no_surat[0] + 1);

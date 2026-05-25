@@ -14,11 +14,14 @@ use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
-ini_set('max_execution_time', 3800);
-
-
 class BarcodeController extends Controller
 {
+    public function __construct()
+    {
+        set_time_limit(3800);
+    }
+
+
     public function generateBarcodePenyusun()
     {
         $list_jabker = JabatanConfigA::where('penyusun_img', 'NOT LIKE', '%https://barcode.lspgatensi.id%')->get();

@@ -42,56 +42,19 @@ class BuktiController extends Controller
         $dokumenRows = BuktiAsesmen::whereIn('id_izin', $idIzins)->get()->keyBy('id_izin');
 
         // Map dokumen into each row
-        $data->getCollection()->transform(function ($item) use ($dokumenRows) {
+        $urlFields = [
+            'url_apl_01', 'url_apl_02', 'url_mapa01', 'url_mapa02',
+            'url_ak01', 'url_ak02', 'url_ak03', 'url_ak04', 'url_ak05', 'url_ak06', 'url_ak07',
+            'url_ia_01', 'url_ia_02', 'url_ia_03', 'url_ia_04a', 'url_ia_04b', 'url_ia_05',
+            'url_ia_08', 'url_ia_09', 'url_ia_10',
+            'url_paparan', 'url_docs_asesmen',
+        ];
+
+        $data->getCollection()->transform(function ($item) use ($dokumenRows, $urlFields) {
             $dok = $dokumenRows->get($item->id_izin);
-            if ($dok) {
-                $item->bukti_id_izin = $dok->id_izin;
-                $item->url_apl_01 = $dok->url_apl_01;
-                $item->url_apl_02 = $dok->url_apl_02;
-                $item->url_mapa01 = $dok->url_mapa01;
-                $item->url_mapa02 = $dok->url_mapa02;
-                $item->url_ak01 = $dok->url_ak01;
-                $item->url_ak02 = $dok->url_ak02;
-                $item->url_ak03 = $dok->url_ak03;
-                $item->url_ak04 = $dok->url_ak04;
-                $item->url_ak05 = $dok->url_ak05;
-                $item->url_ak06 = $dok->url_ak06;
-                $item->url_ak07 = $dok->url_ak07;
-                $item->url_ia_01 = $dok->url_ia_01;
-                $item->url_ia_02 = $dok->url_ia_02;
-                $item->url_ia_03 = $dok->url_ia_03;
-                $item->url_ia_04a = $dok->url_ia_04a;
-                $item->url_ia_04b = $dok->url_ia_04b;
-                $item->url_ia_05 = $dok->url_ia_05;
-                $item->url_ia_08 = $dok->url_ia_08;
-                $item->url_ia_09 = $dok->url_ia_09;
-                $item->url_ia_10 = $dok->url_ia_10;
-                $item->url_paparan = $dok->url_paparan;
-                $item->url_docs_asesmen = $dok->url_docs_asesmen;
-            } else {
-                $item->bukti_id_izin = null;
-                $item->url_apl_01 = null;
-                $item->url_apl_02 = null;
-                $item->url_mapa01 = null;
-                $item->url_mapa02 = null;
-                $item->url_ak01 = null;
-                $item->url_ak02 = null;
-                $item->url_ak03 = null;
-                $item->url_ak04 = null;
-                $item->url_ak05 = null;
-                $item->url_ak06 = null;
-                $item->url_ak07 = null;
-                $item->url_ia_01 = null;
-                $item->url_ia_02 = null;
-                $item->url_ia_03 = null;
-                $item->url_ia_04a = null;
-                $item->url_ia_04b = null;
-                $item->url_ia_05 = null;
-                $item->url_ia_08 = null;
-                $item->url_ia_09 = null;
-                $item->url_ia_10 = null;
-                $item->url_paparan = null;
-                $item->url_docs_asesmen = null;
+            $item->bukti_id_izin = $dok?->id_izin;
+            foreach ($urlFields as $field) {
+                $item->$field = $dok?->$field;
             }
             return $item;
         });

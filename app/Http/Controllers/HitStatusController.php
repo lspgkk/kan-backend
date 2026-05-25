@@ -15,10 +15,14 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
-ini_set('max_execution_time', 3800);
-
 class HitStatusController extends Controller
 {
+    public function __construct()
+    {
+        set_time_limit(3800);
+    }
+
+
     public function hitVerifikasi(Request $request, $id_izin)
     {
         // Validate payload
@@ -550,10 +554,8 @@ class HitStatusController extends Controller
                 DB::commit();
                 $success_id_izin++;
             } catch (\Exception $e) {
-                // Log or handle the exception
-                dd($e);
-                array_push($error_id_izin,  ["id_izin" => $id_izin, "msg" => $e->getMessage()]);
-                // return redirect()->back()->with('error', 'Error storing data.');
+                Log::error('Error processing pencabutan for ' . $id_izin . ': ' . $e->getMessage());
+                $error_id_izin[] = ['id_izin' => $id_izin, 'msg' => $e->getMessage()];
             }
         }
         return redirect()->back()->with('success', 'Total ' . (string)$success_id_izin . ' ID Izin berhasil dicabut!')->with(['error_id_izin' => $error_id_izin]);

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Province;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 
 class ProvinceController extends Controller
 {
@@ -48,6 +49,76 @@ class ProvinceController extends Controller
             'status' => 'success',
             'data' => $province,
         ]);
+    }
+
+    public function sync(Request $request)
+    {
+        try {
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'token' => env('SIKI_TOKEN'),
+            ])->timeout(60)->get('https://siki.pu.go.id/siki-api/v1/provinsi');
+
+            if (!$response->successful()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Gagal mengambil data provinsi dari SIKI API',
+                ], 502);
+            }
+
+            $apiData = $response->json();
+
+            if (($apiData['status'] ?? '') !== 'success' || !isset($apiData['data'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Respon SIKI API tidak valid',
+                ], 502);
+            }
+
+            $items = $apiData['data'];
+            $added = 0;
+            $skipped = 0;
+            $errors = [];
+
+            foreach ($items as $item) {
+                $idProvinsi = $item['ID_Propinsi'] ?? '';
+
+                if (Province::where('id_provinsi', $idProvinsi)->exists()) {
+                    $skipped++;
+                    continue;
+                }
+
+                try {
+                    Province::create([
+                        'id_provinsi' => $idProvinsi,
+                        'id_provinsi_dagri' => $item['id_propinsi_dagri'] ?? '',
+                        'nama' => $item['Nama'] ?? '',
+                    ]);
+                    $added++;
+                } catch (\Exception $e) {
+                    $errors[] = [
+                        'id_provinsi' => $idProvinsi,
+                        'message' => $e->getMessage(),
+                    ];
+                }
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => "Sinkronisasi selesai. {$added} provinsi baru ditambahkan, {$skipped} sudah ada.",
+                'data' => [
+                    'total_from_api' => count($items),
+                    'added' => $added,
+                    'skipped' => $skipped,
+                    'errors' => $errors,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal sinkronisasi: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**

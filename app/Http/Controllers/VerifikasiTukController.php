@@ -12,6 +12,7 @@ use App\Models\Sesi;
 use App\Models\Skema;
 use App\Models\User;
 use App\Models\VerifikasiTuk;
+use App\Traits\BantuanTrait;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -20,7 +21,7 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class VerifikasiTukController extends Controller
 {
-    private const ROMAWI = [1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII'];
+    use BantuanTrait;
 
     // ─── Step 1: Admin TUK mengajukan — surat tergenerate, semua TTD kosong ───
 
@@ -309,7 +310,7 @@ class VerifikasiTukController extends Controller
             $noSuratSk         = $verifikasi->no_surat_sk;
             $noSuratPeminjaman = $verifikasi->no_surat_peminjaman;
         } else {
-            $rm = self::ROMAWI[$now->month];
+            $rm = $this->bulanRomawi($now->month);
             $yr = $now->year;
             $noSuratTugas      = $this->generateNomor('no_surat_tugas', "0/GKK B.007-E/{$rm}/{$yr}");
             $noSuratBa         = $this->generateNomor('no_surat_ba', "0/GKK B.008-E/{$rm}/{$yr}");
@@ -384,7 +385,7 @@ class VerifikasiTukController extends Controller
         $year  = now()->year;
 
         $parts[0] = ((int) ($parts[3] ?? 0) === $year) ? ((int) $parts[0] + 1) : 1;
-        $parts[2] = self::ROMAWI[now()->month];
+        $parts[2] = $this->bulanRomawi(now()->month);
         $parts[3] = (string) $year;
 
         return implode('/', $parts);

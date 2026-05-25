@@ -26,11 +26,12 @@ use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf as PDF;
 use Ramsey\Uuid\Uuid;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use App\Traits\BantuanTrait;
 use App\Traits\ResolvesKomtekDecision;
 
 class PenerbitanSertifikatController extends Controller
 {
-    use ResolvesKomtekDecision;
+    use BantuanTrait, ResolvesKomtekDecision;
 
     public function storePenerbitan(Request $request, $jadwal_id)
     {
@@ -239,7 +240,8 @@ class PenerbitanSertifikatController extends Controller
                 }
             } catch (\Exception $e) {
                 DB::rollBack();
-                dd($e);
+                Log::error('Error updating data pencatatan: ' . $e->getMessage());
+                throw $e;
             }
         }
         DB::commit();
@@ -293,18 +295,10 @@ class PenerbitanSertifikatController extends Controller
             $no_rekom_asesor = RekomAsesor::latest()->first();
             $no_rekom_asesor = $no_rekom_asesor->no_surat;
 
-            $monthsInRomanNumerals = [
-                1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
-                5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII',
-                9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
-            ];
-
             $currentMonthNumber = Carbon::now()->month;
             $currentYearNumber = Carbon::now()->year;
 
-            $bulan = $monthsInRomanNumerals[$currentMonthNumber];
-
-            $no_rekom_asesor = explode("/", $no_rekom_asesor);
+            $bulan = $this->bulanRomawi($currentMonthNumber);
 
             if ((int)$no_rekom_asesor[3] == $currentYearNumber) {
                 $no_rekom_asesor[0] = str((int)$no_rekom_asesor[0] + 1);
@@ -635,16 +629,10 @@ class PenerbitanSertifikatController extends Controller
             $no_spt_komtek = SPTKomtek::latest()->first();
             $spt_no = $no_spt_komtek->no_surat;
 
-            $monthsInRomanNumerals = [
-                1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
-                5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII',
-                9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
-            ];
-
             $currentMonthNumber = Carbon::now()->month;
             $currentYearNumber = Carbon::now()->year;
 
-            $bulan = $monthsInRomanNumerals[$currentMonthNumber];
+            $bulan = $this->bulanRomawi($currentMonthNumber);
 
             $spt_no = explode("/", $spt_no);
 
@@ -791,8 +779,8 @@ class PenerbitanSertifikatController extends Controller
             ]);
             DB::commit();
         } catch (\Exception $e) {
-            dd($e->getMessage());
-            // return redirect()->back()->with('error', 'Error storing data.');
+            Log::error('Error creating komtek barcode: ' . $e->getMessage());
+            throw $e;
         }
 
         $full_url_file_sptkomtek = 'https://lspgatensi.id/filesspt_komtek/' . $filename_spt_komtek;
@@ -1017,7 +1005,8 @@ class PenerbitanSertifikatController extends Controller
                 }
             } catch (\Exception $e) {
                 DB::rollBack();
-                dd("terjadi error: " . $e->getMessage());
+                Log::error('Error generating sertifikat: ' . $e->getMessage());
+                throw $e;
             }
             DB::commit();
         }

@@ -22,11 +22,12 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use App\Traits\BantuanTrait;
 use App\Traits\ResolvesKomtekDecision;
 
 class DirekturController extends Controller
 {
-    use ResolvesKomtekDecision;
+    use BantuanTrait, ResolvesKomtekDecision;
     public function jadwalFiles($id)
     {
         $jadwal = Jadwal::where('jadwal_id', $id)->first();
@@ -94,18 +95,16 @@ class DirekturController extends Controller
         if ($ba && (!$ba->no_surat || !str_contains($ba->no_surat, 'LSP GKK'))) {
             // Stale record with placeholder number — regenerate
             $last  = BaKomtek::latest('id')->first();
-            $roman = [1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII'];
             $now   = Carbon::now();
             $num   = $last ? ((int) explode('/', $last->no_surat)[0] + 1) : 1;
-            $ba->update(['no_surat' => "{$num}/LSP GKK B.002-A/{$roman[$now->month]}/{$now->year}"]);
+            $ba->update(['no_surat' => "{$num}/LSP GKK B.002-A/{$this->bulanRomawi($now->month)}/{$now->year}"]);
         }
 
         if (!$ba) {
             $last  = BaKomtek::latest('id')->first();
-            $roman = [1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII'];
             $now   = Carbon::now();
             $num   = $last ? ((int) explode('/', $last->no_surat)[0] + 1) : 1;
-            $noSurat = "{$num}/LSP GKK B.002-A/{$roman[$now->month]}/{$now->year}";
+            $noSurat = "{$num}/LSP GKK B.002-A/{$this->bulanRomawi($now->month)}/{$now->year}";
 
             $ba = BaKomtek::create([
                 'jadwal_id' => $jadwal_id,
@@ -502,12 +501,12 @@ class DirekturController extends Controller
             $lastVal = $default;
         }
 
-        $romawi = [1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV', 5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII', 9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII'];
+        $romawi = $this->bulanRomawi(now()->month);
         $parts = explode('/', $lastVal);
         $year = now()->year;
 
         $parts[0] = ((int) ($parts[3] ?? 0) === $year) ? ((int) $parts[0] + 1) : 1;
-        $parts[2] = $romawi[now()->month];
+        $parts[2] = $romawi;
         $parts[3] = (string) $year;
 
         return implode('/', $parts);

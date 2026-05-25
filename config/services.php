@@ -35,6 +35,8 @@ return [
         ],
     ],
 
+    'pengajuan_tuk_api_key' => env('PENGAJUAN_TUK_API_KEY'),
+
     'qontak' => [
         'client_id' => env('QONTAK_CLIENT_ID'),
         'client_secret' => env('QONTAK_CLIENT_SECRET'),

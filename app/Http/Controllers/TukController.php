@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use App\Models\MyTuk;
 use App\Models\MyTukBnsp;
+use App\Models\TukDiscount;
 
 class TukController extends Controller
 {
@@ -47,6 +49,136 @@ class TukController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => $tuks,
+        ]);
+    }
+
+    public function syncTukSiki(Request $request)
+    {
+        $request->validate([
+            'id_lsp' => 'nullable|string',
+        ]);
+
+        $idLsp = $request->input('id_lsp', '04');
+
+        try {
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json',
+                'token' => env('SIKI_TOKEN'),
+            ])->timeout(60)->get('https://siki.pu.go.id/siki-api/v2/tuk');
+
+            if (!$response->successful()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Gagal mengambil data dari SIKI API',
+                ], 502);
+            }
+
+            $apiData = $response->json();
+
+            if (($apiData['status'] ?? '') !== 'success' || !isset($apiData['data'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Respon SIKI API tidak valid',
+                ], 502);
+            }
+
+            $tuks = $apiData['data'];
+            $added = 0;
+            $skipped = 0;
+            $errors = [];
+
+            $now = now();
+
+            foreach ($tuks as $tuk) {
+                $sikiId = (string) $tuk['id'];
+
+                if (MyTuk::find($sikiId)) {
+                    $skipped++;
+                    continue;
+                }
+
+                try {
+                    MyTuk::create([
+                        'id' => $sikiId,
+                        'id_lsp' => $tuk['id_lsp'] ?? $idLsp,
+                        'kode_tuk' => $tuk['kode_tuk'] ?? '',
+                        'jenis_tuk' => $tuk['jenis_tuk'] ?? '',
+                        'nama_tuk' => $tuk['nama_tuk'] ?? '',
+                        'alamat' => $tuk['alamat'] ?? '',
+                        'created_at' => $now,
+                        'created_by' => $request->user()?->name ?? 'system',
+                    ]);
+                    $added++;
+                } catch (\Exception $e) {
+                    $errors[] = [
+                        'id' => $sikiId,
+                        'kode_tuk' => $tuk['kode_tuk'] ?? '',
+                        'message' => $e->getMessage(),
+                    ];
+                }
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => "Sinkronisasi selesai. {$added} TUK baru ditambahkan, {$skipped} sudah ada.",
+                'data' => [
+                    'total_from_api' => count($tuks),
+                    'added' => $added,
+                    'skipped' => $skipped,
+                    'errors' => $errors,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal sinkronisasi: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function showTukSiki(string $id)
+    {
+        $tuk = MyTuk::leftJoin('tuk_discounts', 'tuk_discounts.id_tuk_lpjk', '=', 'mytuk.id')
+            ->select(['mytuk.id', 'mytuk.kode_tuk', 'mytuk.nama_tuk', 'mytuk.alamat', 'mytuk.latitude', 'mytuk.longitude', 'tuk_discounts.kategori'])
+            ->where('mytuk.id', $id)
+            ->first();
+
+        if (!$tuk) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'TUK tidak ditemukan',
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $tuk,
+        ]);
+    }
+
+    public function updateKategori(Request $request, string $id)
+    {
+        $request->validate([
+            'kategori' => 'required|string',
+        ]);
+
+        $tuk = MyTuk::find($id);
+
+        if (!$tuk) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'TUK tidak ditemukan',
+            ], 404);
+        }
+
+        TukDiscount::updateOrCreate(
+            ['id_tuk_lpjk' => $id],
+            ['kategori' => $request->input('kategori'), 'nama_tuk' => $tuk->nama_tuk]
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Kategori berhasil diupdate',
         ]);
     }
 

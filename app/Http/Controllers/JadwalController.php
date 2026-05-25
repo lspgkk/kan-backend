@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AbsenKomtek;
+use App\Traits\BantuanTrait;
 use App\Traits\ResolvesKomtekDecision;
 use App\Models\AsesiJadwal;
 use App\Models\AsesorBnsp;
@@ -34,7 +35,7 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class JadwalController extends Controller
 {
-    use ResolvesKomtekDecision;
+    use BantuanTrait, ResolvesKomtekDecision;
 
     public function index(Request $request)
     {
@@ -950,17 +951,13 @@ class JadwalController extends Controller
             $last = SPTAsesor::latest('id')->first();
             $noSpt = $last->spt_no;
 
-            $romawi = [
-                1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
-                5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII',
-                9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
-            ];
+            $romawi = $this->bulanRomawi(now()->month);
 
             $parts = explode('/', $noSpt);
             $year  = now()->year;
 
             $parts[0] = ((int) $parts[3] === $year) ? ((int) $parts[0] + 1) : 1;
-            $parts[2] = $romawi[now()->month];
+            $parts[2] = $this->bulanRomawi(now()->month);
             $parts[3] = (string) $year;
 
             $noSpt = implode('/', $parts);
@@ -1155,11 +1152,7 @@ class JadwalController extends Controller
             $last = SPTKomtek::latest('id')->first();
             $base = $last?->no_surat ?? '0/LSP GKK B.001-D/I/2024';
 
-            $romawi = [
-                1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
-                5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII',
-                9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
-            ];
+            $romawi = $this->bulanRomawi(now()->month);
 
             $parts = explode('/', $base);
             $year  = now()->year;
@@ -1168,7 +1161,7 @@ class JadwalController extends Controller
                 ? ((int)$parts[0] + 1)
                 : 1;
 
-            $parts[2] = $romawi[now()->month];
+            $parts[2] = $this->bulanRomawi(now()->month);
             $parts[3] = (string)$year;
 
             $spt_no = implode('/', $parts);
@@ -1515,7 +1508,7 @@ class JadwalController extends Controller
                     ? ((int)$parts[0] + 1)
                     : 1;
 
-                $parts[2] = $romawi[now()->month];
+                $parts[2] = $this->bulanRomawi(now()->month);
                 $parts[3] = (string)$year;
 
                 $nomorSkPelaksanaanUji = implode('/', $parts);
@@ -1545,7 +1538,7 @@ class JadwalController extends Controller
                     ? ((int)$parts[0] + 1)
                     : 1;
 
-                $parts[2] = $romawi[now()->month];
+                $parts[2] = $this->bulanRomawi(now()->month);
                 $parts[3] = (string)$year;
 
                 $nomorSkKomtek = implode('/', $parts);
@@ -2331,7 +2324,7 @@ class JadwalController extends Controller
         $year  = now()->year;
 
         $parts[0] = ((int)($parts[3] ?? 0) === $year) ? ((int)$parts[0] + 1) : 1;
-        $parts[2] = $romawi[now()->month];
+        $parts[2] = $this->bulanRomawi(now()->month);
         $parts[3] = (string)$year;
 
         $nomorSk = implode('/', $parts);
@@ -2398,7 +2391,7 @@ class JadwalController extends Controller
         $year  = now()->year;
 
         $parts[0] = ((int)($parts[3] ?? 0) === $year) ? ((int)$parts[0] + 1) : 1;
-        $parts[2] = $romawi[now()->month];
+        $parts[2] = $this->bulanRomawi(now()->month);
         $parts[3] = (string)$year;
 
         $noSpt = implode('/', $parts);
@@ -2480,7 +2473,7 @@ class JadwalController extends Controller
         $year  = now()->year;
 
         $parts[0] = ((int)($parts[3] ?? 0) === $year) ? ((int)$parts[0] + 1) : 1;
-        $parts[2] = $romawi[now()->month];
+        $parts[2] = $this->bulanRomawi(now()->month);
         $parts[3] = (string)$year;
 
         $spt_no = implode('/', $parts);

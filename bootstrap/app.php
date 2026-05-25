@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role'       => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'singlesession' => \App\Http\Middleware\SingleSessionMiddleware::class,
+            'static-api-key' => \App\Http\Middleware\StaticApiKey::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

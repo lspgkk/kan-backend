@@ -23,11 +23,11 @@ class MyTuk extends Model
         'jenis_tuk',
         'nama_tuk',
         'alamat',
-        'InputDate',
-        'InputBy',
+        'created_at',
+        'created_by',
     ];
 
     protected $casts = [
-        'InputDate' => 'datetime',
+        'created_at' => 'datetime',
     ];
 }

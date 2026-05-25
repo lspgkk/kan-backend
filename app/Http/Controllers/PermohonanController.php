@@ -20,10 +20,14 @@ use App\Models\MyTuk;
 use App\Models\Province;
 use App\Models\City;
 
-ini_set('max_execution_time', 12000);
-
 class PermohonanController extends Controller
 {
+    public function __construct()
+    {
+        set_time_limit(12000);
+    }
+
+
     private const SKK_TYPES = [
         'reguler' => '/',
         'balai'   => '-balai/',
