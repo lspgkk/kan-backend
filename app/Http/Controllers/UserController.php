@@ -16,6 +16,9 @@ class UserController extends Controller
                     $q->where('name', $request->role);
                 });
             }
+            if ($request->filled('role_id')) {
+                $query->where('role_id', $request->role_id);
+            }
 
             $users = $query->orderBy('created_at', 'desc')->get();
 
@@ -52,6 +55,10 @@ class UserController extends Controller
             $query->whereHas('role', function ($q) use ($request) {
                 $q->where('name', $request->role);
             });
+        }
+
+        if ($request->filled('role_id')) {
+            $query->where('role_id', $request->role_id);
         }
 
         // Optional: sort newest first

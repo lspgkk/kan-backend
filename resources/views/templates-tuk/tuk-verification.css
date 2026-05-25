@@ -1,0 +1,291 @@
+/* ================================================
+   SHARED CSS — Verifikasi TUK Documents
+   Generated from Google Docs export, cleaned up
+   ================================================ */
+
+/* --- Base Reset --- */
+html { background: none; }
+body {
+  background-color: transparent;
+  max-width: 451.5pt;
+  padding: 72pt;
+  margin: 0;
+}
+p {
+  margin: 0;
+  color: #000000;
+  font-size: 12pt;
+  font-family: "Cambria";
+}
+li {
+  color: #000000;
+  font-size: 12pt;
+  font-family: "Cambria";
+}
+
+/* --- Headings --- */
+h1 {
+  padding: 0;
+  color: #000000;
+  font-weight: 700;
+  font-size: 15.5pt;
+  font-family: "Cambria";
+  line-height: 1;
+  text-align: center;
+}
+h2 {
+  padding: 0;
+  color: #000000;
+  font-weight: 700;
+  font-size: 15.5pt;
+  font-family: "Cambria";
+  line-height: 1;
+  text-align: center;
+}
+h3 {
+  padding: 0;
+  color: #000000;
+  font-size: 11.5pt;
+  font-family: "Arial";
+  line-height: 1;
+  text-align: left;
+}
+h4 {
+  padding: 0;
+  color: #000000;
+  font-weight: 700;
+  font-size: 12pt;
+  font-family: "Cambria";
+  line-height: 1;
+  text-align: left;
+}
+
+/* --- Text Styles (used in <span>) --- */
+.text-normal {
+  color: #000; font-weight: 400; text-decoration: none;
+  vertical-align: baseline; font-size: 12pt;
+  font-family: "Arial"; font-style: normal;
+}
+.text-bold {
+  color: #000; font-weight: 700; text-decoration: none;
+  vertical-align: baseline; font-size: 12pt;
+  font-family: "Arial"; font-style: normal;
+}
+.text-bold-underline {
+  text-decoration-skip-ink: none; font-family: "Arial";
+  -webkit-text-decoration-skip: none; font-weight: 700;
+  text-decoration: underline;
+}
+.text-11pt {
+  color: #000; vertical-align: baseline;
+  font-size: 12pt; font-style: normal;
+}
+.text-serif-normal {
+  font-weight: 400; font-family: "Arial";
+}
+.text-serif-bold {
+  font-size: 12pt; font-family: "Arial"; font-weight: 400;
+}
+.text-bold-arial {
+  font-weight: 700; font-family: "Arial";
+}
+.text-serif-10 {
+  color: #000; font-weight: 400; text-decoration: none;
+  font-size: 10pt; font-family: "Cambria"; font-style: normal;
+}
+.text-highlight {
+  background-color: #ffff00;
+}
+.text-italic {
+  color: #000; text-decoration: none;
+  vertical-align: baseline; font-style: italic;
+}
+.text-underline-normal {
+  -webkit-text-decoration-skip: none; font-weight: 400;
+  text-decoration: underline; text-decoration-skip-ink: none;
+  font-family: "Arial";
+}
+
+/* --- Paragraph Styles --- */
+.p-left         { padding: 0; line-height: 1.15; text-align: left; }
+.p-center       { padding: 0; line-height: 1.15; text-align: center; }
+.p-left-line1   { padding: 0; line-height: 1; text-align: left; }
+.p-center-line1 { padding: 0; line-height: 1; text-align: center; }
+.p-spacer       { padding: 0; line-height: 1.15; text-align: left; height: 11pt; }
+.p-spacer-1     { padding: 0; line-height: 1; text-align: left; height: 11pt; }
+.p-justify      { padding: 0; line-height: 1; text-align: justify; }
+.p-justify-15   { padding: 0; line-height: 1.15; text-align: justify; }
+
+.p-right         { padding: 0; line-height: 1.15; text-align: right; }
+.p-left-top-xs   { padding-top: 0.1pt; padding-bottom: 0; line-height: 1.15; text-align: left; }
+.p-left-top-sm   { padding-top: 0.6pt; padding-bottom: 0; line-height: 1.15; text-align: left; }
+.p-left-top-1    { padding-top: 1.2pt; padding-bottom: 0; line-height: 1.15; text-align: left; }
+.p-left-top-1-6  { padding-top: 1.6pt; padding-bottom: 0; line-height: 1.15; text-align: left; }
+.p-left-top-2    { padding-top: 1.8pt; padding-bottom: 0; line-height: 1.15; text-align: left; }
+.p-left-top-3-5  { padding-top: 3.5pt; padding-bottom: 0; line-height: 1.15; text-align: justify; }
+.p-left-top-3-6  { padding-top: 3.6pt; padding-bottom: 0; line-height: 1.15; text-align: left; }
+.p-left-top-3-8  { padding-top: 3.8pt; padding-bottom: 0; line-height: 1.15; text-align: left; }
+.p-left-top-3pt  { padding-top: 3pt; padding-bottom: 0; line-height: 1.15; text-align: justify; }
+.p-left-top-4-2  { padding-top: 4.2pt; padding-bottom: 0; line-height: 1.15; text-align: left; }
+.p-left-top-5-5  { padding-top: 5.5pt; padding-bottom: 0; line-height: 1.15; text-align: left; }
+.p-left-top-5-6  { padding-top: 5.6pt; padding-bottom: 0; line-height: 1.15; text-align: left; }
+.p-left-top-6    { padding-top: 6.2pt; padding-bottom: 0.1pt; line-height: 1.15; text-align: left; }
+.p-left-top-8    { padding-top: 8.2pt; padding-bottom: 0; line-height: 1.15; text-align: left; }
+.p-left-top-9-2  { padding-top: 9.2pt; padding-bottom: 0; line-height: 1.15; text-align: center; }
+.p-left-top-9-9  { padding-top: 9.9pt; padding-bottom: 0; line-height: 1.15; text-align: left; }
+.p-left-top-11   { padding-top: 11.2pt; padding-bottom: 0; line-height: 1.15; text-align: left; }
+.p-left-top-12-3 { padding-top: 12.3pt; padding-bottom: 0; line-height: 1.15; text-align: left; }
+.p-left-pad12    { padding-top: 12pt; padding-bottom: 12pt; line-height: 1; text-align: left; }
+.p-justify-pad12 { padding-top: 0; padding-bottom: 12pt; line-height: 1; text-align: justify; }
+.p-center-top-xs { padding-top: 0.1pt; padding-bottom: 0; line-height: 1.15; text-align: center; }
+.p-center-top-sm { padding-top: 0.6pt; padding-bottom: 0; line-height: 1.15; text-align: center; }
+.p-center-top-2  { padding-top: 2pt; padding-bottom: 0; line-height: 1.15; text-align: center; }
+.p-center-top-1  { padding-top: 0.8pt; padding-bottom: 0; line-height: 1.15; text-align: center; }
+.p-center-top-1-3 { padding-top: 1.3pt; padding-bottom: 0; line-height: 1.15; text-align: center; }
+.p-center-top-1-9 { padding-top: 1.9pt; padding-bottom: 0; line-height: 1.15; text-align: center; }
+.p-center-top-12b { padding-top: 0.6pt; padding-bottom: 12pt; line-height: 1.15; text-align: center; }
+.p-left-lineh-006 { padding: 0; line-height: 0.06; text-align: left; }
+
+/* Ordered list reset */
+.ol-reset { padding: 0; margin: 0; }
+
+/* --- Watermark --- */
+.watermark {
+  position: fixed; inset: 0;
+  background-image: url('images/image5.jpg');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  z-index: -1;
+}
+
+/* --- Table Styles --- */
+.table-info {
+  margin-left: -5.4pt; border-spacing: 0;
+  border-collapse: collapse; margin-right: auto;
+}
+.table-sign {
+  margin-left: -5.8pt; border-spacing: 0;
+  border-collapse: collapse; margin-right: auto;
+}
+.table-data {
+  border-spacing: 0; border-collapse: collapse;
+  margin-left: -5.4pt; margin-right: auto;
+}
+
+/* --- Table Cell Styles (borderless — info/sign tables) --- */
+/* All share: border-style solid, vertical-align top, border-width 0pt */
+/* Format: .cell-Npt = width Npt, .cellp-Npt = width with padding 5.8pt */
+
+.cell-w96   { border: solid #000; border-width: 0; padding: 0 5.8pt; vertical-align: top; width: 96.3pt; }
+.cell-w14   { border: solid #000; border-width: 0; padding: 0 5.8pt; vertical-align: top; width: 14pt; }
+.cell-w357  { border: solid #000; border-width: 0; padding: 0 5.8pt; vertical-align: top; width: 356.9pt; }
+.cell-w467  { border: solid #000; border-width: 0; padding: 0 5.8pt; vertical-align: top; width: 467.2pt; }
+.cell-w225  { border: solid #000; border-width: 0; padding: 0 5.8pt; vertical-align: top; width: 224pt; }
+.cell-w116  { border: solid #000; border-width: 0; padding: 0 5.8pt; vertical-align: top; width: 116pt; }
+.cell-w94   { border: solid #000; border-width: 0; padding: 0 5.8pt; vertical-align: top; width: 93.8pt; }
+.cell-w14b  { border: solid #000; border-width: 0; padding: 0 5.8pt; vertical-align: top; width: 14.2pt; }
+.cell-w206  { border: solid #000; border-width: 0; padding: 0 5.8pt; vertical-align: top; width: 205.6pt; }
+
+.cell-w126  { border: solid #000; border-width: 0; padding: 0 5.4pt; vertical-align: top; width: 125.9pt; }
+.cell-w14c  { border: solid #000; border-width: 0; padding: 0 5.4pt; vertical-align: top; width: 14.2pt; }
+.cell-w310  { border: solid #000; border-width: 0; padding: 0 5.4pt; vertical-align: top; width: 309.9pt; }
+.cell-w450  { border: solid #000; border-width: 0; padding: 0 5.4pt; vertical-align: top; width: 450.2pt; }
+.cell-w14d  { border: solid #000; border-width: 0; padding: 0 5.4pt; vertical-align: top; width: 13.9pt; }
+.cell-w287  { border: solid #000; border-width: 0; padding: 0 5.4pt; vertical-align: top; width: 286.9pt; }
+.cell-w150  { border: solid #000; border-width: 0; padding: 0 5.4pt; vertical-align: top; width: 149.5pt; }
+.cell-w57   { border: solid #000; border-width: 0; padding: 0 5.4pt; vertical-align: top; width: 56.7pt; }
+.cell-w379  { border: solid #000; border-width: 0; padding: 0 5.4pt; vertical-align: top; width: 379.4pt; }
+.cell-w108  { border: solid #000; border-width: 0; padding: 0 5.4pt; vertical-align: top; width: 108.4pt; }
+.cell-w287b { border: solid #000; border-width: 0; padding: 0 5.4pt; vertical-align: top; width: 287.1pt; }
+.cell-w225b { border: solid #000; border-width: 0; padding: 0 5.4pt; vertical-align: top; width: 225.1pt; }
+.cell-w15   { border: solid #000; border-width: 0; padding: 0 5.4pt; vertical-align: top; width: 14.5pt; }
+
+/* --- Table Cell Styles (bordered 1pt — data tables) --- */
+.cell-b-27   { border: solid #000; border-width: 1pt; padding: 0 5.4pt; vertical-align: top; width: 27.3pt; }
+.cell-b-64   { border: solid #000; border-width: 1pt; padding: 0 5.4pt; vertical-align: top; width: 63.8pt; }
+.cell-b-57   { border: solid #000; border-width: 1pt; padding: 0 5.4pt; vertical-align: top; width: 56.7pt; }
+.cell-b-121  { border: solid #000; border-width: 1pt; padding: 0 5.4pt; vertical-align: top; width: 120.5pt; }
+.cell-b-318  { border: solid #000; border-width: 1pt; padding: 0 5.4pt; vertical-align: top; width: 318.3pt; }
+.cell-b-466  { border: solid #000; border-width: 1pt; padding: 0 5.4pt; vertical-align: top; width: 466.1pt; }
+.cell-b-220  { border: solid #000; border-width: 1pt; padding: 0 5.4pt; vertical-align: top; width: 219.7pt; }
+.cell-b-206  { border: solid #000; border-width: 1pt; padding: 0 5.4pt; vertical-align: top; width: 205.6pt; }
+
+/* Gray-bordered cells (data tables in berita acara) */
+.cell-g-36   { border: solid; border-color: #2b2b2b #808080 #808080 #2b2b2b; border-width: 1pt; padding: 0 5.4pt; vertical-align: top; width: 35.5pt; }
+.cell-g-full { border: solid; border-color: #808080 #2b2b2b #808080 #808080; border-width: 1pt; padding: 0 5.4pt; vertical-align: top; width: 100%; }
+
+/* --- Row Height Styles --- */
+.row-h0   { height: 0pt; }
+.row-h11  { height: 11pt; }
+.row-h10  { height: 10pt; }
+.row-h15  { height: 15.4pt; }
+.row-h19  { height: 19.4pt; }
+.row-h27  { height: 27.4pt; }
+.row-h28  { height: 28.2pt; }
+.row-h29  { height: 27.9pt; }
+.row-h37  { height: 36.9pt; }
+.row-h65  { height: 65.2pt; }
+.row-h79  { height: 78.7pt; }
+.row-h85  { height: 85.2pt; }
+.row-h290 { height: 290.4pt; }
+.row-h18  { height: 18.6pt; }
+.row-h19b { height: 19pt; }
+.row-h19c { height: 19.1pt; }
+.row-h20  { height: 20.1pt; }
+.row-h27b { height: 26.7pt; }
+.row-h11b { height: 10.8pt; }
+.row-h23  { height: 22.9pt; }
+
+/* --- Misc Utilities --- */
+.text-indent-7  { text-indent: 7.1pt; }
+.indent-14      { text-indent: 14.2pt; }
+.indent-neg-5   { text-indent: -5.4pt; margin-left: 77.4pt; margin-right: 278.4pt; }
+.margin-left-18 { margin-left: 18pt; padding-left: -0.9pt; }
+.margin-left-18b{ margin-left: 18pt; padding-left: -2.2pt; }
+.margin-left-18c{ margin-left: 18pt; padding-left: 4.1pt; }
+.margin-left-18d{ margin-left: 18pt; padding-left: -3.8pt; }
+.orphans-2      { orphans: 2; widows: 2; }
+.vertical-baseline { vertical-align: baseline; }
+
+/* --- Form Checklist specific --- */
+@import url(https://themes.googleusercontent.com/fonts/css?kit=sDU-RIIs3Wq_4pUcDwWu-05zdwzqyXAFhQ3EpAK6bTA);
+
+table.tbl {
+  width: 100%; max-width: 100%; margin: 0 auto;
+  border-collapse: collapse; table-layout: auto;
+}
+table.tbl td {
+  border: 1px solid #808080; padding: 5pt;
+  vertical-align: top; text-align: center;
+  word-break: break-word;
+}
+.page-bg {
+  background-image: url('images/image5.jpg');
+  background-repeat: no-repeat; background-position: center;
+  background-size: 100% 100%; page-break-after: always;
+  padding: 72pt 72pt 144pt 72pt; height: 297mm;
+  box-sizing: border-box;
+}
+.page-plain {
+  padding: 72pt 72pt 144pt 72pt;
+}
+
+/* --- Print Styles --- */
+@page { size: A4; margin: 72pt 72pt 144pt 72pt; }
+@media print {
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  table { page-break-inside: avoid; }
+  h1, h2, h3, h4, h5, h6 { page-break-after: avoid; }
+  .watermark {
+    position: fixed; inset: 0;
+    background-image: url('images/image5.jpg');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    z-index: -1;
+  }
+}

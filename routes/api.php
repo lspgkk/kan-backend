@@ -406,6 +406,15 @@ Route::prefix('diskon')->group(function () {
 
     Route::prefix('pengajuan-tuk')->group(function () {
         Route::get('/', [PengajuanTukController::class, 'index']);
+        Route::post('/{id}/approve', [PengajuanTukController::class, 'approve']);
+        Route::post('/{id}/reject', [PengajuanTukController::class, 'reject']);
+        Route::post('/{id}/assign', [PengajuanTukController::class, 'assign']);
+        Route::post('/{id}/ttd-direktur', [PengajuanTukController::class, 'ttdDirektur']);
+        Route::post('/{id}/konfirmasi-tuk', [PengajuanTukController::class, 'konfirmasiTuk']);
+        Route::post('/{id}/verifikasi', [PengajuanTukController::class, 'verifikasi']);
+        Route::post('/{id}/validate', [PengajuanTukController::class, 'validateTuk']);
+        Route::post('/{id}/tolak-validasi', [PengajuanTukController::class, 'tolakValidasi']);
+        Route::post('/{id}/ttd-sk', [PengajuanTukController::class, 'ttdSk']);
         Route::get('/{id}', [PengajuanTukController::class, 'show']);
     });
 
