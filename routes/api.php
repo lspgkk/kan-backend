@@ -40,8 +40,8 @@ use App\Http\Controllers\PekerjaanController;
 use App\Http\Controllers\JenjangJabatanKerjaController;
 use App\Http\Controllers\KlasifikasiController;
 use App\Http\Controllers\TarifController;
-use App\Http\Controllers\VerifikasiTukController;
 use App\Http\Controllers\PengajuanTukController;
+use App\Http\Controllers\TukChecklistTemplateController;
 
 Route::get('/migrate/personals', [MigrationController::class, 'personals']);
 Route::get('/migrate/klasifikasis', [MigrationController::class, 'klasifikasis']);
@@ -75,6 +75,13 @@ Route::get('/persiapan-asesmen/{uuid}', [PraAsesmenController::class, 'resolveUu
 // Public — Pengajuan TUK via static API key (for landing page)
 Route::post('/pengajuan-tuk', [PengajuanTukController::class, 'submit'])
     ->middleware('static-api-key');
+
+// Public — Survey submission & results (static API key)
+Route::prefix('survey')->middleware('static-api-key')->group(function () {
+    Route::get('/', [SurveyController::class, 'index']);
+    Route::get('/{id_izin}', [SurveyController::class, 'show']);
+    Route::post('/{id_izin}', [SurveyController::class, 'submit']);
+});
 
 // Route::middleware(['auth:api', 'singlesession'])->group(function () {
 Route::middleware(['auth:api'])->group(function () {
@@ -352,16 +359,13 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/close/{jadwal_id}', [CetakJadwalController::class, 'storeCetakJadwal']);
     });
 
-    // --- Survey (specific pertanyaan routes first, then wildcard) ---
+    // --- Survey pertanyaan (admin CRUD, inside auth) ---
     Route::prefix('survey')->group(function () {
         Route::get('/pertanyaan', [SurveyController::class, 'indexPertanyaan']);
         Route::post('/pertanyaan', [SurveyController::class, 'storePertanyaan']);
         Route::get('/pertanyaan/{id}', [SurveyController::class, 'showPertanyaan']);
         Route::put('/pertanyaan/{id}', [SurveyController::class, 'updatePertanyaan']);
         Route::delete('/pertanyaan/{id}', [SurveyController::class, 'destroyPertanyaan']);
-
-        Route::post('/{id_izin}', [SurveyController::class, 'submit']);
-        Route::get('/{id_izin}', [SurveyController::class, 'show']);
     });
 
 Route::prefix('diskon')->group(function () {
@@ -388,24 +392,11 @@ Route::prefix('diskon')->group(function () {
         Route::get('/', [TarifController::class, 'index']);
     });
 
-    Route::prefix('verifikasi-tuk')->group(function () {
-        // Step 1: Admin TUK mengajukan
-        Route::post('/', [VerifikasiTukController::class, 'submit']);
-        // Step 2: Asesi upload dokumentasi + TTD Ketua TUK
-        Route::post('/{id}/dokumentasi', [VerifikasiTukController::class, 'uploadDokumentasi']);
-        // Step 3: Direktur TTD (belum SK)
-        Route::post('/{id}/ttd-direktur', [VerifikasiTukController::class, 'ttdDirektur']);
-        // Step 4: Asesor verifikasi kondisi & TTD Verifikator
-        Route::post('/{id}/verifikasi', [VerifikasiTukController::class, 'verifikasi']);
-        // Step 5: Direktur TTD SK (final)
-        Route::post('/{id}/ttd-sk', [VerifikasiTukController::class, 'ttdSk']);
-        // List & detail
-        Route::get('/', [VerifikasiTukController::class, 'index']);
-        Route::get('/{id}', [VerifikasiTukController::class, 'show']);
-    });
+    Route::get('/tuk-checklist-templates', [TukChecklistTemplateController::class, 'index']);
 
     Route::prefix('pengajuan-tuk')->group(function () {
         Route::get('/', [PengajuanTukController::class, 'index']);
+        Route::post('/ajj/submit', [PengajuanTukController::class, 'submitAjj']);
         Route::post('/{id}/approve', [PengajuanTukController::class, 'approve']);
         Route::post('/{id}/reject', [PengajuanTukController::class, 'reject']);
         Route::post('/{id}/assign', [PengajuanTukController::class, 'assign']);

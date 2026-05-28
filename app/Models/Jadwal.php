@@ -23,6 +23,7 @@ class Jadwal extends Model
         'mgr_sertif',
         'tanggal_uji',
         'sesi',
+        'link_meeting',
         'jenis_kelas',
         'jenis_anggaran',
         'tanggal_selesai',

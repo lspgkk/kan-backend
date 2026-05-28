@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AsesiJadwal;
+use App\Models\Barcode;
+use App\Models\Jadwal;
 use App\Models\PengajuanTuk;
+use App\Models\Personal;
 use App\Models\User;
 use App\Services\DokumenTUKService;
 use Carbon\Carbon;
@@ -73,6 +77,109 @@ class PengajuanTukController extends Controller
         ], 201);
     }
 
+    // ─── AJJ: Submit with dokumentasi by Asesi ────────────────────
+
+    public function submitAjj(Request $request)
+    {
+        $request->validate([
+            'jadwal_id'                   => 'required|string',
+            'id_izin'                     => 'required|string',
+            'ruangan_uji_images'          => 'required|array|min:1',
+            'ruangan_uji_images.*'        => 'image|mimes:jpeg,png,jpg|max:2048',
+            'laptop_images'               => 'required|array|min:1',
+            'laptop_images.*'             => 'image|mimes:jpeg,png,jpg|max:2048',
+            'kecepatan_jaringan_images'   => 'required|array|min:1',
+            'kecepatan_jaringan_images.*' => 'image|mimes:jpeg,png,jpg|max:2048',
+        ]);
+
+        $asesiJadwal = AsesiJadwal::where('jadwal_id', $request->jadwal_id)
+            ->where('id_izin', $request->id_izin)
+            ->first();
+        if (!$asesiJadwal) {
+            return response()->json(['message' => 'Asesi tidak ditemukan pada jadwal ini'], 404);
+        }
+
+        $existing = PengajuanTuk::where('tuk_type', 'ajj')
+            ->where('data_tuk->id_izin', $request->id_izin)
+            ->whereNotIn('status', ['selesai', 'ditolak'])
+            ->first();
+        if ($existing) {
+            return response()->json(['message' => 'Verifikasi TUK AJJ sudah diajukan'], 409);
+        }
+
+        $personal = Personal::where('id_izin', $request->id_izin)->firstOrFail();
+        $jadwal   = Jadwal::where('jadwal_id', $request->jadwal_id)->firstOrFail();
+
+        $refNumber = 'TUK-AJJ-' . strtoupper(Str::random(8));
+        $user = $request->user();
+
+        $namaTuk = 'TUK ' . ($personal->nama ?? '');
+        $dataTuk = [
+            'namaTuk'       => $namaTuk,
+            'alamat'        => $personal->alamat ?? '',
+            'organisasi'    => $personal->referensi_kerja ?? '',
+            'emailTuk'      => $personal->email ?? '',
+            'namaKetua'     => $personal->nama ?? '',
+            'telpKetua'     => $personal->telepon ?? '',
+            'namaAdmin'     => $personal->nama ?? '',
+            'telpAdmin'     => $personal->telepon ?? '',
+            'sosmedPlatform' => null,
+            'sosmedNama'    => null,
+        ];
+
+        $moonBase = 'https://moon.lspgatensi.id/files/new_gatensi/';
+
+        // Store images and collect URLs
+        $ruanganUjiUrls = array_map(
+            fn($f) => $moonBase . $f->store('verifikasi-tuk/ruangan-uji', 'str_moon'),
+            $request->file('ruangan_uji_images')
+        );
+        $laptopUrls = array_map(
+            fn($f) => $moonBase . $f->store('verifikasi-tuk/laptop', 'str_moon'),
+            $request->file('laptop_images')
+        );
+        $jaringanUrls = array_map(
+            fn($f) => $moonBase . $f->store('verifikasi-tuk/jaringan', 'str_moon'),
+            $request->file('kecepatan_jaringan_images')
+        );
+
+        $dataSewaktu = [
+            'id_izin'                     => $request->id_izin,
+            'plannedExamDate'             => $jadwal->tanggal_uji ?? null,
+            'kapasitasRuang'              => '30',
+            'kesediaanObservasi'          => 'Ada',
+            'perlengkapan'                => 'Meja ujian 1 unit, Kursi 1 unit, Proyektor, AC, WiFi',
+            'ruangan_uji_images'          => $ruanganUjiUrls,
+            'laptop_images'               => $laptopUrls,
+            'kecepatan_jaringan_images'   => $jaringanUrls,
+        ];
+
+        // Generate QR for Ketua TUK
+        $qrHtml = $this->generateQrBarcode($user->id, $user->role_id, 'TTD Ketua TUK AJJ', Carbon::now());
+
+        $record = PengajuanTuk::create([
+            'ref_number'    => $refNumber,
+            'tuk_type'      => 'ajj',
+            'status'        => 'diajukan',
+            'data_tuk'      => $dataTuk,
+            'asesor_list'   => [],
+            'data_sewaktu'  => $dataSewaktu,
+            'submitted_by'  => $user->id,
+            'ketua_tuk_id'  => $user->id,
+            'ketua_tuk_qr'  => $qrHtml,
+        ]);
+
+        // Generate PDF with AJJ template
+        $this->dokumenService->generateDokumenVerifikasi($record);
+        $record->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Verifikasi TUK AJJ berhasil diajukan dengan dokumentasi',
+            'data'    => $record->fresh(),
+        ], 201);
+    }
+
     // ─── List & Detail (authenticated) ─────────────────────────────
 
     public function index(Request $request)
@@ -140,21 +247,21 @@ class PengajuanTukController extends Controller
             return response()->json(['message' => 'Hanya Admin LSP yang dapat menyetujui'], 403);
         }
 
+        $pengajuan = PengajuanTuk::where('id', $id)->where('status', 'diajukan')->firstOrFail();
+        $tukType = $request->tuk_type ?? $pengajuan->tuk_type;
+
         $request->validate([
             'tanggal_asesmen' => 'required|date',
             'tanggal_verifikasi' => 'required|date',
             'metode_verifikasi' => 'required|in:Daring,Luring',
-            'jumlah_peserta' => 'required|integer|min:1',
             'verifikator_id' => 'required|exists:users,id',
-            'validator_id' => 'required|exists:users,id',
+            'validator_id' => in_array($tukType, ['sewaktu', 'ajj']) ? 'nullable|exists:users,id' : 'required|exists:users,id',
             'skema' => 'nullable|array',
             'skema.*.id' => 'nullable|string',
             'skema.*.nama' => 'nullable|string',
             'skema.*.jenjang' => 'nullable|string',
             'skema.*.metode' => 'nullable|string',
         ]);
-
-        $pengajuan = PengajuanTuk::where('id', $id)->where('status', 'diajukan')->firstOrFail();
 
         // Generate surat numbers
         $now = Carbon::now();
@@ -175,12 +282,10 @@ class PengajuanTukController extends Controller
         $dataTuk['tanggal_asesmen'] = $request->tanggal_asesmen;
         $dataTuk['tanggal_verifikasi'] = $request->tanggal_verifikasi;
         $dataTuk['metode_verifikasi'] = $request->metode_verifikasi;
-        $dataTuk['jumlah_peserta'] = (int) $request->jumlah_peserta;
         $pengajuan->data_tuk = $dataTuk;
 
         // Store selections based on tuk type
-        if ($request->filled('skema')) {
-            $tukType = $request->tuk_type ?? $pengajuan->tuk_type;
+        if ($request->filled('skema') && $tukType !== 'ajj') {
             if ($tukType === 'sewaktu') {
                 // Jabatan kerja → asesor_list for PDF generation
                 $pengajuan->asesor_list = array_map(function ($s) {
@@ -188,6 +293,7 @@ class PengajuanTukController extends Controller
                         'skemaSkk' => $s['nama'] ?? '',
                         'id_jabatan_kerja' => $s['id'] ?? '',
                         'metode' => $s['metode'] ?? 'Observasi',
+                        'jenjang' => $s['jenjang'] ?? '',
                     ];
                 }, $request->skema);
             } else {
@@ -273,11 +379,17 @@ class PengajuanTukController extends Controller
             return response()->json(['message' => 'Hanya Direktur yang dapat TTD'], 403);
         }
 
-        $pengajuan = PengajuanTuk::where('id', $id)->where('status', 'disetujui_admin')->firstOrFail();
+        $pengajuan = PengajuanTuk::where('id', $id)
+            ->where(function ($q) {
+                $q->where('status', 'disetujui_admin')
+                  ->orWhere(function ($q2) {
+                      $q2->where('tuk_type', 'ajj')->where('status', 'dokumentasi_terisi');
+                  });
+            })
+            ->firstOrFail();
 
-        $qrData = $pengajuan->ref_number . '|direktur|' . now()->timestamp;
-        $qrSvg = QrCode::size(200)->generate($qrData);
-        $qrHtml = '<img src="data:image/svg+xml;base64,' . base64_encode($qrSvg) . '" width="100" height="100">';
+        $qrHtml = $this->generateQrBarcode($user->id, $user->role_id, 'TTD Direktur TUK',
+            $this->signDate($pengajuan->data_tuk['tanggal_verifikasi'] ?? null));
 
         $pengajuan->direktur_id = $user->id;
         $pengajuan->direktur_qr = $qrHtml;
@@ -286,7 +398,7 @@ class PengajuanTukController extends Controller
 
         // Regenerate documents with Direktur QR
         $this->dokumenService->generateDokumenVerifikasi($pengajuan);
-        $pengajuan->save(); // saves non-doc fields (status, approved_by, etc.)
+        $pengajuan->save();
 
         return response()->json([
             'status' => 'success',
@@ -305,9 +417,12 @@ class PengajuanTukController extends Controller
 
         $pengajuan = PengajuanTuk::where('id', $id)->where('status', 'disetujui_direktur')->firstOrFail();
 
-        $qrData = $pengajuan->ref_number . '|ketua_tuk|' . now()->timestamp;
-        $qrSvg = QrCode::size(200)->generate($qrData);
-        $qrHtml = '<img src="data:image/svg+xml;base64,' . base64_encode($qrSvg) . '" width="100" height="100">';
+        if ($pengajuan->tuk_type === 'ajj') {
+            return response()->json(['message' => 'AJJ tidak memerlukan konfirmasi TUK'], 422);
+        }
+
+        $qrHtml = $this->generateQrBarcode($user->id, $user->role_id, 'TTD Ketua TUK',
+            $this->signDate($pengajuan->data_tuk['tanggal_verifikasi'] ?? null));
 
         $pengajuan->ketua_tuk_id = $user->id;
         $pengajuan->ketua_tuk_qr = $qrHtml;
@@ -333,34 +448,59 @@ class PengajuanTukController extends Controller
             return response()->json(['message' => 'Hanya Verifikator (Asesor) yang dapat verifikasi'], 403);
         }
 
-        $query = PengajuanTuk::where('id', $id)->where('status', 'dikonfirmasi_tuk');
-        if ($user->role_id != 1) {
-            $query->where('verifikator_id', $user->id);
+        $pengajuan = PengajuanTuk::where('id', $id)->firstOrFail();
+        $isAjj = $pengajuan->tuk_type === 'ajj';
+        $expectedStatus = $isAjj ? 'disetujui_direktur' : 'dikonfirmasi_tuk';
+
+        if ($pengajuan->status !== $expectedStatus) {
+            return response()->json(['message' => "Status harus {$expectedStatus}"], 422);
         }
-        $pengajuan = $query->firstOrFail();
+        if ($user->role_id != 1 && $pengajuan->verifikator_id !== $user->id) {
+            return response()->json(['message' => 'Bukan Verifikator Anda'], 403);
+        }
 
-        $request->validate([
-            'checklist_fasilitas' => 'required|json',
-            'checklist_peralatan' => 'required|json',
-            'spesifikasi_tuk' => 'required|json',
-            'rekomendasi' => 'required|in:layak,tidak_layak',
-        ]);
+        $qrHtml = $this->generateQrBarcode($user->id, $user->role_id, 'TTD Verifikator TUK',
+            $this->signDate($pengajuan->data_sewaktu['plannedExamDate'] ?? $pengajuan->data_tuk['tanggal_verifikasi'] ?? null));
 
-        $qrData = $pengajuan->ref_number . '|verifikator|' . now()->timestamp;
-        $qrSvg = QrCode::size(200)->generate($qrData);
-        $qrHtml = '<img src="data:image/svg+xml;base64,' . base64_encode($qrSvg) . '" width="100" height="100">';
+        if ($isAjj) {
+            $request->validate([
+                'kondisi_ruangan' => 'required|in:baik,rusak',
+                'keterangan_ruangan' => 'nullable|string|max:255',
+                'kondisi_laptop' => 'required|in:baik,rusak',
+                'keterangan_laptop' => 'nullable|string|max:255',
+                'kondisi_jaringan' => 'required|in:baik,rusak',
+                'keterangan_jaringan' => 'nullable|string|max:255',
+                'rekomendasi' => 'required|in:layak,tidak_layak',
+            ]);
 
-        $pengajuan->checklist_fasilitas = json_decode($request->checklist_fasilitas, true);
-        $pengajuan->checklist_peralatan = json_decode($request->checklist_peralatan, true);
-        $pengajuan->spesifikasi_tuk = json_decode($request->spesifikasi_tuk, true);
+            $dataSewaktu = $pengajuan->data_sewaktu ?? [];
+            $dataSewaktu['kondisi_ruangan'] = $request->kondisi_ruangan;
+            $dataSewaktu['keterangan_ruangan'] = $request->keterangan_ruangan;
+            $dataSewaktu['kondisi_laptop'] = $request->kondisi_laptop;
+            $dataSewaktu['keterangan_laptop'] = $request->keterangan_laptop;
+            $dataSewaktu['kondisi_jaringan'] = $request->kondisi_jaringan;
+            $dataSewaktu['keterangan_jaringan'] = $request->keterangan_jaringan;
+            $pengajuan->data_sewaktu = $dataSewaktu;
+        } else {
+            $request->validate([
+                'checklist_fasilitas' => 'required|json',
+                'checklist_peralatan' => 'required|json',
+                'spesifikasi_tuk' => 'required|json',
+                'rekomendasi' => 'required|in:layak,tidak_layak',
+            ]);
+            $pengajuan->checklist_fasilitas = json_decode($request->checklist_fasilitas, true);
+            $pengajuan->checklist_peralatan = json_decode($request->checklist_peralatan, true);
+            $pengajuan->spesifikasi_tuk = json_decode($request->spesifikasi_tuk, true);
+        }
+
         $pengajuan->rekomendasi = $request->rekomendasi;
         $pengajuan->verifikator_id = $user->id;
+        $pengajuan->verifikator_qr = $qrHtml;
         $pengajuan->verified_at = Carbon::now();
         $pengajuan->status = 'diverifikasi';
 
-        // Regenerate documents with Verifikator QR + checklist data
         $this->dokumenService->generateDokumenVerifikasi($pengajuan);
-        $pengajuan->save(); // saves non-doc fields (status, approved_by, etc.)
+        $pengajuan->save();
 
         return response()->json([
             'status' => 'success',
@@ -383,9 +523,12 @@ class PengajuanTukController extends Controller
         }
         $pengajuan = $query->firstOrFail();
 
-        $qrData = $pengajuan->ref_number . '|validator|' . now()->timestamp;
-        $qrSvg = QrCode::size(200)->generate($qrData);
-        $qrHtml = '<img src="data:image/svg+xml;base64,' . base64_encode($qrSvg) . '" width="100" height="100">';
+        if ($pengajuan->tuk_type !== 'mandiri') {
+            return response()->json(['message' => 'Hanya tipe mandiri yang memerlukan validasi'], 422);
+        }
+
+        // Validator QR is not rendered on any current page, but we store it for audit
+        $qrHtml = $this->generateQrBarcode($user->id, $user->role_id, 'TTD Validator TUK', Carbon::now());
 
         // Generate SK number
         $now = Carbon::now();
@@ -426,6 +569,10 @@ class PengajuanTukController extends Controller
         }
         $pengajuan = $query->firstOrFail();
 
+        if ($pengajuan->tuk_type !== 'mandiri') {
+            return response()->json(['message' => 'Hanya tipe mandiri yang memerlukan validasi'], 422);
+        }
+
         $pengajuan->hasil_validasi = 'tidak_layak';
         $pengajuan->rejection_reason = $request->reason;
         $pengajuan->validated_at = Carbon::now();
@@ -447,11 +594,12 @@ class PengajuanTukController extends Controller
             return response()->json(['message' => 'Hanya Direktur yang dapat TTD SK'], 403);
         }
 
-        $pengajuan = PengajuanTuk::where('id', $id)->where('status', 'divalidasi')->firstOrFail();
+        $pengajuan = PengajuanTuk::where('id', $id)
+            ->whereIn('status', ['divalidasi', 'diverifikasi'])
+            ->firstOrFail();
 
-        $qrData = $pengajuan->ref_number . '|direktur_sk|' . now()->timestamp;
-        $qrSvg = QrCode::size(200)->generate($qrData);
-        $qrHtml = '<img src="data:image/svg+xml;base64,' . base64_encode($qrSvg) . '" width="100" height="100">';
+        // Separate barcode for SK page — date matches $tanggalKeputusan
+        $qrHtml = $this->generateQrBarcode($user->id, $user->role_id, 'TTD SK Direktur TUK', Carbon::now());
 
         $pengajuan->direktur_qr = $qrHtml;
         $pengajuan->sk_at = Carbon::now();
@@ -490,5 +638,37 @@ class PengajuanTukController extends Controller
     {
         $map = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
         return $map[$month - 1] ?? 'I';
+    }
+
+    private function generateQrBarcode(int $userId, int $roleId, string $jenisDokumen, Carbon $createdAt): string
+    {
+        $uuid = (string) Str::uuid();
+        $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
+
+        $qrImage = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('png')->size(300)->margin(1)->generate($urlTtd);
+
+        $filename = "tuk_" . Str::uuid() . '.png';
+        $path = "barcodes/{$filename}";
+        Storage::disk('str_moon')->put($path, $qrImage);
+
+        $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        Barcode::create([
+            'id_user'       => $userId,
+            'id_jadwal'     => null,
+            'jenis_dokumen' => $jenisDokumen,
+            'url_ttd'       => $urlTtd,
+            'url_image'     => $urlImage,
+            'id_role'       => $roleId,
+            'created_at'    => $createdAt,
+        ]);
+
+        return '<img src="' . $urlImage . '" width="100" height="100">';
+    }
+
+    private function signDate(?string $dateStr): Carbon
+    {
+        $date = Carbon::parse($dateStr ?? now());
+        return $date->setTimeFromTimeString(now()->toTimeString());
     }
 }

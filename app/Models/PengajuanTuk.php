@@ -28,6 +28,7 @@ class PengajuanTuk extends Model
         'approved_at_direktur',
         'ketua_tuk_id',
         'ketua_tuk_qr',
+        'verifikator_qr',
         'confirmed_at_tuk',
         'verifikator_id',
         'checklist_fasilitas',

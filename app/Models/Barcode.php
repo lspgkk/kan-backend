@@ -13,7 +13,8 @@ class Barcode extends Model
         'url_image',
         'url_ttd',
         'id_role',
-        'jenis_dokumen'
+        'jenis_dokumen',
+        'created_at',
     ];
 
     public function user()

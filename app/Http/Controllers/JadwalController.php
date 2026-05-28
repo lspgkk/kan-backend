@@ -200,6 +200,7 @@ class JadwalController extends Controller
                 "tanggal_mulai" => ['required'],
                 "tanggal_selesai" => ['required'],
                 "sesi" => ['required'],
+                "link_meeting" => ['nullable', 'url'],
                 "jenis_kelas" => ['required'],
                 "jenis_anggaran" => ['required'],
                 "komtek1" => ['required'],
@@ -458,28 +459,6 @@ class JadwalController extends Controller
                     $apiData["asesor2_id"] = $asesor2_id;
                 }
 
-                // 🚨 TEMPORARY: Skip BNSP participant API call, directly create local records
-                // Original BNSP API code commented out:
-                // if(App::environment() == "production") {
-                //    $httpClient = new \GuzzleHttp\Client();
-                //    $authData = DB::table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
-                //    $apiEndpoint = 'https://konstruksi.bnsp.go.id/api/v1/jadwal/peserta';
-                //    try {
-                //        $response = $httpClient->request('POST', $apiEndpoint, [
-                //            'headers' => [
-                //                'x-authorization' => $authData,
-                //                'Content-Type' => 'application/json',
-                //                'Accept' => 'application/json',
-                //            ],
-                //            'json' => $apiData,
-                //        ]);
-                //        $responseBody = $response->getBody()->getContents();
-                //        $responseData = json_decode($responseBody, true);
-                //    } catch (RequestException $e) {
-                //        // Error handling
-                //    }
-                // }
-
                 Log::info('STORE JADWAL: TEMPORARY - Skipping BNSP participant API', [
                     'jadwal_id' => $apiData['jadwal_id'],
                     'id_izin' => $id_izin,
@@ -506,6 +485,7 @@ class JadwalController extends Controller
                             "ketua_lsp" => $validated['ketua_lsp'],
                             "mgr_sertif" => $validated['manajer_sertifikasi'],
                             "sesi" => $validated['sesi'],
+                            "link_meeting" => $validated['link_meeting'] ?? null,
                             "jenis_kelas" => $validated['jenis_kelas'],
                             "jenis_anggaran" => $validated['jenis_anggaran'],
                             "tanggal_uji" => $validated['tanggal_mulai'],
@@ -531,6 +511,7 @@ class JadwalController extends Controller
                             "ketua_lsp" => $validated['ketua_lsp'],
                             "mgr_sertif" => $validated['manajer_sertifikasi'],
                             "sesi" => $validated['sesi'],
+                            "link_meeting" => $validated['link_meeting'] ?? null,
                             "jenis_kelas" => $validated['jenis_kelas'],
                             "jenis_anggaran" => $validated['jenis_anggaran'],
                             "tanggal_uji" => $validated['tanggal_mulai'],

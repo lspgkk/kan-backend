@@ -112,6 +112,67 @@ class SurveyController extends Controller
 
     // ========== SURVEY SUBMISSION ==========
 
+    public function index(Request $request)
+    {
+        $query = SurveyResponse::with('details.pertanyaan');
+
+        if ($request->filled('kategori')) {
+            $query->where('kategori', strtoupper($request->kategori));
+        }
+
+        if ($request->filled('id_izin')) {
+            $query->where('id_izin', $request->id_izin);
+        }
+
+        if ($request->filled('start_date')) {
+            $query->whereDate('created_at', '>=', $request->start_date);
+        }
+
+        if ($request->filled('end_date')) {
+            $query->whereDate('created_at', '<=', $request->end_date);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('id_izin', 'like', "%{$search}%")
+                  ->orWhere('saran', 'like', "%{$search}%")
+                  ->orWhere('kategori', 'like', "%{$search}%");
+            });
+        }
+
+        $perPage = $request->input('per_page', 15);
+        $surveys = $query->orderBy('created_at', 'desc')->paginate($perPage);
+
+        $surveys->getCollection()->transform(function ($response) {
+            $totalSkor = $response->details->sum('skor');
+            $count = $response->details->count();
+            return [
+                'id'          => $response->id,
+                'id_izin'     => $response->id_izin,
+                'kategori'    => $response->kategori,
+                'saran'       => $response->saran,
+                'pernyataan'  => $response->pernyataan,
+                'rata_rata'   => $count > 0 ? round($totalSkor / $count, 2) : 0,
+                'details'     => $response->details->map(function ($detail) {
+                    return [
+                        'pertanyaan_id' => $detail->pertanyaan_id,
+                        'aspek'         => $detail->pertanyaan?->aspek,
+                        'pertanyaan'    => $detail->pertanyaan?->pertanyaan,
+                        'skor'          => $detail->skor,
+                    ];
+                }),
+                'created_at'  => $response->created_at,
+                'updated_at'  => $response->updated_at,
+            ];
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => $surveys,
+        ]);
+    }
+
     public function submit(Request $request, $id_izin)
     {
         $validator = Validator::make($request->all(), [

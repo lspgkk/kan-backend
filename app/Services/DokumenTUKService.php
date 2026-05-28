@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\JabatanKerja;
+use App\Models\KlasifikasiKualifikasi;
 use App\Models\PengajuanTuk;
+use App\Models\Personal;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -35,8 +38,11 @@ class DokumenTUKService
         $viewData = $this->buildViewData($pengajuan, $now);
         $viewData['showSk'] = false;
 
+        $isAjj = $pengajuan->tuk_type === 'ajj';
+        $template = $isAjj ? 'template-surat.verifikasi-tuk-ajj' : 'template-surat.verifikasi-tuk-nonajj';
+
         $path = "pengajuan-tuk/{$pengajuan->id}/verifikasi-tuk-{$pengajuan->ref_number}.pdf";
-        $this->renderToPdf('template-surat.verifikasi-tuk-nonajj', $viewData, $path);
+        $this->renderToPdf($template, $viewData, $path);
 
         $pengajuan->update([
             'doc_peminjaman'       => $path,
@@ -69,19 +75,31 @@ class DokumenTUKService
         $viewData['showSk']   = true;
         $viewData['noSk']     = $noSk;
         $viewData['tanggalKeputusan'] = $now->isoFormat('D MMMM Y');
-        $viewData['qr']       = $pengajuan->direktur_qr ?: '';
 
-        $path = "pengajuan-tuk/{$pengajuan->id}/verifikasi-tuk-sk-{$pengajuan->ref_number}.pdf";
-        $this->renderToPdf('template-surat.verifikasi-tuk-nonajj', $viewData, $path);
+        $isAjj = $pengajuan->tuk_type === 'ajj';
+        $template = $isAjj ? 'template-surat.verifikasi-tuk-ajj' : 'template-surat.verifikasi-tuk-nonajj';
+
+        // Render full PDF (verifikasi + SK + lampiran) — overwrites main verifikasi file
+        $mainPath = "pengajuan-tuk/{$pengajuan->id}/verifikasi-tuk-{$pengajuan->ref_number}.pdf";
+        $this->renderToPdf($template, $viewData, $mainPath);
+
+        // Also save as standalone SK file
+        $skPath = "pengajuan-tuk/{$pengajuan->id}/verifikasi-tuk-sk-{$pengajuan->ref_number}.pdf";
+        $this->renderToPdf($template, $viewData, $skPath);
 
         $pengajuan->update([
-            'no_sk'  => $noSk,
-            'sk_file' => $path,
-            'doc_lampiran_sk' => $path,
-            'sk_at'  => $now,
+            'no_sk'              => $noSk,
+            'sk_file'            => $skPath,
+            'doc_lampiran_sk'    => $skPath,
+            'doc_peminjaman'     => $mainPath,
+            'doc_surat_tugas'    => $mainPath,
+            'doc_checklist'      => $mainPath,
+            'doc_berita_acara'   => $mainPath,
+            'doc_hasil_verifikasi' => $mainPath,
+            'sk_at'              => $now,
         ]);
 
-        return ['sk_file' => $path, 'doc_lampiran_sk' => $path];
+        return ['sk_file' => $skPath, 'doc_lampiran_sk' => $skPath];
     }
 
     // ─── Private ────────────────────────────────────────────────────
@@ -112,14 +130,32 @@ class DokumenTUKService
             ? Carbon::parse($dataSewaktu['plannedExamDate']) : $now;
         $hariTanggal    = $examDate->isoFormat('dddd, D MMMM Y');
         $hariTanggalUji = $hariTanggal;
-        $waktu = $examDate->isoFormat('HH:mm') . ' WIB';
+        $waktu = '07:30 - Selesai';
 
         // Skema / Jabker
-        $skemaList = array_unique(array_filter(array_column($asesorList, 'skemaSkk')));
+        $skemaList = array_values(array_unique(array_filter(array_column($asesorList, 'skemaSkk'))));
         $skemaStr  = !empty($skemaList) ? implode(', ', $skemaList) : '-';
-        $jabkerList = array_unique(array_filter(array_column($asesorList, 'programStudi')));
-        $jabkerStr  = !empty($jabkerList) ? implode(', ', $jabkerList) : '-';
         $jenjang = $this->resolveJenjang($asesorList);
+
+        // AJJ: resolve skema from KlasifikasiKualifikasi via id_izin
+        if ($pengajuan->tuk_type === 'ajj' && ($skemaStr === '-' || empty($skemaStr))) {
+            $ajjIdIzin = $dataSewaktu['id_izin'] ?? null;
+            if (!$ajjIdIzin) {
+                $personal = Personal::where('email', $dataTuk['emailTuk'] ?? '')->first();
+                $ajjIdIzin = $personal?->id_izin;
+            }
+            if ($ajjIdIzin) {
+                $kk = KlasifikasiKualifikasi::where('id_izin', $ajjIdIzin)->first();
+                if ($kk && $kk->jabatan_kerja) {
+                    $jk = JabatanKerja::where('id_jabatan_kerja', $kk->jabatan_kerja)->first();
+                    if ($jk) {
+                        $skemaStr = $jk->jabatan_kerja;
+                        $skemaList = [$jk->jabatan_kerja];
+                        $jenjang = $jk->jenjang_id ?? $jenjang;
+                    }
+                }
+            }
+        }
 
         // Checklist
         $checklistPeralatan = $pengajuan->checklist_peralatan ?? [];
@@ -135,20 +171,39 @@ class DokumenTUKService
             ];
         }
         if (empty($checklistItems)) {
-            $checklistItems[] = ['no' => '1', 'nama' => '-', 'spesifikasi' => '-', 'jumlah' => '1', 'tersedia' => false, 'layak' => false];
+            $checklistItems[] = ['no' => '1', 'nama' => '', 'spesifikasi' => '', 'jumlah' => '', 'tersedia' => null, 'layak' => null];
         }
 
-        // Asesor text
-        $asesorText = '';
-        foreach ($asesorList as $i => $a) {
-            $met = $a['met'] ?? '';
-            $nama = $a['nama'] ?? '';
-            $asesorText .= ($i > 0 ? "\n" : '') . ($i + 1) . '. ' . $nama . ' (' . $met . ')';
+        // Asesor text (all)
+        $asesorText = $this->buildAsesorText($asesorList);
+
+        // Group by metode for Berita Acara + Form Checklist pages
+        $baseMetodes = ['Observasi', 'Portofolio'];
+        $metodeGroups = [];
+        foreach ($baseMetodes as $baseMetode) {
+            $groupItems = [];
+            foreach ($asesorList as $item) {
+                $met = $item['metode'] ?? 'Observasi';
+                if (str_contains($met, $baseMetode)) {
+                    $groupItems[] = $item;
+                }
+            }
+            if (!empty($groupItems)) {
+                $groupSkemaNames = array_values(array_unique(array_filter(array_column($groupItems, 'skemaSkk'))));
+                $metodeGroups[] = [
+                    'metode_uji'    => $baseMetode,
+                    'skema_list'    => $groupItems,
+                    'skema_str'     => implode(', ', $groupSkemaNames),
+                    'asesor_text'   => $this->buildAsesorText($groupItems),
+                    'checklist'     => $checklistItems,
+                ];
+            }
         }
 
         // Rekomendasi
-        $rekomendasi = $pengajuan->rekomendasi ?? 'layak';
+        $rekomendasi = $pengajuan->rekomendasi;
         $isLayak = $rekomendasi === 'layak';
+        $verifikatorNoreg = $pengajuan->verifikator?->noreg ?? '';
 
         return [
             // Page 1
@@ -162,21 +217,24 @@ class DokumenTUKService
             // Page 2
             'noSuratTugas'      => $noSuratTugas,
             'namaVerifikator'   => $verifikatorName,
+            'verifikatorNoreg'  => $verifikatorNoreg,
             'namaTUK'           => $dataTuk['namaTuk'] ?? '-',
             'alamatTUK'         => $dataTuk['alamat'] ?? '-',
-            'skemaSertifikasi'  => $skemaStr,
-            'tanggalVerifikasi' => $tglVerif,
-            // Page 3
-            'metodeUji'         => 'Observasi',
-            'checklistItems'    => $checklistItems,
-            'namaJabker'        => $jabkerStr,
+            'skemaSertifikasi'      => $skemaStr,
+            'skemaSertifikasiList'  => $skemaList,
+            'tanggalVerifikasi'     => $tglVerif,
+            // Page 3-4 (per metode group)
+            'metodeGroups'      => $metodeGroups,
             'jenjang'           => $jenjang,
-            // Page 4
             'noBeritaAcara'     => $noBa,
             'hariTanggalVerifikasi' => $hariTanggal,
-            'metodeVerifikasi'  => 'Daring',
+            'metodeVerifikasi'  => $dataTuk['metode_verifikasi'] ?? 'Daring',
             'hariTanggalUji'    => $hariTanggalUji,
+            // Page 3-4 combined fallbacks
+            'metodeUji'         => implode(', ', array_unique(array_column($metodeGroups, 'metode_uji'))),
             'namaAsesor'        => $asesorText ?: '-',
+            // Asesor list (raw names for AJJ template)
+            'asesorList'        => array_column($asesorList, 'skemaSkk'),
             // Page 5
             'rekomendasi'       => $rekomendasi,
             'hasilVerifikasiLayak'   => $isLayak ? '✓' : '',
@@ -187,7 +245,22 @@ class DokumenTUKService
             'statusTUK'         => $isLayak ? 'Layak' : 'Tidak Layak',
             'tanggalKeputusan'  => $tglVerif,
             'showSk'            => false,
-            'qr'                => $pengajuan->direktur_qr ?: '',
+            'qrDirektur'        => $pengajuan->direktur_qr ?: '',
+            'qrKetuaTuk'        => $pengajuan->ketua_tuk_qr ?: '',
+            'qrVerifikator'     => $pengajuan->verifikator_qr ?? '',
+            // AJJ-specific fields
+            'qrDirekturSk'      => $pengajuan->direktur_qr ?? '',
+            'ruanganUjiImages'  => $dataSewaktu['ruangan_uji_images'] ?? [],
+            'laptopImages'      => $dataSewaktu['laptop_images'] ?? [],
+            'jaringanImages'    => $dataSewaktu['kecepatan_jaringan_images'] ?? [],
+            'kondisiRuangan'    => $dataSewaktu['kondisi_ruangan'] ?? null,
+            'keteranganRuangan' => $dataSewaktu['keterangan_ruangan'] ?? null,
+            'kondisiLaptop'     => $dataSewaktu['kondisi_laptop'] ?? null,
+            'keteranganLaptop'  => $dataSewaktu['keterangan_laptop'] ?? null,
+            'kondisiJaringan'   => $dataSewaktu['kondisi_jaringan'] ?? null,
+            'keteranganJaringan' => $dataSewaktu['keterangan_jaringan'] ?? null,
+            'jumlahPeserta'     => 0,
+            'namaAsesi'         => $dataTuk['namaKetua'] ?? '',
         ];
     }
 
@@ -226,6 +299,17 @@ class DokumenTUKService
     private function bulanRomawi(int $month): string
     {
         return self::BULAN_ROMawi[$month] ?? 'I';
+    }
+
+    private function buildAsesorText(array $items): string
+    {
+        $text = '';
+        foreach ($items as $i => $a) {
+            $met = $a['metode'] ?? '';
+            $nama = $a['skemaSkk'] ?? '';
+            $text .= ($i > 0 ? "\n" : '') . ($i + 1) . '. ' . $nama . ' (' . $met . ')';
+        }
+        return $text ?: '-';
     }
 
     private function resolveJenjang(array $asesorList): string

@@ -1,58 +1,40 @@
 @php
-    // ========================
-    // Page 1 - Surat Peminjaman TUK
-    // ========================
-    $tanggalSurat        = '';
-    $noSuratPeminjaman   = '';
-    $namaKetuaTUK        = '';
-    $hariTanggal         = '';
-    $waktu               = '';
-    $tempat              = '';
-    $namaDirektur        = '';
-
-    // ========================
-    // Page 2 - Surat Tugas
-    // ========================
-    $noSuratTugas        = '';
-    $namaVerifikator     = '';
-    $namaTUK             = '';
-    $alamatTUK           = '';
-    $skemaSertifikasi    = '';
-    $tanggalVerifikasi   = '';
-
-    // ========================
-    // Page 3 - Form Checklist
-    // ========================
-    $metodeUji           = '';
-    $checklistItems      = [];
-
-    // ========================
-    // Page 4 - Berita Acara
-    // ========================
-    $noBeritaAcara        = '';
-    $hariTanggalVerifikasi = '';
-    $metodeVerifikasi     = '';
-    $hariTanggalUji       = '';
-    $namaAsesor           = '';
-
-    // ========================
-    // Page 5 - Hasil Verifikasi
-    // ========================
-    $rekomendasi          = '';
-
-    // ========================
-    // Page 6 & 7 - SK & Lampiran (conditional)
-    // ========================
-    $noSk                = '';
-    $namaAdminTUK        = '';
-    $statusTUK           = '';
-    $tanggalKeputusan    = '';
-    $jenjang             = '';
-
-    // ========================
-    // Control flags
-    // ========================
-    $showSk              = false;
+    // All variables are provided by DokumenTUKService::buildViewData().
+    // Defaults below only apply when a key was not passed (e.g. manual preview).
+    if (!isset($tanggalSurat))        $tanggalSurat        = '';
+    if (!isset($noSuratPeminjaman))   $noSuratPeminjaman   = '';
+    if (!isset($namaKetuaTUK))        $namaKetuaTUK        = '';
+    if (!isset($hariTanggal))         $hariTanggal         = '';
+    if (!isset($waktu))               $waktu               = '';
+    if (!isset($tempat))              $tempat              = '';
+    if (!isset($namaDirektur))        $namaDirektur        = '';
+    if (!isset($noSuratTugas))        $noSuratTugas        = '';
+    if (!isset($namaVerifikator))     $namaVerifikator     = '';
+    if (!isset($verifikatorNoreg))  $verifikatorNoreg  = '';
+    if (!isset($namaTUK))             $namaTUK             = '';
+    if (!isset($alamatTUK))           $alamatTUK           = '';
+    if (!isset($skemaSertifikasi))    $skemaSertifikasi    = '';
+    if (!isset($tanggalVerifikasi))   $tanggalVerifikasi   = '';
+    if (!isset($noBeritaAcara))        $noBeritaAcara        = '';
+    if (!isset($hariTanggalVerifikasi)) $hariTanggalVerifikasi = '';
+    if (!isset($metodeVerifikasi))     $metodeVerifikasi     = '';
+    if (!isset($hariTanggalUji))       $hariTanggalUji       = '';
+    if (!isset($namaAsesor))           $namaAsesor           = '';
+    if (!isset($metodeUji))           $metodeUji           = '';
+    if (!isset($checklistItems))      $checklistItems      = [];
+    if (!isset($rekomendasi))          $rekomendasi          = '';
+    if (!isset($noSk))                $noSk                = '';
+    if (!isset($namaAdminTUK))        $namaAdminTUK        = '';
+    if (!isset($statusTUK))           $statusTUK           = '';
+    if (!isset($tanggalKeputusan))    $tanggalKeputusan    = '';
+    if (!isset($jenjang))             $jenjang             = '';
+    if (!isset($skemaSertifikasiList))  $skemaSertifikasiList  = [];
+    if (!isset($metodeGroups))      $metodeGroups      = [];
+    if (!isset($qrDirektur))        $qrDirektur        = '';
+    if (!isset($qrKetuaTuk))        $qrKetuaTuk        = '';
+    if (!isset($qrVerifikator))     $qrVerifikator     = '';
+    if (!isset($showSk))              $showSk              = false;
+    if (!isset($background_image))     $background_image     = '';
 @endphp
 <!DOCTYPE html>
 <html lang="id">
@@ -265,7 +247,10 @@ table.bordered td.left {
         Jakarta, {{ $tanggalSurat }}<br>
         <br>
         <span class="bold">LSP GATENSI KARYA KONSTRUKSI</span><br>
-        <br><br><br>
+        <br>
+        @if($qrDirektur)
+        {!! $qrDirektur !!}<br>
+        @endif
         <div class="bold underline" style="font-size: 14px;">{{ $namaDirektur }}</div>
         <div>Direktur</div>
     </div>
@@ -318,7 +303,13 @@ table.bordered td.left {
     <tr>
         <td class="lbl">Skema Sertifikasi</td>
         <td class="cln">:</td>
-        <td>{{ $skemaSertifikasi }}</td>
+        <td>
+            <ul style="list-style-type: disc; padding-left: 18px; margin: 0;">
+                @foreach($skemaSertifikasiList as $skema)
+                <li class="bold">{{ $skema }}</li>
+                @endforeach
+            </ul>
+        </td>
     </tr>
 </table>
 
@@ -335,90 +326,18 @@ table.bordered td.left {
         Jakarta, {{ $tanggalVerifikasi }}<br>
         <br>
         <span class="bold">LSP GATENSI KARYA KONSTRUKSI</span><br>
-        <br><br><br>
+        <br>
+        @if($qrDirektur)
+        {!! $qrDirektur !!}<br>
+        @endif
         <div class="bold underline" style="font-size: 14px;">{{ $namaDirektur }}</div>
         <div>Direktur</div>
     </div>
 </div>
 
+@foreach($metodeGroups as $gIdx => $group)
 <!-- ============================================================
-     PAGE 3 — FORM CHECKLIST VERIFIKASI TEMPAT UJI KOMPETENSI
-     ============================================================ -->
-<div style="page-break-before: always;"></div>
-
-<div class="center bold" style="font-size: 15px; margin-bottom: 16px;">
-    FORM CHECKLIST VERIFIKASI TEMPAT UJI KOMPETENSI
-</div>
-
-<table class="detail">
-    <tr>
-        <td class="lbl">Nama TUK</td>
-        <td class="cln">:</td>
-        <td>{{ $namaTUK }}</td>
-    </tr>
-    <tr>
-        <td class="lbl">Alamat</td>
-        <td class="cln">:</td>
-        <td>{{ $alamatTUK }}</td>
-    </tr>
-    <tr>
-        <td class="lbl">Hari, Tanggal</td>
-        <td class="cln">:</td>
-        <td>{{ $hariTanggal }}</td>
-    </tr>
-    <tr>
-        <td class="lbl">Metode Asesmen</td>
-        <td class="cln">:</td>
-        <td class="bold">{{ $metodeUji }}</td>
-    </tr>
-    <tr>
-        <td class="lbl">Skema Sertifikasi</td>
-        <td class="cln">:</td>
-        <td class="bold">{{ $skemaSertifikasi }}</td>
-    </tr>
-</table>
-
-<br>
-<table class="bordered">
-    <tr>
-        <th rowspan="2" style="width: 30px;">No.</th>
-        <th rowspan="2">Perlengkapan</th>
-        <th rowspan="2">Spesifikasi</th>
-        <th rowspan="2" style="width: 55px;">Jumlah</th>
-        <th colspan="2">Ketersediaan</th>
-        <th colspan="2">Kelayakan</th>
-    </tr>
-    <tr>
-        <th style="width: 45px;">Ada</th>
-        <th style="width: 55px;">Tidak Ada</th>
-        <th style="width: 48px;">Layak</th>
-        <th style="width: 60px;">Tidak Layak</th>
-    </tr>
-
-    @if(count($checklistItems) > 0)
-        @foreach($checklistItems as $idx => $item)
-        <tr>
-            <td>{{ $idx + 1 }}</td>
-            <td class="left">{{ $item['nama'] ?? '' }}</td>
-            <td class="left">{{ $item['spesifikasi'] ?? '' }}</td>
-            <td>{{ $item['jumlah'] ?? '' }}</td>
-            <td>@if(!empty($item['tersedia'])) {{ 'v' }} @endif</td>
-            <td>@if(empty($item['tersedia']) && isset($item['tersedia'])) {{ 'v' }} @endif</td>
-            <td>@if(!empty($item['layak'])) {{ 'v' }} @endif</td>
-            <td>@if(empty($item['layak']) && isset($item['layak'])) {{ 'v' }} @endif</td>
-        </tr>
-        @endforeach
-    @else
-        <tr>
-            <td colspan="8" style="text-align: center; padding: 20px 0;">
-                (Belum ada data checklist)
-            </td>
-        </tr>
-    @endif
-</table>
-
-<!-- ============================================================
-     PAGE 4 — BERITA ACARA VERIFIKASI TUK
+     BERITA ACARA VERIFIKASI TUK — {{ $group['metode_uji'] }}
      ============================================================ -->
 <div style="page-break-before: always;"></div>
 
@@ -465,7 +384,7 @@ table.bordered td.left {
     <tr>
         <td class="lbl">Metode Uji</td>
         <td class="cln">:</td>
-        <td class="bold">{{ $metodeUji }}</td>
+        <td class="bold">{{ $group['metode_uji'] }}</td>
     </tr>
 </table>
 
@@ -480,30 +399,43 @@ table.bordered td.left {
         <th style="width: 36px;">No.</th>
         <th>TUK Skema Sertifikasi</th>
     </tr>
+    @foreach($group['skema_list'] as $sIdx => $skemaItem)
     <tr>
-        <td>1.</td>
-        <td class="left">{{ $skemaSertifikasi }}</td>
+        <td>{{ $sIdx + 1 }}.</td>
+        <td class="left bold">{{ $skemaItem['skemaSkk'] ?? '' }}</td>
     </tr>
+    @endforeach
 </table>
 
 <br>
 
 <p class="para">
-    Dengan ini menetapkan TUK sesuai Skema Sertifikasi dengan metode uji Observasi
-    di atas <span class="bold">Layak / Tidak Layak</span> sebagai Tempat Uji
+    Dengan ini menetapkan TUK sesuai Skema Sertifikasi dengan metode uji {{ $group['metode_uji'] }}
+    di atas
+    <span class="bold">
+        @if($rekomendasi === 'layak')
+            Layak / <span style="text-decoration: line-through;">Tidak Layak</span>
+        @elseif($rekomendasi === 'tidak_layak')
+            <span style="text-decoration: line-through;">Layak</span> / Tidak Layak
+        @else
+            Layak / Tidak Layak
+        @endif
+    </span> sebagai Tempat Uji
     Kompetensi (TUK) terverifikasi.
 </p>
 
 <br>
 
-<table class="bordered" style="width: 80%; margin: 0 auto;">
+<table class="bordered">
     <tr>
+        <th style="width: 36px;">No.</th>
         <th>Verifikator</th>
         <th>Tanda Tangan</th>
     </tr>
     <tr>
-        <td style="height: 60px;">{{ $namaAsesor }}</td>
-        <td></td>
+        <td>1.</td>
+        <td style="height: 60px;">{{ $namaVerifikator }} ({{ $verifikatorNoreg }})</td>
+        <td>@if($qrVerifikator){!! $qrVerifikator !!}@endif</td>
     </tr>
 </table>
 
@@ -512,7 +444,96 @@ table.bordered td.left {
 <div style="font-style: italic;">*) Coret yang tidak perlu</div>
 
 <!-- ============================================================
-     PAGE 5 — HASIL VERIFIKASI DAN STANDARDISASI TUK
+     FORM CHECKLIST VERIFIKASI TUK — {{ $group['metode_uji'] }}
+     ============================================================ -->
+<div style="page-break-before: always;"></div>
+
+<div class="center bold" style="font-size: 15px; margin-bottom: 16px;">
+    FORM CHECKLIST VERIFIKASI TEMPAT UJI KOMPETENSI
+</div>
+
+<table class="detail">
+    <tr>
+        <td class="lbl">Nama TUK</td>
+        <td class="cln">:</td>
+        <td>{{ $namaTUK }}</td>
+    </tr>
+    <tr>
+        <td class="lbl">Alamat</td>
+        <td class="cln">:</td>
+        <td>{{ $alamatTUK }}</td>
+    </tr>
+    <tr>
+        <td class="lbl">Hari, Tanggal</td>
+        <td class="cln">:</td>
+        <td>{{ $hariTanggal }}</td>
+    </tr>
+    <tr>
+        <td class="lbl">Metode Asesmen</td>
+        <td class="cln">:</td>
+        <td class="bold">{{ $group['metode_uji'] }}</td>
+    </tr>
+    <tr>
+        <td class="lbl">Skema Sertifikasi</td>
+        <td class="cln">:</td>
+        <td>
+            <ul style="list-style-type: disc; padding-left: 18px; margin: 0; font-weight: bold;">
+            @foreach($group['skema_list'] as $skemaItem)
+                <li>{{ $skemaItem['skemaSkk'] ?? '' }}</li>
+            @endforeach
+            </ul>
+        </td>
+    </tr>
+</table>
+
+@foreach($group['skema_list'] as $sIdx => $skemaItem)
+<div style="page-break-before: always;">
+    <div class="bold" style="margin-bottom: 4px;">Jabatan Kerja: {{ $skemaItem['skemaSkk'] ?? '' }}</div>
+    <div class="bold" style="margin-bottom: 4px;">Jenjang: {{ $skemaItem['jenjang'] ?? '-' }}</div>
+    <div class="bold" style="margin-bottom: 12px;">Metode Uji: {{ $group['metode_uji'] }}</div>
+
+    <table class="bordered">
+        <tr>
+            <th rowspan="2" style="width: 30px;">No.</th>
+            <th rowspan="2">Perlengkapan</th>
+            <th rowspan="2">Spesifikasi</th>
+            <th rowspan="2" style="width: 55px;">Jumlah</th>
+            <th colspan="2">Ketersediaan</th>
+            <th colspan="2">Kelayakan</th>
+        </tr>
+        <tr>
+            <th style="width: 45px;">Ada</th>
+            <th style="width: 55px;">Tidak Ada</th>
+            <th style="width: 48px;">Layak</th>
+            <th style="width: 60px;">Tidak Layak</th>
+        </tr>
+
+        @if(count($group['checklist']) > 0)
+            @foreach($group['checklist'] as $cIdx => $item)
+            <tr>
+                <td>{{ $cIdx + 1 }}</td>
+                <td class="left">{{ $item['nama'] ?? '' }}</td>
+                <td class="left">{{ $item['spesifikasi'] ?? '' }}</td>
+                <td>{{ $item['jumlah'] ?? '' }}</td>
+                <td>@if(isset($item['tersedia']) && $item['tersedia'] === true) v @endif</td>
+                <td>@if(isset($item['tersedia']) && $item['tersedia'] === false) v @endif</td>
+                <td>@if(isset($item['layak']) && $item['layak'] === true) v @endif</td>
+                <td>@if(isset($item['layak']) && $item['layak'] === false) v @endif</td>
+            </tr>
+            @endforeach
+        @else
+            <tr>
+                <td colspan="8" style="text-align: center; padding: 20px 0;">
+                    (Belum ada data checklist)
+                </td>
+            </tr>
+        @endif
+    </table>
+</div>
+@endforeach
+
+<!-- ============================================================
+     HASIL VERIFIKASI DAN STANDARDISASI TUK — {{ $group['metode_uji'] }}
      ============================================================ -->
 <div style="page-break-before: always;"></div>
 
@@ -533,7 +554,7 @@ table.bordered td.left {
     <tr>
         <td>1</td>
         <td class="left">
-            1. Standar Persyaratan Sarana dan Prasarana Metode Uji {{ $metodeUji }}
+            1. Standar Persyaratan Sarana dan Prasarana Metode Uji {{ $group['metode_uji'] }}
         </td>
         <td>@if($rekomendasi === 'layak') v @endif</td>
         <td>@if($rekomendasi === 'tidak_layak') v @endif</td>
@@ -541,7 +562,7 @@ table.bordered td.left {
     <tr>
         <td>2</td>
         <td class="left">
-            2. Standar Persyaratan Peralatan Metode Uji {{ $metodeUji }}
+            2. Standar Persyaratan Peralatan Metode Uji {{ $group['metode_uji'] }}
         </td>
         <td>@if($rekomendasi === 'layak') v @endif</td>
         <td>@if($rekomendasi === 'tidak_layak') v @endif</td>
@@ -553,7 +574,13 @@ table.bordered td.left {
 <div>
     Rekomendasi:
     <span class="bold">
-        @if($rekomendasi === 'layak') Layak @else Tidak Layak @endif
+        @if($rekomendasi === 'layak')
+            Layak / <span style="text-decoration: line-through;">Tidak Layak</span>
+        @elseif($rekomendasi === 'tidak_layak')
+            <span style="text-decoration: line-through;">Layak</span> / Tidak Layak
+        @else
+            Layak / Tidak Layak
+        @endif
     </span>
 </div>
 <div style="padding-left: 145px;">
@@ -573,17 +600,24 @@ table.bordered td.left {
         <td class="bold">Penanggung Jawab TUK</td>
         <td class="bold">Pemeriksa</td>
     </tr>
+    @if($qrKetuaTuk || $qrVerifikator)
     <tr>
-        <td style="height: 80px; vertical-align: bottom;">
+        <td>@if($qrKetuaTuk){!! $qrKetuaTuk !!}@endif</td>
+        <td>@if($qrVerifikator){!! $qrVerifikator !!}@endif</td>
+    </tr>
+    @endif
+    <tr>
+        <td>
             <div class="bold">{{ $namaKetuaTUK }}</div>
             <div>Ketua TUK</div>
         </td>
-        <td style="height: 80px; vertical-align: bottom;">
+        <td>
             <div class="bold">{{ $namaVerifikator }}</div>
             <div>Asesor Kompetensi</div>
         </td>
     </tr>
 </table>
+@endforeach
 
 <!-- ============================================================
      PAGE 6 — SURAT KEPUTUSAN (only if $showSk is true)
@@ -712,10 +746,13 @@ table.bordered td.left {
             </tr>
         </table>
         <br>
-        <div class="center bold">LSP GATENSI KARYA KONSTRUKSI</div>
-        <br><br><br>
-        <div class="center bold underline" style="font-size: 14px;">{{ $namaDirektur }}</div>
-        <div class="center">Direktur</div>
+        <span class="bold">LSP GATENSI KARYA KONSTRUKSI</span><br>
+        <br>
+        @if($qrDirektur)
+        {!! $qrDirektur !!}<br>
+        @endif
+        <div class="bold underline" style="font-size: 14px;">{{ $namaDirektur }}</div>
+        <div>Direktur</div>
     </div>
 </div>
 
@@ -741,17 +778,22 @@ table.bordered td.left {
 <div class="bold">Daftar Skema</div>
 
 <ol style="padding-left: 18pt;">
-    <li>{{ $skemaSertifikasi }} — {{ $jenjang }}</li>
+    @foreach($skemaSertifikasiList as $skema)
+    <li class="bold">{{ $skema }} — {{ $jenjang }}</li>
+    @endforeach
 </ol>
 
 <br><br><br>
 
 <div class="sign-wrap">
     <div class="sign-box">
-        <div class="center bold">LSP GATENSI KARYA KONSTRUKSI</div>
-        <br><br><br>
-        <div class="center bold underline" style="font-size: 14px;">{{ $namaDirektur }}</div>
-        <div class="center">Direktur</div>
+        <span class="bold">LSP GATENSI KARYA KONSTRUKSI</span><br>
+        <br>
+        @if($qrDirektur)
+        {!! $qrDirektur !!}<br>
+        @endif
+        <div class="bold underline" style="font-size: 14px;">{{ $namaDirektur }}</div>
+        <div>Direktur</div>
     </div>
 </div>
 
