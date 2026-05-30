@@ -24,6 +24,7 @@ class Jadwal extends Model
         'tanggal_uji',
         'sesi',
         'link_meeting',
+        'file_verifikasi_tuk',
         'jenis_kelas',
         'jenis_anggaran',
         'tanggal_selesai',

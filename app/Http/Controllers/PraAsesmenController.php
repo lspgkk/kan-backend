@@ -957,6 +957,8 @@ class PraAsesmenController extends Controller
             'answers.*.kompeten' => 'required|boolean',
             'answers.*.file_ids' => 'nullable|array',
             'answers.*.file_ids.*' => 'exists:apl2_files,id',
+            'answers.*.file_urls' => 'nullable|array',
+            'answers.*.file_urls.*' => 'url',
         ]);
 
         DB::transaction(function () use ($validated, $id) {
@@ -981,8 +983,29 @@ class PraAsesmenController extends Controller
                     ]
                 );
 
-                if (isset($answer['file_ids'])) {
-                    $aplAnswer->files()->sync($answer['file_ids']);
+                $fileIds = $answer['file_ids'] ?? [];
+
+                // Create Apl2File records for external URLs and collect their IDs
+                if (!empty($answer['file_urls'])) {
+                    foreach ($answer['file_urls'] as $url) {
+                        $parsedUrl = parse_url($url);
+                        $originalName = basename($parsedUrl['path'] ?? 'file');
+
+                        $file = Apl2File::create([
+                            'id_izin'       => $id,
+                            'original_name' => $originalName,
+                            'path'          => $url,
+                            'mime'          => null,
+                            'size'          => null,
+                            'filetype'      => 'referensi_external',
+                        ]);
+
+                        $fileIds[] = $file->id;
+                    }
+                }
+
+                if (!empty($fileIds)) {
+                    $aplAnswer->files()->sync($fileIds);
                 }
             }
         });
@@ -1084,7 +1107,9 @@ class PraAsesmenController extends Controller
             ->map(fn ($file) => [
                 'id'   => $file->id,
                 'name' => $file->original_name,
-                'path' => $baseUrl . ltrim($file->path, '/'),
+                'path' => $file->path && (str_starts_with($file->path, 'http://') || str_starts_with($file->path, 'https://'))
+                    ? $file->path
+                    : $baseUrl . ltrim($file->path, '/'),
                 'filetype' => $file->filetype,
             ]);
 

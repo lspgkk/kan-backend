@@ -144,9 +144,27 @@ class SurveyController extends Controller
         $perPage = $request->input('per_page', 15);
         $surveys = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
-        $surveys->getCollection()->transform(function ($response) {
+        // Batch-load TUK info for all id_izin in this page
+        $idIzins = $surveys->getCollection()->pluck('id_izin')->unique()->values();
+        $tukLookup = [];
+        if ($idIzins->isNotEmpty()) {
+            $klasifikasiList = \App\Models\KlasifikasiKualifikasi::with('tuk')
+                ->whereIn('id_izin', $idIzins)
+                ->get();
+
+            foreach ($klasifikasiList as $kk) {
+                $tukRelation = $kk->relationLoaded('tuk') ? $kk->getRelation('tuk') : null;
+                $tukLookup[$kk->id_izin] = [
+                    'tuk_id'   => $kk->tuk,
+                    'tuk_name' => $tukRelation?->nama_tuk,
+                ];
+            }
+        }
+
+        $surveys->getCollection()->transform(function ($response) use ($tukLookup) {
             $totalSkor = $response->details->sum('skor');
             $count = $response->details->count();
+            $tuk = $tukLookup[$response->id_izin] ?? null;
             return [
                 'id'          => $response->id,
                 'id_izin'     => $response->id_izin,
@@ -154,6 +172,7 @@ class SurveyController extends Controller
                 'saran'       => $response->saran,
                 'pernyataan'  => $response->pernyataan,
                 'rata_rata'   => $count > 0 ? round($totalSkor / $count, 2) : 0,
+                'tuk'         => $tuk,
                 'details'     => $response->details->map(function ($detail) {
                     return [
                         'pertanyaan_id' => $detail->pertanyaan_id,
@@ -267,17 +286,33 @@ class SurveyController extends Controller
             ], 404);
         }
 
+        // Get TUK info from KlasifikasiKualifikasi for this asesi
+        $tukInfo = null;
+        $klasifikasiKualifikasi = \App\Models\KlasifikasiKualifikasi::with('tuk')
+            ->where('id_izin', $id_izin)
+            ->first();
+
+        if ($klasifikasiKualifikasi) {
+            $tukRelation = $klasifikasiKualifikasi->relationLoaded('tuk')
+                ? $klasifikasiKualifikasi->getRelation('tuk')
+                : null;
+            $tukInfo = [
+                'tuk_id'   => $klasifikasiKualifikasi->tuk,
+                'tuk_name' => $tukRelation?->nama_tuk,
+            ];
+        }
+
         $data = [];
         foreach ($responses as $response) {
             $data[$response->kategori] = [
-                'saran' => $response->saran,
+                'saran'      => $response->saran,
                 'pernyataan' => $response->pernyataan,
-                'answers' => $response->details->map(function ($detail) {
+                'answers'    => $response->details->map(function ($detail) {
                     return [
                         'pertanyaan_id' => $detail->pertanyaan_id,
-                        'aspek' => $detail->pertanyaan?->aspek,
-                        'pertanyaan' => $detail->pertanyaan?->pertanyaan,
-                        'skor' => $detail->skor,
+                        'aspek'         => $detail->pertanyaan?->aspek,
+                        'pertanyaan'    => $detail->pertanyaan?->pertanyaan,
+                        'skor'          => $detail->skor,
                     ];
                 }),
             ];
@@ -287,6 +322,7 @@ class SurveyController extends Controller
             'status' => 'success',
             'data' => [
                 'id_izin' => $id_izin,
+                'tuk'     => $tukInfo,
                 'surveys' => $data,
             ],
         ]);

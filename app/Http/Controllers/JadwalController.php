@@ -140,7 +140,9 @@ class JadwalController extends Controller
                 'kualifikasi',
                 'nama_kegiatan',
                 'status',
-                'started_at'
+                'started_at',
+                'link_meeting',
+                'file_verifikasi_tuk'
             ])
             ->first();
 
@@ -201,6 +203,7 @@ class JadwalController extends Controller
                 "tanggal_selesai" => ['required'],
                 "sesi" => ['required'],
                 "link_meeting" => ['nullable', 'url'],
+                "file_verifikasi_tuk" => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
                 "jenis_kelas" => ['required'],
                 "jenis_anggaran" => ['required'],
                 "komtek1" => ['required'],
@@ -581,6 +584,18 @@ class JadwalController extends Controller
         $createdJadwal = Jadwal::where('request_hash', $requestHash)->first();
         if ($createdJadwal) {
             $this->generateInitialDocuments($createdJadwal->jadwal_id);
+        }
+
+        /** ===============================
+         *  📁 UPLOAD FILE VERIFIKASI TUK
+         *  =============================== */
+        if ($request->hasFile('file_verifikasi_tuk') && $createdJadwal) {
+            $file = $request->file('file_verifikasi_tuk');
+            $filename = "verifikasi_tuk/{$createdJadwal->jadwal_id}." . $file->getClientOriginalExtension();
+            Storage::disk('str_moon')->put($filename, file_get_contents($file->getRealPath()));
+            $fileUrl = "https://moon.lspgatensi.id/files/new_gatensi/{$filename}";
+
+            $createdJadwal->update(['file_verifikasi_tuk' => $fileUrl]);
         }
 
         /** ===============================
@@ -2039,9 +2054,14 @@ class JadwalController extends Controller
         ])
         ->get();
 
+        $sptAsesor = SPTAsesor::where('jadwal_id', $id)->first();
+        $jadwal = Jadwal::where('jadwal_id', $id)->first(['file_verifikasi_tuk']);
+
         return response()->json([
-            'message' => 'Success',
-            'list_asesi' => $listAsesi
+            'message'            => 'Success',
+            'spt_asesor'         => $sptAsesor?->link,
+            'verifikasi_tuk' => $jadwal?->file_verifikasi_tuk,
+            'list_asesi'         => $listAsesi,
         ]);
     }
 
