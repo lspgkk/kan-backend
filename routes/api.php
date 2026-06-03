@@ -260,6 +260,7 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('/dokumen/asesi/{id}', [AsesmenController::class, 'dokumenAsesi']);
     Route::get('/dokumen/absen/{id}', [AsesmenController::class, 'absensi']);
     Route::get('/generate-penyusun', [BarcodeController::class, 'generateBarcodePenyusun']);
+    Route::get('/generate-manajer', [BarcodeController::class, 'generateBarcodeManajer']);
     
     Route::prefix('praasesmen')->group(function () {
         Route::post('/{id}/absen-awal', [PraAsesmenController::class, 'absenAwal']);
@@ -274,7 +275,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{id}/mapa02', [PraAsesmenController::class, 'getMapa02']);
         Route::get('/{id}/ak07', [PraAsesmenController::class, 'getAk07']);
         Route::get('/{id}/ak04', [PraAsesmenController::class, 'getAk04']);
-        Route::get('/file-k3', [PraAsesmenController::class, 'getK3Asesmen']);
+        Route::get('/{id}/file-k3', [PraAsesmenController::class, 'getK3Asesmen']);
         Route::get('/{id}/ak01', [PraAsesmenController::class, 'getAk01']);
         Route::post('/{id}/apl01', [PraAsesmenController::class, 'submitApl01']);
         Route::post('/{id}/apl02', [PraAsesmenController::class, 'submitApl02']);
@@ -308,6 +309,8 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/ak03', [AsesmenController::class, 'ttdAk03']);
         Route::post('/{id}/ak05', [AsesmenController::class, 'ttdAk05']);
         Route::post('/{id}/ak06', [AsesmenController::class, 'ttdAk06']);
+        Route::post('/{id}/k3', [PraAsesmenController::class, 'ttdK3Asesmen']);
+        Route::post('/{id}/tugas', [AsesmenController::class, 'ttdTugas']);
     });
 
     Route::prefix('asesmen')->group(function () {
@@ -411,5 +414,10 @@ Route::prefix('diskon')->group(function () {
 
     Route::prefix('dokumen-asesi')->group(function () {
         Route::get('/', [BuktiController::class, 'indexDokumenAsesi']);
+    });
+
+    Route::prefix('generate-dokumen')->group(function () {
+        Route::get('/template', [\App\Http\Controllers\GenerateDokumenController::class, 'downloadTemplate']);
+        Route::post('/import', [\App\Http\Controllers\GenerateDokumenController::class, 'importAndGenerate']);
     });
 });

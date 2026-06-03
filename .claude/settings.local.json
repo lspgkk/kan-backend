@@ -44,7 +44,30 @@
       "Bash(findstr /i \"bukti\")",
       "Bash(rm \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-dashboard\\\\src\\\\views\\\\home\\\\data-master\\\\jenis-kegiatan\\\\JenisKegiatanIndex.vue\")",
       "Bash(rm \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-dashboard\\\\src\\\\views\\\\home\\\\data-master\\\\jenis-kegiatan\\\\JenisKegiatanView.vue\")",
-      "Bash(rm -r \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-dashboard\\\\src\\\\views\\\\home\\\\data-master\\\\jenis-kegiatan\")"
+      "Bash(rm -r \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-dashboard\\\\src\\\\views\\\\home\\\\data-master\\\\jenis-kegiatan\")",
+      "PowerShell(php -l app/Jobs/GenerateDokumenJob.php)",
+      "PowerShell(php -l app/Jobs/GenerateDokumenJob.php; php -l app/Http/Controllers/GenerateDokumenController.php)",
+      "PowerShell(php -l app/Services/GenerateDokumenService.php; php -l resources/views/pdf/apl02.blade.php 2>$null; php -l app/Http/Controllers/GenerateDokumenController.php; php -l app/Jobs/GenerateDokumenJob.php)",
+      "PowerShell(php -l resources/views/pdf/apl02.blade.php 2>$null; Write-Host \"OK\")",
+      "PowerShell(php -l app/Http/Controllers/GenerateDokumenController.php; php -l app/Jobs/GenerateDokumenJob.php)",
+      "PowerShell(php -l resources/views/generate-dokumen-progress.blade.php 2>$null; php -l routes/web.php)",
+      "PowerShell(php -l app/Services/GenerateDokumenService.php)",
+      "Bash(findstr /I \"gd imagick\")",
+      "Bash(Remove-Item *)",
+      "PowerShell(Set-Content *)",
+      "PowerShell(Copy-Item *)",
+      "Bash(MAGICK_CODER_MODULE_PATH='C:\\\\xampp\\\\apache\\\\bin' php artisan tinker '--execute= *)",
+      "Bash(MAGICK_CODER_MODULE_PATH='C:\\\\xampp\\\\php' php artisan tinker '--execute= *)",
+      "Bash(cmd //c 'set MAGICK_CODER_MODULE_PATH=C:\\\\xampp\\\\php && php artisan tinker --execute=\" *)",
+      "Bash(MAGICK_CODER_MODULE_PATH='C:\\\\xampp\\\\php' php -r ' *)",
+      "Bash(Write-Output \"\")",
+      "Bash(Out-File -Encoding utf8 \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\storage\\\\logs\\\\laravel.log\")",
+      "Bash(Select-String -Path \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\storage\\\\logs\\\\laravel.log\" -Pattern \"\\\\[LLM\\\\]\")",
+      "Bash(Select-Object -First 50)",
+      "Bash(Get-Content c:\\\\Users\\\\Rafie\\\\Documents\\\\Works\\\\LSP\\\\Gatensi\\\\Karya\\\\Konstruksi\\\\Smart\\\\Gatensi\\\\gatensi-backend\\\\storage\\\\logs\\\\laravel.log -Tail 200)",
+      "Bash(Select-String \"ERROR\")",
+      "PowerShell(Get-Content *)",
+      "Bash(Get-Content *)"
     ]
   }
 }

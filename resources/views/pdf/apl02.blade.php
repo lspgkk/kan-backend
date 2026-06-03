@@ -181,16 +181,16 @@
         <td class="no-top-left-right" width=14%></td>
         <td class="no-top-left-right" width=14%></td>
     </tr>
-    @foreach($units as $i => $row)
+    @foreach(($units ?? []) as $i => $row)
         <tr>
             <td colspan=3 class="no-bottom">Kode & Judul Kompetensi {{ $i + 1 }} :</td>
             <td align=center>:</td>
-            <td colspan=4>{{ $row['kode'] }}</td>
+            <td colspan=4>{{ $row['kode'] ?? '' }}</td>
         </tr>
         <tr>
             <td class="no-top" colspan=3></td>
             <td align=center>:</td>
-            <td colspan=4>{{ $row['judul_kompetensi'] }}</td>
+            <td colspan=4>{{ $row['judul_kompetensi'] ?? '' }}</td>
         </tr>
         <tr>
             <td colspan=5>Dapatkah saya ?</td>
@@ -198,10 +198,10 @@
             <td align=center>BK</td>
             <td align=center>Bukti</td>
         </tr>
-        @foreach ($row['subunits'] as $no_subuk => $rowsubuk)
+        @foreach (($row['subunits'] ?? []) as $no_subuk => $rowsubuk)
             <tr>
                 <td colspan=2>Elemen {{ $no_subuk + 1 }} :</td>
-                <td colspan=6>{{ $rowsubuk['judul_elemen'] }}</td>
+                <td colspan=6>{{ $rowsubuk['judul_elemen'] ?? '' }}</td>
             </tr>
             <tr>
                 <td></td>
@@ -210,10 +210,10 @@
                 <td></td>
                 <td></td>
             </tr>
-            @foreach ($rowsubuk['kuk_list'] as $no_kuk => $row_kuk)
+            @foreach (($rowsubuk['kuk_list'] ?? []) as $no_kuk => $row_kuk)
             <tr>
                 <td></td>
-                <td colspan=4>{{ $row_kuk['no_kuk'] }} {{ $row_kuk['judul_kuk'] }}</td>
+                <td colspan=4>{{ $row_kuk['no_kuk'] ?? '' }} {{ $row_kuk['judul_kuk'] ?? '' }}</td>
                 @if ($no_kuk === 0)
                     @if (count($rowsubuk['kuk_list']) === 1)
                         <td align="center" valign="middle">
@@ -223,25 +223,25 @@
                             <span class="checkbox {{ !$rowsubuk['kompeten'] ? 'checked' : '' }}"></span>
                         </td>
                         <td align="center" valign="middle">
-                            @foreach ($rowsubuk['files'] as $file)
-                                <a class="file-link" href="{{ $file['path'] }}">{{ $file['name'] }}</a>
+                            @foreach (($rowsubuk['files'] ?? []) as $file)
+                                <a class="file-link" href="{{ $file['path'] ?? '#' }}">{{ $file['name'] ?? '' }}</a>
                             @endforeach
                         </td>
                     @else
                         <td class="no-bottom" align="center" valign="middle">
-                            <span class="checkbox {{ $rowsubuk['kompeten'] ? 'checked' : '' }}"></span>
+                            <span class="checkbox {{ !empty($rowsubuk['kompeten']) ? 'checked' : '' }}"></span>
                         </td>
                         <td class="no-bottom" align="center" valign="middle">
-                            <span class="checkbox {{ !$rowsubuk['kompeten'] ? 'checked' : '' }}"></span>
+                            <span class="checkbox {{ empty($rowsubuk['kompeten']) ? 'checked' : '' }}"></span>
                         </td>
                         <td class="no-bottom" align="center" valign="middle">
-                            @foreach ($rowsubuk['files'] as $file)
-                                <a class="file-link" href="{{ $file['path'] }}">{{ $file['name'] }}</a>
+                            @foreach (($rowsubuk['files'] ?? []) as $file)
+                                <a class="file-link" href="{{ $file['path'] ?? '#' }}">{{ $file['name'] ?? '' }}</a>
                             @endforeach
                         </td>
                     @endif
                 @else
-                    @if ($no_kuk + 1 < count($rowsubuk['kuk_list']))
+                    @if ($no_kuk + 1 < count($rowsubuk['kuk_list'] ?? []))
                     <td class="no-top-bottom"></td>
                     <td class="no-top-bottom"></td>
                     <td class="no-top-bottom"></td>
@@ -266,38 +266,38 @@
     </tr>
     <tr>
         <td>Nama</td>
-        <td>{{ $barcodes['asesi']['nama'] }}</td>
+        <td>{{ $barcodes['asesi']['nama'] ?? '-' }}</td>
     </tr>
     <tr>
         <td height=60 valign=top>Tanda tangan/ Tanggal</td>
         <td>
-            @if($barcodes['asesi'])
-            <img src="{{ $barcodes['asesi']['url'] }}"  width="80" height="80"><br>{{ $barcodes['asesi']['tanggal'] ? \Carbon\Carbon::parse($barcodes['asesi']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}
+            @if(($barcodes['asesi'] ?? null))
+            <img src="{{ $barcodes['asesi']['url'] ?? '' }}"  width="80" height="80"><br>{{ isset($barcodes['asesi']['tanggal']) ? \Carbon\Carbon::parse($barcodes['asesi']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}
             @else
                 <div></div>
             @endif
         </td>
     </tr>
-    @if ($dokumenHeader['asesor_2'])
+    @if(!empty($dokumenHeader['asesor_2'] ?? null))
     <tr>
         <td rowspan=4 valign=top class="no-bottom"><br></td>
         <td colspan=2><strong>Asesor 1</strong></td>
     </tr>
     <tr>
         <td>Nama</td>
-        <td>{{ $dokumenHeader['asesor_1'] }}</td>
+        <td>{{ $dokumenHeader['asesor_1'] ?? '-' }}</td>
     </tr>
     <tr>
         <td>No Reg</td>
-        <td>{{ $dokumenHeader['noreg_asesor_1'] }}</td>
+        <td>{{ $dokumenHeader['noreg_asesor_1'] ?? '-' }}</td>
     </tr>
     <tr>
         <td height=60 valign=top>Tanda tangan/ Tanggal</td>
         <td>
-            @if($barcodes['asesor1'])
-            <img src="{{ $barcodes['asesor1']['url'] }}"  width="80" height="80"><br>{{ $barcodes['asesor1']['tanggal'] ? \Carbon\Carbon::parse($barcodes['asesor1']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}
+            @if(($barcodes['asesor1'] ?? null))
+            <img src="{{ $barcodes['asesor1']['url'] ?? '' }}"  width="80" height="80"><br>{{ isset($barcodes['asesor1']['tanggal']) ? \Carbon\Carbon::parse($barcodes['asesor1']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}
             @else
-                <div></div>
+                <div style="height:80px;"></div>
             @endif
         </td>
     </tr>
@@ -307,19 +307,19 @@
     </tr>
     <tr>
         <td>Nama</td>
-        <td>{{ $dokumenHeader['asesor_2'] }}</td>
+        <td>{{ $dokumenHeader['asesor_2'] ?? '-' }}</td>
     </tr>
     <tr>
         <td>No Reg</td>
-        <td>{{ $dokumenHeader['noreg_asesor_2'] }}</td>
+        <td>{{ $dokumenHeader['noreg_asesor_2'] ?? '-' }}</td>
     </tr>
     <tr>
         <td height=60 valign=top>Tanda tangan/ Tanggal</td>
         <td>
-            @if($barcodes['asesor2'])
-            <img src="{{ $barcodes['asesor2']['url'] }}" width="80" height="80"><br>{{ $barcodes['asesor2']['tanggal'] ? \Carbon\Carbon::parse($barcodes['asesor2']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}
+            @if(($barcodes['asesor2'] ?? null))
+            <img src="{{ $barcodes['asesor2']['url'] ?? '' }}" width="80" height="80"><br>{{ isset($barcodes['asesor2']['tanggal']) ? \Carbon\Carbon::parse($barcodes['asesor2']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}
             @else
-                <div></div>
+                <div style="height:80px;"></div>
             @endif
         </td>
     </tr>
@@ -330,19 +330,19 @@
     </tr>
     <tr>
         <td>Nama</td>
-        <td>{{ $dokumenHeader['asesor_1'] }}</td>
+        <td>{{ $dokumenHeader['asesor_1'] ?? '-' }}</td>
     </tr>
     <tr>
         <td>No Reg</td>
-        <td>{{ $dokumenHeader['noreg_asesor_1'] }}</td>
+        <td>{{ $dokumenHeader['noreg_asesor_1'] ?? '-' }}</td>
     </tr>
     <tr>
         <td height=60 valign=top>Tanda tangan/ Tanggal</td>
         <td>
-            @if($barcodes['asesor1'])
-            <img src="{{ $barcodes['asesor1']['url'] }}" width="80" height="80"><br>{{ $barcodes['asesor1']['tanggal'] ? \Carbon\Carbon::parse($barcodes['asesor1']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}
+            @if(($barcodes['asesor1'] ?? null))
+            <img src="{{ $barcodes['asesor1']['url'] ?? '' }}" width="80" height="80"><br>{{ isset($barcodes['asesor1']['tanggal']) ? \Carbon\Carbon::parse($barcodes['asesor1']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}
             @else
-                <div></div>
+                <div style="height:80px;"></div>
             @endif
         </td>
     </tr>

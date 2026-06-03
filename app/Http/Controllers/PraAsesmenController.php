@@ -178,7 +178,8 @@ class PraAsesmenController extends Controller
         $penyusun_validator = JabatanConfigA::with([
             'penyusun:id,name,noreg',
             'validator:id,name,noreg',
-        ])->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'validator_id', 'validator_tgl', 'validator_img'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
+            'manajer:id,name,noreg',
+        ])->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'penyusun_url', 'validator_id', 'validator_tgl', 'validator_img', 'validator_url', 'manajer_id', 'manajer_img', 'manajer_url'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
 
         $apl2Submission = \App\Models\Apl2Submission::where('id_izin', $id)->first();
 
@@ -239,6 +240,7 @@ class PraAsesmenController extends Controller
                 'jadwal_id' => $jadwalId,
                 'nama_manajer' => $namaManajer,
                 'tanggal_manajer' => $penyusun_validator->penyusun_tgl,
+                'barcode_manajer' => $penyusun_validator->manajer_img,
             ]
         ]);
     }
@@ -296,7 +298,8 @@ class PraAsesmenController extends Controller
         $penyusun_validator = JabatanConfigA::with([
             'penyusun:id,name,noreg',
             'validator:id,name,noreg',
-        ])->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'validator_id', 'validator_tgl', 'validator_img'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
+            'manajer:id,name,noreg',
+        ])->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'penyusun_url', 'validator_id', 'validator_tgl', 'validator_img', 'validator_url', 'manajer_id', 'manajer_img', 'manajer_url'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->first();
 
         $apl2Submission = Apl2Submission::where('id_izin', $id)->first();
 
@@ -321,10 +324,13 @@ class PraAsesmenController extends Controller
 
             'nama_penyusun' => $penyusun_validator->penyusun?->name,
             'nama_validator' => $penyusun_validator->validator?->name,
+            'nama_manajer' => $penyusun_validator->manajer?->name,
             'tanggal_penyusun' => $penyusun_validator->penyusun_tgl,
             'tanggal_validator' => $penyusun_validator->validator_tgl,
+            'tanggal_manajer' => $penyusun_validator->penyusun_tgl,
             'barcode_penyusun' => $this->imageUrlToBase64($penyusun_validator->penyusun_img),
             'barcode_validator' => $this->imageUrlToBase64($penyusun_validator->validator_img),
+            'barcode_manajer' => $this->imageUrlToBase64($penyusun_validator->manajer_img),
             'noreg_penyusun' => $penyusun_validator->penyusun?->noreg,
             'noreg_validator' => $penyusun_validator->validator?->noreg,
             'metode' => $apl2Submission?->metode,
@@ -1378,6 +1384,32 @@ class PraAsesmenController extends Controller
                 ];
             });
 
+        // ── Inject alasan (kode unit) ke item yang checked di kelompok 3 ──
+        $unitText = '';
+        foreach ($kelompokKerja['kelompok_kerja'] as $kg) {
+            $unitText .= '<b>' . e($kg['nama']) . ":</b><br>\n";
+            foreach ($kg['units'] as $unit) {
+                $unitText .= '&nbsp;&nbsp;- ' . e($unit['kode_unit'] ?? $unit['kode'] ?? '') . "<br>\n";
+            }
+        }
+        $dataReferensi = collect($dataReferensi)->map(function ($kelRef) use ($unitText) {
+            if (isset($kelRef['kelompok']['id']) && $kelRef['kelompok']['id'] == 3) {
+                $kelRef['kelompok']['kategoris'] = collect($kelRef['kelompok']['kategoris'])->map(function ($kat) use ($unitText) {
+                    $kat['subkategoris'] = collect($kat['subkategoris'])->map(function ($sub) use ($unitText) {
+                        $sub['referensis'] = collect($sub['referensis'])->map(function ($ref) use ($unitText) {
+                            if (!empty($ref['value'])) {
+                                $ref['alasan'] = $unitText;
+                            }
+                            return $ref;
+                        })->values()->all();
+                        return $sub;
+                    })->values()->all();
+                    return $kat;
+                })->values()->all();
+            }
+            return $kelRef;
+        })->values()->all();
+
         return [
             'kelompok_kerja' => $kelompokKerja,
             'referensi_form' => $dataReferensi,
@@ -2138,12 +2170,18 @@ class PraAsesmenController extends Controller
         ]);
     }
 
-    public function getK3Asesmen()
+    public function getK3Asesmen($id)
     {
+        $fileUrl = env('APP_URL') . '/files/k3_asesmen.pdf';
+
+        // Resolve barcodes — same pattern as other endpoints with TTD
+        $barcodes = $this->resolveDocumentBarcodes($id, 'K3', false);
+
         return response()->json([
             'message' => 'Success',
             'data'    => [
-                'file' => env('APP_URL') . '/files/k3_asesmen.pdf',
+                'file'      => $fileUrl,
+                'barcodes'  => $barcodes,
             ]
         ]);
     }
@@ -2311,6 +2349,21 @@ class PraAsesmenController extends Controller
         BuktiAsesmen::updateOrCreate(
             ['id_izin' => $id],
             ['url_ak01' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
+    }
+
+    public function ttdK3Asesmen(Request $request, $id)
+    {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'K3',
+            'ttd_k3',
+            $id
         );
 
         return response()->json([

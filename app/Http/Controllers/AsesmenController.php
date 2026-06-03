@@ -1049,9 +1049,8 @@ class AsesmenController extends Controller
                     'jenis'       => $q->jenis,
                     'soal'        => $q->soal,
                     'is_komentar' => $q->is_komentar,
-                    'jawaban'     => $q->is_komentar == 2
-                        ? ($answer?->jawaban ?? '')
-                        : $q->jawab_a,
+                    'jawaban'     => $answer?->jawaban
+                        ?: ($q->is_komentar == 2 ? '' : $q->jawab_a),
                 ];
             });
 
@@ -1202,12 +1201,16 @@ class AsesmenController extends Controller
         $path     = parse_url($url, PHP_URL_PATH);
         $ext      = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
+        // Resolve barcodes — same pattern as other endpoints with TTD
+        $barcodes = $this->resolveDocumentBarcodes($id, 'TUGAS', false);
+
         return response()->json([
             'message' => 'Success',
             'data' => [
                 'url'       => $url,
                 'filename'  => $bukti->filename_paparan,
                 'extension' => $ext,
+                'barcodes'  => $barcodes,
             ],
         ]);
     }
@@ -3575,6 +3578,21 @@ class AsesmenController extends Controller
         BuktiAsesmen::updateOrCreate(
             ['id_izin' => $id],
             ['url_ia_10' => $fullUrl]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => $data,
+        ]);
+    }
+
+    public function ttdTugas(Request $request, $id)
+    {
+        $data = $this->generateTtdBarcode(
+            $request,
+            'TUGAS',
+            'ttd_tugas',
+            $id
         );
 
         return response()->json([

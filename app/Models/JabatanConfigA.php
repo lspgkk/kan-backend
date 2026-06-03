@@ -21,4 +21,9 @@ class JabatanConfigA extends Model
     {
         return $this->belongsTo(User::class, 'validator_id', 'id');
     }
+
+    public function manajer()
+    {
+        return $this->belongsTo(User::class, 'manajer_id', 'id');
+    }
 }

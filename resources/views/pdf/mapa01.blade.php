@@ -465,7 +465,7 @@
                 <td class="no-bottom" style="width: 18%;" align="center">
                 </td>
                 <td colspan="3" align="center"><strong>Jenis Bukti</strong></td>
-                <td colspan="5" align="center"><strong>Metode dan Perangkat Asesmen<br/>
+                <td colspan="6" align="center"><strong>Metode dan Perangkat Asesmen<br/>
                     CL (Ceklis Observasi), DIT (Daftar Instruksi
                     Terstruktur), DPL (Daftar Pertanyaan Lisan),
                     DPT (Daftar Pertanyaan Tertulis), VPK (Verifikasi
@@ -615,7 +615,7 @@
                         Ada / <s>Tidak ada</s>
                         <br /><br />
                         <strong>Jika ada, tuliskan:</strong><br />
-                        {{ $item['alasan'] }}
+                        {!! $item['alasan'] !!}
                     @else
                         <s>Ada</s> / Tidak ada
                     @endif
@@ -644,8 +644,13 @@
                     <span class="checkbox {{ $orang_relevan['manajer_sertifikasi_lsp'] ? 'checked' : '' }}"></span>
                     Manajer sertifikasi
                 </td>
-                <td>Ir. Akhmadi Hafid</td>
-                <td></td>
+                <td>{{ $dokumenHeader['nama_manajer'] ?? '' }}</td>
+                <td>
+                    @if($dokumenHeader['barcode_manajer'] ?? null)
+                    <img src="{{ $dokumenHeader['barcode_manajer'] }}" width="60" height="60" /><br />
+                    @endif
+                    {{ $dokumenHeader['tanggal_manajer'] ? \Carbon\Carbon::parse($dokumenHeader['tanggal_manajer'])->locale('id')->translatedFormat('d F Y') : '' }}
+                </td>
             </tr>
             <tr>
                 <td>

@@ -60,7 +60,64 @@ class BarcodeController extends Controller
             'message' => 'success'
         ]);
     }
-    
+
+    public function generateBarcodeManajer()
+    {
+        $manajer = User::where('role_id', 7)->orderBy('id')->first();
+        if (!$manajer) {
+            return response()->json(['message' => 'User dengan role_id 7 tidak ditemukan'], 404);
+        }
+
+        $list_jabker = JabatanConfigA::where(function ($q) {
+            $q->whereNull('manajer_img')
+              ->orWhere('manajer_img', 'NOT LIKE', '%https://barcode.lspgatensi.id%');
+        })->get();
+
+        foreach ($list_jabker as $jabker) {
+            $uuid = (string) Str::uuid();
+            $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
+            $filename = "{$uuid}.png";
+
+            $qrImage = QrCode::format('png')->size(300)->margin(1)->generate($urlTtd);
+
+            $path = "barcodes/{$filename}";
+            Storage::disk('str_moon')->put($path, $qrImage);
+            $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+            // Parse penyusun_tgl to match created_at format (Y-m-d H:i:s)
+            $createdAt = null;
+            if ($jabker->penyusun_tgl) {
+                $createdAt = \Carbon\Carbon::parse($jabker->penyusun_tgl)->startOfDay()->format('Y-m-d H:i:s');
+            }
+
+            // Save to Barcode model
+            Barcode::updateOrCreate(
+                [
+                    'id_user'       => $manajer->id,
+                    'id_izin'       => 'PENYUSUN_' . $jabker->id_jabatan,
+                    'jenis_dokumen' => 'MANAJER',
+                ],
+                [
+                    'url_image'  => $urlImage,
+                    'url_ttd'    => $urlTtd,
+                    'id_role'    => 7,
+                    'created_at' => $createdAt,
+                ]
+            );
+
+            // Update JabatanConfigA
+            JabatanConfigA::where('id_jabatan', $jabker->id_jabatan)->update([
+                'manajer_id'  => $manajer->id,
+                'manajer_img' => $urlImage,
+                'manajer_url' => $urlTtd,
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'success'
+        ]);
+    }
+
     public function getTtdApl01($id)
     {
         $barcodes = Barcode::where('id_izin', $id)
