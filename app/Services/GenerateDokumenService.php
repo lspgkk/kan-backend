@@ -100,6 +100,9 @@ class GenerateDokumenService
             'urls' => [],
         ];
 
+        $memStart = memory_get_usage(true);
+        logger()->debug("[GEN] {$idIzin} START memory=" . round($memStart / 1024 / 1024, 1) . "MB peak=" . round(memory_get_peak_usage(true) / 1024 / 1024, 1) . "MB");
+
         // ── Step 0: Override tanggal_uji from BNSP API if jadwal_id provided ──
         if ($jadwalId) {
             $apiTanggal = $this->fetchTanggalUjiFromBnsp($jadwalId);
@@ -220,14 +223,15 @@ class GenerateDokumenService
         foreach ($praDocs as $doc) {
             try {
                 $url = $this->generateDocument($idIzin, $doc['method'], $doc['blade'], $doc['dir'], $doc['code'], $doc['col'], $header, $barcodes[$doc['method']] ?? []);
-                if ($url) $urls[$doc['col']] = $url;
-                else logger()->warning("[GEN] {$idIzin} PRA DOC FAILED: {$doc['method']}");
+                $urls[$doc['col']] = $url;
+                if (!$url) logger()->warning("[GEN] {$idIzin} PRA DOC FAILED: {$doc['method']}");
             } catch (\Throwable $e) {
                 logger()->warning("[GEN] {$idIzin} PRA DOC EXCEPTION {$doc['method']}: " . $e->getMessage());
                 $urls[$doc['col']] = null;
             }
         }
         gc_collect_cycles();
+        logger()->debug("[GEN] {$idIzin} PRA-DONE memory=" . round(memory_get_usage(true) / 1024 / 1024, 1) . "MB peak=" . round(memory_get_peak_usage(true) / 1024 / 1024, 1) . "MB");
 
         // ── Step 8: Generate asesmen (by jenjang) ──
         $asesmenDocs = $jenjang < 4
@@ -260,14 +264,15 @@ class GenerateDokumenService
         foreach ($asesmenDocs as $doc) {
             try {
                 $url = $this->generateDocument($idIzin, $doc['method'], $doc['blade'], $doc['dir'], $doc['code'], $doc['col'], $header, $barcodes[$doc['method']] ?? []);
-                if ($url) $urls[$doc['col']] = $url;
-            else logger()->warning("[GEN] {$idIzin} ASESMEN DOC FAILED: {$doc['method']}");
+                $urls[$doc['col']] = $url;
+                if (!$url) logger()->warning("[GEN] {$idIzin} ASESMEN DOC FAILED: {$doc['method']}");
             } catch (\Throwable $e) {
                 logger()->warning("[GEN] {$idIzin} ASESMEN DOC EXCEPTION {$doc['method']}: " . $e->getMessage());
                 $urls[$doc['col']] = null;
             }
         }
         gc_collect_cycles();
+        logger()->debug("[GEN] {$idIzin} ASESMEN-DONE memory=" . round(memory_get_usage(true) / 1024 / 1024, 1) . "MB peak=" . round(memory_get_peak_usage(true) / 1024 / 1024, 1) . "MB");
 
         // ── Final result summary ──
         $totalDocs = count($praDocs) + count($asesmenDocs);
@@ -534,18 +539,27 @@ class GenerateDokumenService
             // Free DomPDF memory immediately
             unset($pdf, $viewData, $mergedBarcodes, $docData);
 
+            // ── Force garbage collection after every PDF ──
+            gc_collect_cycles();
+
             // Retry FTP upload up to 3 times with backoff
             $pdfUploaded = false;
             for ($retry = 0; $retry < 3; $retry++) {
                 try {
+                    // Purge disk to force a fresh FTP connection on each retry
+                    if ($retry > 0) {
+                        Storage::purge('str_moon');
+                    }
                     $pdfUploaded = Storage::disk('str_moon')->put($path, $pdfContent);
                     if ($pdfUploaded) break;
+                    logger()->warning("[QR] PDF put {$code} attempt={$retry} returned false (disk 'str_moon')");
                 } catch (\Throwable $ftpEx) {
-                    logger()->warning("[QR] PDF put {$code} attempt={$retry} failed: " . $ftpEx->getMessage());
-                    if ($retry < 2) sleep(5);
+                    logger()->warning("[QR] PDF put {$code} attempt={$retry} exception: " . $ftpEx->getMessage());
                 }
+                if ($retry < 2) sleep(5);
             }
             unset($pdfContent);
+            gc_collect_cycles();
 
             if (!$pdfUploaded) return null;
 
@@ -834,28 +848,40 @@ class GenerateDokumenService
 
     private function buildIa01Data(string $idIzin, array $header): array
     {
-        $kelompokKerja = \App\Models\UnitKompetensi::where('id_jabatan', function ($q) use ($idIzin) {
-            $q->select('jabatan_kerja')->from('klasifikasi_kualifikasis')->where('id_izin', $idIzin);
-        })->get()->map(function ($unit) {
-            $subunits = \App\Models\SubunitKompetensi::where('id_unitkompetensi', $unit?->id)->get()->map(function ($sub) {
-                $soals = \App\Models\Soal::where('id_dokumen', $sub?->id)->get()->map(function ($soal) {
-                    return [
-                        'id' => $soal->id,
-                        'soal' => $soal->soal,
-                        'pencapaian' => true,
-                        'penilaian_lanjut' => null,
-                    ];
-                });
-                return [
-                    'id' => $sub?->id,
-                    'nama' => $sub?->nama,
-                    'soals' => $soals,
-                ];
-            });
+        $jabatanKerjaId = \App\Models\KlasifikasiKualifikasi::where('id_izin', $idIzin)->value('jabatan_kerja');
+
+        // Eager load: batch all subunits, then batch all soals in 2 queries total (instead of N+1)
+        $units = \App\Models\UnitKompetensi::with(['subunits'])
+            ->where('id_jabatan', $jabatanKerjaId)
+            ->get();
+
+        // Batch load all soals for all subunits in one query
+        $subunitIds = $units->pluck('subunits')->flatten()->pluck('id')->filter()->values()->all();
+        $allSoals = \App\Models\Soal::whereIn('id_dokumen', $subunitIds)
+            ->get()
+            ->groupBy('id_dokumen');
+
+        $kelompokKerja = $units->map(function ($unit) use ($allSoals) {
             return [
-                'id' => $unit?->id,
-                'nama' => $unit?->nama,
-                'units' => [['subunits' => $subunits->toArray()]],
+                'id' => $unit->id,
+                'nama' => $unit->nama,
+                'units' => [[
+                    'subunits' => $unit->subunits->map(function ($sub) use ($allSoals) {
+                        $soals = ($allSoals[$sub->id] ?? collect())->map(function ($soal) {
+                            return [
+                                'id' => $soal->id,
+                                'soal' => $soal->soal,
+                                'pencapaian' => true,
+                                'penilaian_lanjut' => null,
+                            ];
+                        });
+                        return [
+                            'id' => $sub->id,
+                            'nama' => $sub->nama,
+                            'soals' => $soals,
+                        ];
+                    })->values()->toArray(),
+                ]],
             ];
         });
 
@@ -883,10 +909,17 @@ class GenerateDokumenService
 
     private function buildIa03Data(string $idIzin, array $header): array
     {
-        $kelompokKerja = \App\Models\UnitKompetensi::where('id_jabatan', function ($q) use ($idIzin) {
-            $q->select('jabatan_kerja')->from('klasifikasi_kualifikasis')->where('id_izin', $idIzin);
-        })->get()->map(function ($unit) {
-            $soals = \App\Models\Soal::where('id_dokumen', $unit?->id)->get()->map(function ($soal) use ($unit) {
+        $jabatanKerjaId = \App\Models\KlasifikasiKualifikasi::where('id_izin', $idIzin)->value('jabatan_kerja');
+
+        // Batch: load all units and their soals in 2 queries (instead of N+1)
+        $units = \App\Models\UnitKompetensi::where('id_jabatan', $jabatanKerjaId)->get();
+        $unitIds = $units->pluck('id')->filter()->values()->all();
+        $allSoals = \App\Models\Soal::whereIn('id_dokumen', $unitIds)
+            ->get()
+            ->groupBy('id_dokumen');
+
+        $kelompokKerja = $units->map(function ($unit) use ($allSoals) {
+            $soals = ($allSoals[$unit->id] ?? collect())->map(function ($soal) use ($unit) {
                 $context = ['soal_soal' => $soal->soal, 'unit_nama' => $unit->nama];
                 return [
                     'id' => $soal->id,
@@ -897,8 +930,8 @@ class GenerateDokumenService
                 ];
             });
             return [
-                'id' => $unit?->id,
-                'nama' => $unit?->nama,
+                'id' => $unit->id,
+                'nama' => $unit->nama,
                 'soal' => $soals,
             ];
         });

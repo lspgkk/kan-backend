@@ -248,7 +248,7 @@ PROMPT;
                     ])
                     ->post(self::API_URL, [
                         'model' => self::MODEL,
-                        'max_tokens' => 393216,
+                        'max_tokens' => 8192,
                         'temperature' => 0.7,
                         'messages' => [
                             ['role' => 'system', 'content' => self::SYSTEM_PROMPT],

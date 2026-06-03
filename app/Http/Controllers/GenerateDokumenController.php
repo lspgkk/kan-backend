@@ -393,10 +393,14 @@ class GenerateDokumenController extends Controller
         // Headers
         $headers = ['ID Izin', 'Status Import', 'Pesan Error'];
         $colKeys = ['id_izin', 'status', 'error'];
+        // ID Jabatan Kerja column (rightmost, only populated for partial status)
+        $jabkerColLabel = 'ID Jabatan Kerja';
+
         foreach ($urlLabels as $key => $label) {
             $headers[] = $label;
             $colKeys[] = $key;
         }
+        $headers[] = $jabkerColLabel;
 
         $colLetters = range('A', 'Z');
         foreach ($headers as $i => $label) {
@@ -437,6 +441,14 @@ class GenerateDokumenController extends Controller
                     $sheet->getCell("{$col}{$dataRow}")->getHyperlink()->setUrl($urlValue);
                 }
                 $colIdx++;
+            }
+
+            // ── ID Jabatan Kerja column (rightmost, only for partial status) ──
+            if ($status === 'partial') {
+                $jabkerCol = $colLetters[$colIdx] ?? 'U';
+                $jabatanKerjaId = \App\Models\KlasifikasiKualifikasi::where('id_izin', $idIzin)
+                    ->value('jabatan_kerja');
+                $sheet->setCellValue("{$jabkerCol}{$dataRow}", $jabatanKerjaId ?? '');
             }
 
             // Color status cell
