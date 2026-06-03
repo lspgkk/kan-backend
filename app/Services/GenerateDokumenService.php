@@ -999,11 +999,19 @@ class GenerateDokumenService
             ];
         });
 
+        $llmCtx = [
+            'nama_asesi' => $header['nama_asesi'] ?? '',
+            'jabatan_kerja' => $header['jabatan_kerja'] ?? '',
+        ];
+
         return [
             'kelompok_kerja' => [],
             'referensi_form' => collect([]),
             'soal' => $soals,
             'is_kompeten' => true,
+            'persiapan_kegiatan' => $this->llmService->generateText('ia04a_persiapan_kegiatan', $llmCtx),
+            'hal_demonstrasi' => $this->llmService->generateText('ia04a_demonstrasi', $llmCtx),
+            'umpan_balik' => $this->llmService->generateText('ia04a_umpan_balik', $llmCtx),
         ];
     }
 
@@ -1241,6 +1249,10 @@ class GenerateDokumenService
             foreach ($ia04aSoals as $soal) {
                 $llmFields[] = ['ia04a_jawaban', ['soal_soal' => $soal->soal] + $llmCtx];
             }
+            // IA04A dedicated fields
+            $llmFields[] = ['ia04a_persiapan_kegiatan', $llmCtx];
+            $llmFields[] = ['ia04a_demonstrasi', $llmCtx];
+            $llmFields[] = ['ia04a_umpan_balik', $llmCtx];
         }
 
         // IA04B: question-type soals
@@ -1297,7 +1309,7 @@ class GenerateDokumenService
         // ─── DISTRIBUTE RESULTS ───
         $idx = 0;
 
-        // IA04A
+        // IA04A — soals
         foreach ($ia04aSoals as $soal) {
             $jawaban = $llmResults['ia04a_jawaban_' . $idx] ?? $this->llmService->getFallback('ia04a_jawaban');
             \App\Models\Ia4aAnswer::updateOrCreate(
@@ -1306,6 +1318,24 @@ class GenerateDokumenService
             );
             $idx++;
         }
+        // IA04A — dedicated fields (virtual soal_id = 0, -1, -2)
+        $ia04aPersiapan = $llmResults['ia04a_persiapan_kegiatan_' . $idx] ?? $this->llmService->getFallback('ia04a_persiapan_kegiatan');
+        $ia04aDemonstrasi = $llmResults['ia04a_demonstrasi_' . ($idx + 1)] ?? $this->llmService->getFallback('ia04a_demonstrasi');
+        $ia04aUmpanBalik = $llmResults['ia04a_umpan_balik_' . ($idx + 2)] ?? $this->llmService->getFallback('ia04a_umpan_balik');
+        \App\Models\Ia4aAnswer::updateOrCreate(
+            ['id_izin' => $idIzin, 'soal_id' => 0],
+            ['jawaban' => $ia04aPersiapan]
+        );
+        \App\Models\Ia4aAnswer::updateOrCreate(
+            ['id_izin' => $idIzin, 'soal_id' => -1],
+            ['jawaban' => $ia04aDemonstrasi]
+        );
+        \App\Models\Ia4aAnswer::updateOrCreate(
+            ['id_izin' => $idIzin, 'soal_id' => -2],
+            ['jawaban' => $ia04aUmpanBalik]
+        );
+        logger()->debug("[LLM] IA04A dedicated fields stored id_izin={$idIzin} persiapan_len=" . strlen($ia04aPersiapan) . " demonstrasi_len=" . strlen($ia04aDemonstrasi) . " umpan_len=" . strlen($ia04aUmpanBalik));
+        $idx += 3;
 
         // IA04B
         foreach ($ia04bSoals as $soal) {
@@ -1456,6 +1486,10 @@ class GenerateDokumenService
                         'kelompok_kerja' => [],
                     ];
                 }
+                // Ensure LLM-generated fields exist
+                $docData['persiapan_kegiatan'] = $docData['persiapan_kegiatan'] ?? '';
+                $docData['hal_demonstrasi'] = $docData['hal_demonstrasi'] ?? '';
+                $docData['umpan_balik'] = $docData['umpan_balik'] ?? '';
                 break;
 
             case 'Ak03':

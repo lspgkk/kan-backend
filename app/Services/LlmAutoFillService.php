@@ -315,6 +315,9 @@ PROMPT;
             'ia03_tanggapan' => $this->buildIa03Tanggapan($context),
             'ia03_umpan_balik' => $this->buildIa03UmpanBalik($context),
             'ia04a_jawaban' => $this->buildIa04aJawaban($context),
+            'ia04a_persiapan_kegiatan' => $this->buildIa04aPersiapanKegiatan($context),
+            'ia04a_demonstrasi' => $this->buildIa04aDemonstrasi($context),
+            'ia04a_umpan_balik' => $this->buildIa04aUmpanBalik($context),
             'ia05_umpan_balik' => $this->buildIa05UmpanBalik($context),
             'ak02_komentar' => $this->buildAk02Komentar($context),
             'ak03_catatan' => $this->buildAk03Catatan($context),
@@ -372,6 +375,33 @@ PROMPT;
              . "- Soal: {$ctx['soal_soal']}\n\n"
              . "Tulis jawaban profesional untuk soal proyek kerja di atas (maksimal 2 kalimat, maks 255 huruf)."
              . "\nGunakan bahasa teknis sesuai bidang konstruksi.";
+    }
+
+    private function buildIa04aPersiapanKegiatan(array $ctx): string
+    {
+        return "Konteks:\n"
+             . $this->context($ctx)
+             . "\nJelaskan hal-hal yang harus dipersiapkan, dilakukan, atau dihasilkan asesi untuk suatu kegiatan terstruktur "
+             . "berkaitan dengan skema sertifikasi (maksimal 3 kalimat, maks 255 huruf)."
+             . "\nFokus pada persiapan teknis dan dokumen yang relevan dengan jabatan.";
+    }
+
+    private function buildIa04aDemonstrasi(array $ctx): string
+    {
+        return "Konteks:\n"
+             . $this->context($ctx)
+             . "\nJelaskan hal-hal yang perlu didemonstrasikan oleh asesi untuk menunjukkan kompetensinya "
+             . "pada kegiatan terstruktur ini (maksimal 3 kalimat, maks 255 huruf)."
+             . "\nFokus pada kemampuan teknis dan prosedural yang harus diperagakan.";
+    }
+
+    private function buildIa04aUmpanBalik(array $ctx): string
+    {
+        return "Konteks:\n"
+             . $this->context($ctx)
+             . "\nTulis umpan balik profesional untuk asesi terkait hasil kegiatan terstruktur yang telah dilaksanakan "
+             . "(maksimal 3 kalimat, maks 255 huruf)."
+             . "\nSebutkan apresiasi atas pencapaian dan saran pengembangan.";
     }
 
     private function buildIa05UmpanBalik(array $ctx): string
@@ -508,6 +538,9 @@ PROMPT;
             'ak06_catatan_asesor1' => 'Proses asesmen dilaksanakan sesuai dengan pedoman asesmen yang berlaku. Seluruh tahapan terdokumentasi dengan baik dan hasilnya dapat dipertanggungjawabkan.',
             'ak06_catatan_asesor2' => 'Sebagai asesor pendamping, saya memverifikasi bahwa seluruh proses asesmen telah dilaksanakan sesuai prosedur. Dokumen asesmen lengkap dan valid.',
             'ak07_text' => 'Berdasarkan verifikasi yang dilakukan, dokumen dan bukti yang disampaikan telah memenuhi persyaratan yang ditetapkan. Semua item telah terverifikasi dengan baik.',
+            'ia04a_persiapan_kegiatan' => 'Asesi perlu mempersiapkan dokumen teknis terkait proyek pekerjaan yang sesuai dengan skema sertifikasi, meliputi gambar kerja, spesifikasi teknis, dan rencana pelaksanaan pekerjaan. Kelengkapan dokumen menjadi prasyarat utama sebelum pelaksanaan kegiatan terstruktur.',
+            'ia04a_demonstrasi' => 'Asesi harus mendemonstrasikan penguasaan kompetensi teknis sesuai dengan unit kompetensi yang diujikan, termasuk kemampuan membaca gambar teknis, penerapan Keselamatan dan Kesehatan Kerja (K3), serta penggunaan peralatan kerja yang sesuai dengan prosedur operasional standar.',
+            'ia04a_umpan_balik' => 'Asesi berhasil menunjukkan penguasaan kompetensi yang memadai pada kegiatan terstruktur yang dilaksanakan. Kinerja yang diperlihatkan sesuai dengan kriteria unjuk kerja yang ditetapkan. Disarankan untuk terus meningkatkan kompetensi melalui pengalaman lapangan dan pelatihan lanjutan.',
         ];
 
         return $fallbacks[$fieldType] ?? 'Telah diverifikasi dan dinyatakan sesuai.';

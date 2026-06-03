@@ -1035,6 +1035,11 @@ class AsesmenController extends Controller
             ->get()
             ->keyBy('soal_id');
 
+        /** 🔹 Load dedicated IA04A feedback fields (virtual soal_id: 0, -1, -2) */
+        $ia04aPersiapan = $ia04aAnswers->get(0)?->jawaban ?? '';
+        $ia04aDemonstrasi = $ia04aAnswers->get(-1)?->jawaban ?? '';
+        $ia04aUmpanBalik = $ia04aAnswers->get(-2)?->jawaban ?? '';
+
         /** 🔹 Load questions + inject feedback answer */
         $questions = Soal::where('id_dokumen', $dokumen->id)
             ->orderBy('urut', 'asc')
@@ -1075,10 +1080,13 @@ class AsesmenController extends Controller
         ];
 
         return [
-            'barcodes'        => $barcodes,
-            'kelompok_kerja'  => $kelompokKerja,
-            'referensi_form'  => $referensis,
-            'soal'            => $questions,
+            'barcodes'              => $barcodes,
+            'kelompok_kerja'        => $kelompokKerja,
+            'referensi_form'        => $referensis,
+            'soal'                  => $questions,
+            'persiapan_kegiatan'    => $ia04aPersiapan,
+            'hal_demonstrasi'       => $ia04aDemonstrasi,
+            'umpan_balik'           => $ia04aUmpanBalik,
         ];
     }
 

@@ -220,6 +220,42 @@
         </table>
         @endforeach
 
+        <!-- HAL YANG HARUS DIPERSIAPKAN / DILAKUKAN / DIHASILKAN -->
+        @if($persiapan_kegiatan ?? null)
+        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000; margin-top: 12px;">
+            <tr class="hd-dok">
+                <td style="font-weight: bold;">HAL YANG HARUS DIPERSIAPKAN / DILAKUKAN / DIHASILKAN UNTUK KEGIATAN TERSTRUKTUR</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px; font-size: 11pt;">{{ $persiapan_kegiatan }}</td>
+            </tr>
+        </table>
+        @endif
+
+        <!-- HAL YANG PERLU DIDEMONSTRASIKAN -->
+        @if($hal_demonstrasi ?? null)
+        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000; margin-top: 12px;">
+            <tr class="hd-dok">
+                <td style="font-weight: bold;">HAL YANG PERLU DIDEMONSTRASIKAN</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px; font-size: 11pt;">{{ $hal_demonstrasi }}</td>
+            </tr>
+        </table>
+        @endif
+
+        <!-- UMPAN BALIK UNTUK ASESI -->
+        @if($umpan_balik ?? null)
+        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000; margin-top: 12px;">
+            <tr class="hd-dok">
+                <td style="font-weight: bold;">UMPAN BALIK UNTUK ASESI</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px; font-size: 11pt;">{{ $umpan_balik }}</td>
+            </tr>
+        </table>
+        @endif
+
         <!-- TANDA TANGAN Table -->
         <table
             width="100%"
