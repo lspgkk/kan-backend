@@ -30,9 +30,6 @@ services:
             MAIL_PORT: '${DOCKER_MAIL_PORT:-1025}'
         volumes:
             - '.:/var/www/html'
-            # Keep vendor & node_modules as named volumes for performance
-            - 'sail-vendor:/var/www/html/vendor'
-            - 'sail-node_modules:/var/www/html/node_modules'
         networks:
             - sail
         depends_on:
@@ -67,6 +64,4 @@ networks:
         driver: bridge
 
 volumes:
-    sail-vendor:
-    sail-node_modules:
     sail-redis:
