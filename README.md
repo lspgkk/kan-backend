@@ -46,11 +46,11 @@ docker compose exec laravel.test bash
 
 ### Services
 
-| Service     | Container Name      | Port (Host) |
-|-------------|---------------------|-------------|
-| PHP App     | gatensi-backend-laravel.test-1 | 80        |
-| Redis       | gatensi-backend-redis-1        | 6379      |
-| Mailpit     | gatensi-backend-mailpit-1      | 8025      |
+| Service     | Container Name      | Port (Host)        |
+|-------------|---------------------|--------------------|
+| PHP App     | gatensi-backend-laravel.test-1 | 80           |
+| Redis       | gatensi-backend-redis-1        | 6380 → 6379  |
+| Mailpit     | gatensi-backend-mailpit-1      | 8025         |
 
 ### Koneksi Database
 
