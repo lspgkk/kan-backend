@@ -17,6 +17,7 @@
         "laravel/tinker": "^2.10.1",
         "league/flysystem-ftp": "3.0",
         "phpoffice/phpspreadsheet": "^5.4",
+        "predis/predis": "*",
         "simplesoftwareio/simple-qrcode": "^4.2",
         "spatie/laravel-permission": "^6.23",
         "tymon/jwt-auth": "^2.2"

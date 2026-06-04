@@ -67,7 +67,32 @@
       "Bash(Get-Content c:\\\\Users\\\\Rafie\\\\Documents\\\\Works\\\\LSP\\\\Gatensi\\\\Karya\\\\Konstruksi\\\\Smart\\\\Gatensi\\\\gatensi-backend\\\\storage\\\\logs\\\\laravel.log -Tail 200)",
       "Bash(Select-String \"ERROR\")",
       "PowerShell(Get-Content *)",
-      "Bash(Get-Content *)"
+      "Bash(Get-Content *)",
+      "Bash(powershell -Command \"Get-Content 'C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\storage\\\\logs\\\\laravel.log' -Wait -Tail 50\")",
+      "Bash(Select-Object FullName, Length)",
+      "Bash(Sort-Object Length -Descending)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(grep -A2 '\"barryvdh/laravel-dompdf\"' composer.json)",
+      "Bash(grep -A2 '\"dompdf/dompdf\"' composer.json)",
+      "Bash(sed -i 's/\\\\.headera, \\\\.footera {\\\\r\\\\?$/\\\\.headera, \\\\.footera {/' __TRACKED_VAR__.blade.php)",
+      "Bash(sed -i 's/position: fixed;//g' __TRACKED_VAR__.blade.php)",
+      "Bash(sed -i 's/\\\\.headera {\\\\r\\\\?$/\\\\.headera {/' __TRACKED_VAR__.blade.php)",
+      "Bash(sed -i 's/top: 0px;//g' __TRACKED_VAR__.blade.php)",
+      "Bash(sed -i 's/bottom: 0px;//g' __TRACKED_VAR__.blade.php)",
+      "Bash(sed -i '/^\\\\.headera, \\\\.footera {$/{ N; /^\\\\.headera, \\\\.footera {\\\\n\\\\s*}$/d; }' __TRACKED_VAR__.blade.php)",
+      "Bash(sed -i '/^\\\\.headera {$/{ N; /^\\\\.headera {\\\\n\\\\s*}$/d; }' __TRACKED_VAR__.blade.php)",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\storage\\\\fonts\")",
+      "Bash(cp \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\vendor\\\\dompdf\\\\dompdf\\\\lib\\\\fonts\\\\DejaVuSans.ttf\" \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\storage\\\\fonts/\")",
+      "Bash(cp \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\vendor\\\\dompdf\\\\dompdf\\\\lib\\\\fonts\\\\DejaVuSans-Bold.ttf\" \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\storage\\\\fonts/\")",
+      "Bash(cp \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\vendor\\\\dompdf\\\\dompdf\\\\lib\\\\fonts\\\\DejaVuSerif.ttf\" \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\storage\\\\fonts/\")",
+      "Bash(sed -i '/^[[:space:]]*\\\\.headera, \\\\.footera {/,/^[[:space:]]*}/d' __TRACKED_VAR__.blade.php)",
+      "Bash(sed -i '/^[[:space:]]*\\\\.headera {/,/^[[:space:]]*}/d' __TRACKED_VAR__.blade.php)",
+      "Bash(sed -i '/^[[:space:]]*\\\\.footera {/,/^[[:space:]]*}/d' __TRACKED_VAR__.blade.php)",
+      "Bash(git stash *)",
+      "Bash(sed -i '/^[[:space:]]*\\\\.headera,$/d' __TRACKED_VAR__.blade.php)",
+      "Bash(sed -i '/^[[:space:]]*\\\\.footera,$/d' __TRACKED_VAR__.blade.php)",
+      "Bash(sed -i '/^[[:space:]]*}$/{ /^[[:space:]]*}$/!b; x; /^[[:space:]]*\\\\.headera,$/d; }' __TRACKED_VAR__.blade.php)",
+      "Bash(git checkout *)"
     ]
   }
 }

@@ -38,10 +38,11 @@ class GenerateDokumenController extends Controller
     {
         $request->validate([
             'file' => 'required|file|mimes:xlsx|max:5120',
+            'mode' => 'nullable|string|in:pregen,pdf',
         ]);
 
         try {
-            $batchId = $this->dispatchBatch($request->file('file'));
+            $batchId = $this->dispatchBatch($request->file('file'), $request->input('mode'));
             return redirect()->route('generate-dokumen.progress', ['batchId' => $batchId]);
         } catch (\Throwable $e) {
             return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
@@ -55,6 +56,7 @@ class GenerateDokumenController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'file' => 'required|file|mimes:xlsx|max:5120',
+            'mode' => 'nullable|string|in:pregen,pdf',
         ]);
 
         if ($validator->fails()) {
@@ -65,7 +67,7 @@ class GenerateDokumenController extends Controller
         }
 
         try {
-            $batchId = $this->dispatchBatch($request->file('file'));
+            $batchId = $this->dispatchBatch($request->file('file'), $request->input('mode'));
             return response()->json([
                 'message' => 'Batch import started',
                 'batch_id' => $batchId,
@@ -80,33 +82,39 @@ class GenerateDokumenController extends Controller
     /**
      * Parse Excel and dispatch one job per row.
      */
-    private function dispatchBatch($file): string
+    private function dispatchBatch($file, ?string $mode = null): string
     {
-        // Parse Excel
+        // Parse Excel using row iterator (more memory-efficient than toArray() for large files)
         $inputFileType = \PhpOffice\PhpSpreadsheet\IOFactory::identify($file->getPathname());
         $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReader($inputFileType);
         $reader->setReadDataOnly(true);
         $spreadsheet = $reader->load($file->getPathname());
-        $rows = $spreadsheet->getActiveSheet()->toArray();
+        $worksheet = $spreadsheet->getActiveSheet();
+        $highestRow = $worksheet->getHighestRow();
 
-        if (count($rows) < 2) {
+        if ($highestRow < 2) {
             throw new \Exception('File Excel kosong. Minimal harus ada 1 baris data.');
         }
-
-        // Remove header
-        array_shift($rows);
 
         $batchId = (string) Str::uuid();
         $validRows = [];
 
-        foreach ($rows as $index => $row) {
-            if (empty(array_filter($row))) continue;
+        // Skip header row (row 1)
+        for ($rowIndex = 2; $rowIndex <= $highestRow; $rowIndex++) {
+            $rowData = [];
+            $cellIterator = $worksheet->getRowIterator($rowIndex)->current()->getCellIterator();
+            $cellIterator->setIterateOnlyExistingCells(false);
+            foreach ($cellIterator as $cell) {
+                $rowData[] = $cell->getValue();
+            }
 
-            $idIzin = trim($row[0] ?? '');
-            $noregAsesor1 = trim($row[1] ?? '');
-            $noregAsesor2 = trim($row[2] ?? '');
-            $tanggalUji = trim($row[3] ?? '');
-            $jadwalId = trim($row[4] ?? '');
+            if (empty(array_filter($rowData))) continue;
+
+            $idIzin = trim((string) ($rowData[0] ?? ''));
+            $noregAsesor1 = trim((string) ($rowData[1] ?? ''));
+            $noregAsesor2 = trim((string) ($rowData[2] ?? ''));
+            $tanggalUji = trim((string) ($rowData[3] ?? ''));
+            $jadwalId = trim((string) ($rowData[4] ?? ''));
 
             if (empty($idIzin)) continue;
             if (empty($noregAsesor1) || empty($noregAsesor2)) {
@@ -144,6 +152,7 @@ class GenerateDokumenController extends Controller
             'success' => 0,
             'failed' => 0,
             'status' => 'processing',
+            'mode' => $mode,
             'started_at' => now()->toIsoString(),
             'completed_at' => null,
             'id_izins' => array_column($validRows, 'id_izin'),
@@ -157,7 +166,8 @@ class GenerateDokumenController extends Controller
                 $row['noreg_asesor_2'],
                 $row['tanggal_uji'],
                 $batchId,
-                $row['jadwal_id'] ?: null
+                $row['jadwal_id'] ?: null,
+                $mode
             )->onQueue('generate-dokumen');
         }
 

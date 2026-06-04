@@ -24,8 +24,24 @@ class GenerateDokumenService
 {
     private const MOON_BASE = 'https://moon.lspgatensi.id/files/new_gatensi/';
 
+    // Sentinel IDs for virtual/dedicated IA04A fields (must be positive for MySQL UNSIGNED)
+    private const VIRTUAL_ID_PERSIAPAN = 999999997;
+    private const VIRTUAL_ID_DEMONSTRASI = 999999998;
+    private const VIRTUAL_ID_UMPAN_BALIK = 999999999;
+
     private PermohonanSyncService $syncService;
     private LlmAutoFillService $llmService;
+
+    /** Mode operasi: null=full, 'pregen'=only LLM+DB, 'pdf'=only PDF from DB */
+    private ?string $mode = null;
+
+    /** @var resource|\FTP\Connection|null Persistent FTP connection reused across all documents */
+    private $ftpConn = null;
+    /** @var bool Fall back to Laravel Storage facade if native FTP fails */
+    private bool $ftpUseNative = true;
+
+    /** @var array<string, array> In-memory cache of existing barcodes keyed by "userId:jenisDokumen" */
+    private array $barcodeCache = [];
 
     // Controllers whose private build*Data methods we call via reflection
     private \App\Http\Controllers\PraAsesmenController $praAsesmenController;
@@ -50,49 +66,65 @@ class GenerateDokumenService
      */
     private function fetchTanggalUjiFromBnsp(int|string $jadwalId): ?string
     {
-        try {
-            $authData = \Illuminate\Support\Facades\DB::table('b_n_s_p_auths')->value('x_authorization');
-            if (!$authData) {
-                logger()->warning("[BNSP] x-authorization tidak ditemukan di tabel b_n_s_p_auths");
+        // Cache per jadwalId untuk 1 jam — menghindari HTTP call berulang untuk batch besar
+        $cacheKey = "bnsp:jadwal:{$jadwalId}";
+        return \Illuminate\Support\Facades\Cache::remember($cacheKey, 3600, function () use ($jadwalId) {
+            try {
+                $authData = \Illuminate\Support\Facades\DB::table('b_n_s_p_auths')->value('x_authorization');
+                if (!$authData) {
+                    logger()->warning("[BNSP] x-authorization tidak ditemukan di tabel b_n_s_p_auths");
+                    return null;
+                }
+
+                $url = "https://konstruksi.bnsp.go.id/api/v1/jadwal/blanko?jadwal_id={$jadwalId}";
+                $response = Http::timeout(15)->withHeaders([
+                    'Accept' => 'application/json',
+                    'x-authorization' => $authData,
+                ])->get($url);
+
+                if ($response->failed()) {
+                    logger()->warning("[BNSP] HTTP {$response->status()} for jadwal_id={$jadwalId}, body=" . $response->body());
+                    return null;
+                }
+
+                $body = $response->json();
+                $tanggalMulai = $body['dataJadwal']['tanggal_mulai'] ?? null;
+                if ($tanggalMulai) {
+                    return Carbon::parse($tanggalMulai)->format('Y-m-d');
+                }
+
+                logger()->warning("[BNSP] tanggal_mulai not found in response for jadwal_id={$jadwalId}");
+                return null;
+            } catch (\Throwable $e) {
+                logger()->error("[BNSP] Gagal fetch jadwal {$jadwalId}: " . $e->getMessage() . ' at line ' . $e->getLine() . ' in ' . $e->getFile());
                 return null;
             }
-
-            $url = "https://konstruksi.bnsp.go.id/api/v1/jadwal/blanko?jadwal_id={$jadwalId}";
-            $response = Http::timeout(15)->withHeaders([
-                'Accept' => 'application/json',
-                'x-authorization' => $authData,
-            ])->get($url);
-
-            if ($response->failed()) {
-                logger()->warning("[BNSP] HTTP {$response->status()} for jadwal_id={$jadwalId}, body=" . $response->body());
-                return null;
-            }
-
-            $body = $response->json();
-            $tanggalMulai = $body['dataJadwal']['tanggal_mulai'] ?? null;
-            if ($tanggalMulai) {
-                // Parse and return only the date portion (Y-m-d)
-                return Carbon::parse($tanggalMulai)->format('Y-m-d');
-            }
-
-            logger()->warning("[BNSP] tanggal_mulai not found in response for jadwal_id={$jadwalId}");
-            return null;
-        } catch (\Throwable $e) {
-            logger()->error("[BNSP] Gagal fetch jadwal {$jadwalId}: " . $e->getMessage() . ' at line ' . $e->getLine() . ' in ' . $e->getFile());
-            return null;
-        }
+        });
     }
 
     /**
      * Process a single ID Izin — ensure data exists, then generate all documents.
      */
+    /**
+     * Helper: skip LLM API calls in 'pdf' mode (data already pre-populated from pregen).
+     */
+    private function generateLlmText(string $fieldType, array $context = []): string
+    {
+        if ($this->mode === 'pdf') {
+            return $this->llmService->getFallback($fieldType);
+        }
+        return $this->llmService->generateText($fieldType, $context);
+    }
+
     public function processIdIzin(
         string $idIzin,
         string $noregAsesor1,
         string $noregAsesor2,
         string $tanggalUji,
-        ?string $jadwalId = null
+        ?string $jadwalId = null,
+        ?string $mode = null
     ): array {
+        $this->mode = $mode;
         $result = [
             'id_izin' => $idIzin,
             'status' => 'success',
@@ -175,124 +207,144 @@ class GenerateDokumenService
         );
 
         // ── Step 6: Pre-populate answer tables so build*Data methods read kompeten=true ──
-        $this->prePopulateAnswers($idIzin);
-        gc_collect_cycles();
-
-        $urls = [];
-
-        // Timestamp base: tanggal_uji at 08:00:00
-        // Each id_izin gets a unique random minute so times aren't identical
-        srand(crc32($idIzin));
-        $randMinute = rand(0, 59);
-        srand(crc32($idIzin . '_pra'));
-        $praMinute = rand(0, 59);
-        $dayStart = Carbon::parse($tanggalUji)->startOfDay();
-        $praBase = (clone $dayStart)->addHours(8)->addMinutes($praMinute);
-        $apl01Base = (clone $dayStart)->subDay()->addHours(8)->addMinutes($praMinute);
-        $asesmenBase = (clone $dayStart)->addHours(8)->addMinutes($randMinute);
-
-        // Time offsets (seconds) from each base — same offsets apply to all,
-        // but each id_izin has different base minute so times vary
-        $timeOffsets = [
-            'Apl01' => 323, 'Apl02' => 737, 'Mapa01' => 1004, 'Mapa02' => 1173,
-            'Ak07' => 1491, 'Ak04' => 1752, 'Ak01' => 2265,
-            'Ia01' => 2539, 'Ia02' => 3000, 'Ia03' => 3400,
-            'Ia04a' => 2539, 'Ia04b' => 3554, 'Ia05' => 5742,
-            'Ak02' => 6807, 'Ak03' => 7124, 'Ak05' => 7401, 'Ak06' => 7401,
-        ];
-
-        // ── Step 7: Generate pra-asesmen (7 docs) ──
-        $praDocs = [
-            ['method' => 'Apl01', 'blade' => 'apl01', 'dir' => 'apl01', 'code' => 'APL-01', 'col' => 'url_apl_01'],
-            ['method' => 'Apl02', 'blade' => 'apl02', 'dir' => 'apl02', 'code' => 'APL-02', 'col' => 'url_apl_02'],
-            ['method' => 'Mapa01', 'blade' => 'mapa01', 'dir' => 'mapa01', 'code' => 'MAPA-01', 'col' => 'url_mapa01'],
-            ['method' => 'Mapa02', 'blade' => 'mapa02', 'dir' => 'mapa02', 'code' => 'MAPA-02', 'col' => 'url_mapa02'],
-            ['method' => 'Ak07', 'blade' => 'ak07', 'dir' => 'ak07', 'code' => 'AK-07', 'col' => 'url_ak07'],
-            ['method' => 'Ak04', 'blade' => 'ak04', 'dir' => 'ak04', 'code' => 'AK-04', 'col' => 'url_ak04'],
-            ['method' => 'Ak01', 'blade' => 'ak01', 'dir' => 'ak01', 'code' => 'AK-01', 'col' => 'url_ak01'],
-        ];
-
-        $barcodes = [];
-        foreach ($praDocs as $doc) {
-            $offset = $timeOffsets[$doc['method']] ?? 300;
-            $base = $doc['method'] === 'Apl01' ? $apl01Base : $praBase;
-            $ts = fn($extraSec) => (clone $base)->addSeconds($offset + $extraSec)->format('Y-m-d H:i:s');
-            $barcodes[$doc['method']] = $this->createDocBarcodes($idIzin, $doc['method'], $asesiUser, $asesor1User, $asesor2User, $ts(0), $ts(2), $ts(3));
-        }
-
-        foreach ($praDocs as $doc) {
-            try {
-                $url = $this->generateDocument($idIzin, $doc['method'], $doc['blade'], $doc['dir'], $doc['code'], $doc['col'], $header, $barcodes[$doc['method']] ?? []);
-                $urls[$doc['col']] = $url;
-                if (!$url) logger()->warning("[GEN] {$idIzin} PRA DOC FAILED: {$doc['method']}");
-            } catch (\Throwable $e) {
-                logger()->warning("[GEN] {$idIzin} PRA DOC EXCEPTION {$doc['method']}: " . $e->getMessage());
-                $urls[$doc['col']] = null;
-            }
+        // (Skip in 'pdf' mode — data sudah ada dari pregen sebelumnya)
+        if ($this->mode !== 'pdf') {
+            $this->prePopulateAnswers($idIzin);
         }
         gc_collect_cycles();
-        logger()->debug("[GEN] {$idIzin} PRA-DONE memory=" . round(memory_get_usage(true) / 1024 / 1024, 1) . "MB peak=" . round(memory_get_peak_usage(true) / 1024 / 1024, 1) . "MB");
 
-        // ── Step 8: Generate asesmen (by jenjang) ──
-        $asesmenDocs = $jenjang < 4
-            ? [
-                ['method' => 'Ia01', 'blade' => 'ia01', 'dir' => 'ia01', 'code' => 'IA-01', 'col' => 'url_ia_01'],
-                ['method' => 'Ia02', 'blade' => 'ia02', 'dir' => 'ia02', 'code' => 'IA-02', 'col' => 'url_ia_02'],
-                ['method' => 'Ia03', 'blade' => 'ia03', 'dir' => 'ia03', 'code' => 'IA-03', 'col' => 'url_ia_03'],
-                ['method' => 'Ia05', 'blade' => 'ia05', 'dir' => 'ia05', 'code' => 'IA-05', 'col' => 'url_ia_05'],
-                ['method' => 'Ak02', 'blade' => 'ak02', 'dir' => 'ak02', 'code' => 'AK-02', 'col' => 'url_ak02'],
-                ['method' => 'Ak03', 'blade' => 'ak03', 'dir' => 'ak03', 'code' => 'AK-03', 'col' => 'url_ak03'],
-                ['method' => 'Ak05', 'blade' => 'ak05', 'dir' => 'ak05', 'code' => 'AK-05', 'col' => 'url_ak05'],
-                ['method' => 'Ak06', 'blade' => 'ak06', 'dir' => 'ak06', 'code' => 'AK-06', 'col' => 'url_ak06'],
-            ]
-            : [
-                ['method' => 'Ia04a', 'blade' => 'ia04a', 'dir' => 'ia04a', 'code' => 'IA-04A', 'col' => 'url_ia_04a'],
-                ['method' => 'Ia04b', 'blade' => 'ia04b', 'dir' => 'ia04b', 'code' => 'IA-04B', 'col' => 'url_ia_04b'],
-                ['method' => 'Ia05', 'blade' => 'ia05', 'dir' => 'ia05', 'code' => 'IA-05', 'col' => 'url_ia_05'],
-                ['method' => 'Ak02', 'blade' => 'ak02', 'dir' => 'ak02', 'code' => 'AK-02', 'col' => 'url_ak02'],
-                ['method' => 'Ak03', 'blade' => 'ak03', 'dir' => 'ak03', 'code' => 'AK-03', 'col' => 'url_ak03'],
-                ['method' => 'Ak05', 'blade' => 'ak05', 'dir' => 'ak05', 'code' => 'AK-05', 'col' => 'url_ak05'],
-                ['method' => 'Ak06', 'blade' => 'ak06', 'dir' => 'ak06', 'code' => 'AK-06', 'col' => 'url_ak06'],
+        // ── Pregen mode: selesai di sini, tidak perlu generate PDF ──
+        if ($this->mode === 'pregen') {
+            logger()->info("[GEN] {$idIzin} PREGEN-DONE memory=" . round(memory_get_usage(true) / 1024 / 1024, 1) . "MB peak=" . round(memory_get_peak_usage(true) / 1024 / 1024, 1) . "MB");
+            return array_merge($result, ['status' => 'pregen', 'urls' => []]);
+        }
+
+        // Init persistent FTP connection for all PDF uploads in this job
+        $this->initFtp();
+
+        try {
+            $urls = [];
+
+            // Timestamp base: tanggal_uji at 08:00:00
+            // Each id_izin gets a unique random minute so times aren't identical
+            srand(crc32($idIzin));
+            $randMinute = rand(0, 59);
+            srand(crc32($idIzin . '_pra'));
+            $praMinute = rand(0, 59);
+            $dayStart = Carbon::parse($tanggalUji)->startOfDay();
+            $praBase = (clone $dayStart)->addHours(8)->addMinutes($praMinute);
+            $apl01Base = (clone $dayStart)->subDay()->addHours(8)->addMinutes($praMinute);
+            $asesmenBase = (clone $dayStart)->addHours(8)->addMinutes($randMinute);
+
+            // Time offsets (seconds) from each base — same offsets apply to all,
+            // but each id_izin has different base minute so times vary
+            $timeOffsets = [
+                'Apl01' => 323, 'Apl02' => 737, 'Mapa01' => 1004, 'Mapa02' => 1173,
+                'Ak07' => 1491, 'Ak04' => 1752, 'Ak01' => 2265,
+                'Ia01' => 2539, 'Ia02' => 3000, 'Ia03' => 3400,
+                'Ia04a' => 2539, 'Ia04b' => 3554, 'Ia05' => 5742,
+                'Ak02' => 6807, 'Ak03' => 7124, 'Ak05' => 7401, 'Ak06' => 7401,
             ];
 
-        foreach ($asesmenDocs as $doc) {
-            $offset = $timeOffsets[$doc['method']] ?? 300;
-            $ts = fn($extraSec) => (clone $asesmenBase)->addSeconds($offset + $extraSec)->format('Y-m-d H:i:s');
-            $barcodes[$doc['method']] = $this->createDocBarcodes($idIzin, $doc['method'], $asesiUser, $asesor1User, $asesor2User, $ts(0), $ts(2), $ts(3));
-        }
+            // Pre-fetch all existing barcodes in ONE query (avoids ~42 individual DB upserts)
+            $this->loadBarcodeCache($idIzin);
 
-        foreach ($asesmenDocs as $doc) {
-            try {
-                $url = $this->generateDocument($idIzin, $doc['method'], $doc['blade'], $doc['dir'], $doc['code'], $doc['col'], $header, $barcodes[$doc['method']] ?? []);
-                $urls[$doc['col']] = $url;
-                if (!$url) logger()->warning("[GEN] {$idIzin} ASESMEN DOC FAILED: {$doc['method']}");
-            } catch (\Throwable $e) {
-                logger()->warning("[GEN] {$idIzin} ASESMEN DOC EXCEPTION {$doc['method']}: " . $e->getMessage());
-                $urls[$doc['col']] = null;
+            // ── Step 7: Generate pra-asesmen (7 docs) ──
+            $praDocs = [
+                ['method' => 'Apl01', 'blade' => 'apl01', 'dir' => 'apl01', 'code' => 'APL-01', 'col' => 'url_apl_01'],
+                ['method' => 'Apl02', 'blade' => 'apl02', 'dir' => 'apl02', 'code' => 'APL-02', 'col' => 'url_apl_02'],
+                ['method' => 'Mapa01', 'blade' => 'mapa01', 'dir' => 'mapa01', 'code' => 'MAPA-01', 'col' => 'url_mapa01'],
+                ['method' => 'Mapa02', 'blade' => 'mapa02', 'dir' => 'mapa02', 'code' => 'MAPA-02', 'col' => 'url_mapa02'],
+                ['method' => 'Ak07', 'blade' => 'ak07', 'dir' => 'ak07', 'code' => 'AK-07', 'col' => 'url_ak07'],
+                ['method' => 'Ak04', 'blade' => 'ak04', 'dir' => 'ak04', 'code' => 'AK-04', 'col' => 'url_ak04'],
+                ['method' => 'Ak01', 'blade' => 'ak01', 'dir' => 'ak01', 'code' => 'AK-01', 'col' => 'url_ak01'],
+            ];
+
+            $barcodes = [];
+            foreach ($praDocs as $doc) {
+                $offset = $timeOffsets[$doc['method']] ?? 300;
+                $base = $doc['method'] === 'Apl01' ? $apl01Base : $praBase;
+                $ts = fn($extraSec) => (clone $base)->addSeconds($offset + $extraSec)->format('Y-m-d H:i:s');
+                $barcodes[$doc['method']] = $this->createDocBarcodes($idIzin, $doc['method'], $asesiUser, $asesor1User, $asesor2User, $ts(0), $ts(2), $ts(3));
             }
+
+            foreach ($praDocs as $doc) {
+                try {
+                    $url = $this->generateDocument($idIzin, $doc['method'], $doc['blade'], $doc['dir'], $doc['code'], $doc['col'], $header, $barcodes[$doc['method']] ?? []);
+                    $urls[$doc['col']] = $url;
+                    if (!$url) logger()->warning("[GEN] {$idIzin} PRA DOC FAILED: {$doc['method']}");
+                } catch (\Throwable $e) {
+                    logger()->warning("[GEN] {$idIzin} PRA DOC EXCEPTION {$doc['method']}: " . $e->getMessage());
+                    $urls[$doc['col']] = null;
+                }
+            }
+            gc_collect_cycles();
+            logger()->debug("[GEN] {$idIzin} PRA-DONE memory=" . round(memory_get_usage(true) / 1024 / 1024, 1) . "MB peak=" . round(memory_get_peak_usage(true) / 1024 / 1024, 1) . "MB");
+
+            // ── Step 8: Generate asesmen (by jenjang) ──
+            $asesmenDocs = $jenjang < 4
+                ? [
+                    ['method' => 'Ia01', 'blade' => 'ia01', 'dir' => 'ia01', 'code' => 'IA-01', 'col' => 'url_ia_01'],
+                    ['method' => 'Ia02', 'blade' => 'ia02', 'dir' => 'ia02', 'code' => 'IA-02', 'col' => 'url_ia_02'],
+                    ['method' => 'Ia03', 'blade' => 'ia03', 'dir' => 'ia03', 'code' => 'IA-03', 'col' => 'url_ia_03'],
+                    ['method' => 'Ia05', 'blade' => 'ia05', 'dir' => 'ia05', 'code' => 'IA-05', 'col' => 'url_ia_05'],
+                    ['method' => 'Ak02', 'blade' => 'ak02', 'dir' => 'ak02', 'code' => 'AK-02', 'col' => 'url_ak02'],
+                    ['method' => 'Ak03', 'blade' => 'ak03', 'dir' => 'ak03', 'code' => 'AK-03', 'col' => 'url_ak03'],
+                    ['method' => 'Ak05', 'blade' => 'ak05', 'dir' => 'ak05', 'code' => 'AK-05', 'col' => 'url_ak05'],
+                    ['method' => 'Ak06', 'blade' => 'ak06', 'dir' => 'ak06', 'code' => 'AK-06', 'col' => 'url_ak06'],
+                ]
+                : [
+                    ['method' => 'Ia04a', 'blade' => 'ia04a', 'dir' => 'ia04a', 'code' => 'IA-04A', 'col' => 'url_ia_04a'],
+                    ['method' => 'Ia04b', 'blade' => 'ia04b', 'dir' => 'ia04b', 'code' => 'IA-04B', 'col' => 'url_ia_04b'],
+                    ['method' => 'Ia05', 'blade' => 'ia05', 'dir' => 'ia05', 'code' => 'IA-05', 'col' => 'url_ia_05'],
+                    ['method' => 'Ak02', 'blade' => 'ak02', 'dir' => 'ak02', 'code' => 'AK-02', 'col' => 'url_ak02'],
+                    ['method' => 'Ak03', 'blade' => 'ak03', 'dir' => 'ak03', 'code' => 'AK-03', 'col' => 'url_ak03'],
+                    ['method' => 'Ak05', 'blade' => 'ak05', 'dir' => 'ak05', 'code' => 'AK-05', 'col' => 'url_ak05'],
+                    ['method' => 'Ak06', 'blade' => 'ak06', 'dir' => 'ak06', 'code' => 'AK-06', 'col' => 'url_ak06'],
+                ];
+
+            foreach ($asesmenDocs as $doc) {
+                $offset = $timeOffsets[$doc['method']] ?? 300;
+                $ts = fn($extraSec) => (clone $asesmenBase)->addSeconds($offset + $extraSec)->format('Y-m-d H:i:s');
+                $barcodes[$doc['method']] = $this->createDocBarcodes($idIzin, $doc['method'], $asesiUser, $asesor1User, $asesor2User, $ts(0), $ts(2), $ts(3));
+            }
+
+            foreach ($asesmenDocs as $doc) {
+                try {
+                    $url = $this->generateDocument($idIzin, $doc['method'], $doc['blade'], $doc['dir'], $doc['code'], $doc['col'], $header, $barcodes[$doc['method']] ?? []);
+                    $urls[$doc['col']] = $url;
+                    if (!$url) logger()->warning("[GEN] {$idIzin} ASESMEN DOC FAILED: {$doc['method']}");
+                } catch (\Throwable $e) {
+                    logger()->warning("[GEN] {$idIzin} ASESMEN DOC EXCEPTION {$doc['method']}: " . $e->getMessage());
+                    $urls[$doc['col']] = null;
+                }
+            }
+            gc_collect_cycles();
+            logger()->debug("[GEN] {$idIzin} ASESMEN-DONE memory=" . round(memory_get_usage(true) / 1024 / 1024, 1) . "MB peak=" . round(memory_get_peak_usage(true) / 1024 / 1024, 1) . "MB");
+
+            // ── Final result summary ──
+            $totalDocs = count($praDocs) + count($asesmenDocs);
+            $generatedUrls = array_filter($urls, fn($v) => $v !== null);
+            $generated = count($generatedUrls);
+
+            if ($generated === 0) {
+                $result['status'] = 'error';
+                $result['error'] = 'Semua dokumen gagal digenerate';
+                logger()->error("[GEN] {$idIzin} ALL_FAILED 0/{$totalDocs} docs generated");
+            } elseif ($generated < $totalDocs) {
+                $result['status'] = 'partial';
+                $result['error'] = $generated . '/' . $totalDocs . ' dokumen berhasil';
+                $failed = array_diff_key($urls, $generatedUrls);
+                logger()->warning("[GEN] {$idIzin} PARTIAL {$generated}/{$totalDocs} docs, missing: " . json_encode(array_keys($failed)));
+            } else {
+                logger()->debug("[GEN] {$idIzin} SUCCESS {$generated}/{$totalDocs} docs");
+            }
+
+            return array_merge($result, ['urls' => $urls]);
+        } finally {
+            // Always close the FTP connection
+            $this->closeFtp();
         }
-        gc_collect_cycles();
-        logger()->debug("[GEN] {$idIzin} ASESMEN-DONE memory=" . round(memory_get_usage(true) / 1024 / 1024, 1) . "MB peak=" . round(memory_get_peak_usage(true) / 1024 / 1024, 1) . "MB");
-
-        // ── Final result summary ──
-        $totalDocs = count($praDocs) + count($asesmenDocs);
-        $generatedUrls = array_filter($urls, fn($v) => $v !== null);
-        $generated = count($generatedUrls);
-
-        if ($generated === 0) {
-            $result['status'] = 'error';
-            $result['error'] = 'Semua dokumen gagal digenerate';
-            logger()->error("[GEN] {$idIzin} ALL_FAILED 0/{$totalDocs} docs generated");
-        } elseif ($generated < $totalDocs) {
-            $result['status'] = 'partial';
-            $result['error'] = $generated . '/' . $totalDocs . ' dokumen berhasil';
-            $failed = array_diff_key($urls, $generatedUrls);
-            logger()->warning("[GEN] {$idIzin} PARTIAL {$generated}/{$totalDocs} docs, missing: " . json_encode(array_keys($failed)));
-        } else {
-            logger()->debug("[GEN] {$idIzin} SUCCESS {$generated}/{$totalDocs} docs");
-        }
-
-        return array_merge($result, ['urls' => $urls]);
     }
 
     // ─────────────────────────────────────────────
@@ -360,57 +412,88 @@ class GenerateDokumenService
     //  BARCODE GENERATION
     // ─────────────────────────────────────────────
 
+    /**
+     * Pre-fetch ALL existing barcodes for this id_izin in ONE query.
+     * Call this once before starting PDF generation to replace 42 individual SELECTs.
+     */
+    private function loadBarcodeCache(string $idIzin): void
+    {
+        $this->barcodeCache = [];
+        try {
+            $barcodes = Barcode::where('id_izin', $idIzin)->get();
+            foreach ($barcodes as $b) {
+                $key = "{$b->id_user}:{$b->jenis_dokumen}";
+                $this->barcodeCache[$key] = $b;
+            }
+            logger()->debug("[QR] Loaded " . count($this->barcodeCache) . " existing barcodes for {$idIzin}");
+        } catch (\Throwable $e) {
+            logger()->warning("[QR] Failed to load barcode cache for {$idIzin}: " . $e->getMessage());
+        }
+    }
+
     private function createBarcode(string $idIzin, string $jenisDokumen, int $userId, int $roleId, ?string $signedAt = null): ?array
     {
-        $uuid = (string) Uuid::uuid4();
-        $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
+        $cacheKey = "{$userId}:{$jenisDokumen}";
 
+        // Check cache first (pre-fetched in ONE query) to avoid individual SELECTs
+        $existing = $this->barcodeCache[$cacheKey] ?? null;
+
+        if ($existing) {
+            // Reuse existing url_ttd — keeps UUID stable across runs
+            $urlTtd = $existing->url_ttd;
+            // Only update created_at if timestamp changed (lightweight UPDATE, no SELECT needed)
+            if ($signedAt && $existing->created_at?->format('Y-m-d H:i:s') !== $signedAt) {
+                Barcode::where('id_user', $userId)
+                    ->where('id_izin', $idIzin)
+                    ->where('jenis_dokumen', $jenisDokumen)
+                    ->update(['created_at' => $signedAt]);
+            }
+        } else {
+            // New barcode — generate UUID + DB insert
+            $uuid = (string) Uuid::uuid4();
+            $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
+
+            try {
+                $data = [
+                    'url_ttd' => $urlTtd,
+                    'id_role' => $roleId,
+                ];
+                if ($signedAt) {
+                    $data['created_at'] = $signedAt;
+                }
+                Barcode::updateOrCreate(
+                    ['id_user' => $userId, 'id_izin' => $idIzin, 'jenis_dokumen' => $jenisDokumen],
+                    $data
+                );
+                // Add to cache so subsequent calls skip DB
+                $this->barcodeCache[$cacheKey] = new \App\Models\Barcode([
+                    'url_ttd' => $urlTtd,
+                    'id_user' => $userId,
+                    'id_izin' => $idIzin,
+                    'jenis_dokumen' => $jenisDokumen,
+                    'created_at' => $signedAt ? \Carbon\Carbon::parse($signedAt) : null,
+                ]);
+            } catch (\Throwable $e) {
+                logger()->error("[QR] EXCEPTION saving Barcode DB for {$jenisDokumen}/{$idIzin}: " . $e->getMessage());
+            }
+        }
+
+        // Generate QR code (fast local operation, needed for PDF embedding regardless of cache)
         $qrBase64 = null;
         try {
-            // Generate at 100x100 (PDF displays at 50-80px — no need for 300px)
             $qrRaw = QrCode::format('png')->size(100)->margin(0)->generate($urlTtd);
-            // QrCode returns HtmlString (has __toString) when no imagick/GD, or raw PNG string
-            $qrString = (string) $qrRaw;
-            $qrBase64 = 'data:image/png;base64,' . base64_encode($qrString);
+            $qrBase64 = 'data:image/png;base64,' . base64_encode((string) $qrRaw);
         } catch (\Throwable $e) {
             logger()->error("[QR] EXCEPTION generating QR for {$jenisDokumen}/{$idIzin}: " . $e->getMessage());
         }
 
-        try {
-            $data = [
-                'url_ttd' => $urlTtd,
-                'id_role' => $roleId,
-            ];
-            if ($signedAt) {
-                $data['created_at'] = $signedAt;
-            }
-
-            Barcode::updateOrCreate(
-                [
-                    'id_user'       => $userId,
-                    'id_izin'       => $idIzin,
-                    'jenis_dokumen' => $jenisDokumen,
-                ],
-                $data
-            );
-
-            return [
-                'url'      => $qrBase64,
-                'url_ttd'  => $urlTtd,
-                'tanggal'  => $signedAt,
-                'user_id'  => $userId,
-                'role_id'  => $roleId,
-            ];
-        } catch (\Throwable $e) {
-            logger()->error("[QR] EXCEPTION saving Barcode DB for {$jenisDokumen}/{$idIzin}: " . $e->getMessage());
-            return [
-                'url'      => $qrBase64,
-                'url_ttd'  => $urlTtd,
-                'tanggal'  => $signedAt,
-                'user_id'  => $userId,
-                'role_id'  => $roleId,
-            ];
-        }
+        return [
+            'url'      => $qrBase64,
+            'url_ttd'  => $urlTtd,
+            'tanggal'  => $signedAt,
+            'user_id'  => $userId,
+            'role_id'  => $roleId,
+        ];
     }
 
     private function mapBarcodeForPdf(?Barcode $barcode): ?array
@@ -469,6 +552,198 @@ class GenerateDokumenService
     // ─────────────────────────────────────────────
     //  PDF GENERATION & STORAGE
     // ─────────────────────────────────────────────
+
+    // ─────────────────────────────────────────────
+    //  PERSISTENT FTP HELPERS
+    // ─────────────────────────────────────────────
+
+    /**
+     * Establish a persistent FTP connection reused for all PDF uploads in this job.
+     * Falls back to Laravel Storage facade on failure.
+     */
+    private function initFtp(): void
+    {
+        $config = config('filesystems.disks.str_moon');
+        if (!$config) {
+            $this->ftpUseNative = false;
+            return;
+        }
+
+        try {
+            $host = $config['host'];
+            $port = $config['port'] ?? 21;
+            $timeout = 15;
+
+            $conn = @ftp_connect($host, $port, $timeout);
+            if (!$conn) {
+                logger()->warning('[FTP] Gagal konek ke ' . $host . ':' . $port . ', fallback ke Storage facade');
+                $this->ftpUseNative = false;
+                return;
+            }
+
+            if (!@ftp_login($conn, $config['username'], $config['password'])) {
+                logger()->warning('[FTP] Login gagal, fallback ke Storage facade');
+                @ftp_close($conn);
+                $this->ftpUseNative = false;
+                return;
+            }
+
+            // Passive mode
+            @ftp_pasv($conn, true);
+
+            // Set transfer timeout
+            @ftp_set_option($conn, FTP_TIMEOUT_SEC, 30);
+
+            // Change to root directory if configured
+            if (!empty($config['root'])) {
+                @ftp_chdir($conn, $config['root']);
+            }
+
+            $this->ftpConn = $conn;
+            logger()->debug('[FTP] Persistent connection established to ' . $host);
+        } catch (\Throwable $e) {
+            logger()->warning('[FTP] Exception saat init: ' . $e->getMessage() . ', fallback ke Storage facade');
+            $this->ftpUseNative = false;
+        }
+    }
+
+    /**
+     * Close the persistent FTP connection if open.
+     */
+    private function closeFtp(): void
+    {
+        if ($this->ftpConn) {
+            try {
+                @ftp_close($this->ftpConn);
+            } catch (\Throwable $e) {
+                // ignore
+            }
+            $this->ftpConn = null;
+        }
+    }
+
+    /**
+     * Upload a file via persistent FTP connection with retry fallback.
+     */
+    private function uploadPdf(string $remotePath, string $content, string $code): bool
+    {
+        // Use persistent connection if available
+        if ($this->ftpUseNative && $this->ftpConn) {
+            // Write to a temp stream so ftp_fput can use it
+            $tmpFile = tmpfile();
+            if ($tmpFile === false) {
+                // Fall back to Storage facade
+                return $this->uploadPdfFallback($remotePath, $content, $code);
+            }
+
+            fwrite($tmpFile, $content);
+            rewind($tmpFile);
+
+            for ($retry = 0; $retry < 3; $retry++) {
+                try {
+                    $uploaded = @ftp_fput($this->ftpConn, $remotePath, $tmpFile, FTP_BINARY);
+                    if ($uploaded) {
+                        fclose($tmpFile);
+                        return true;
+                    }
+                    logger()->warning("[FTP] ftp_fput {$code} attempt={$retry} returned false");
+                } catch (\Throwable $e) {
+                    logger()->warning("[FTP] ftp_fput {$code} attempt={$retry} exception: " . $e->getMessage());
+                }
+
+                if ($retry < 2) {
+                    // Reconnect FTP on failure
+                    $this->closeFtp();
+                    $this->initFtp();
+                    if (!$this->ftpConn) {
+                        fclose($tmpFile);
+                        return $this->uploadPdfFallback($remotePath, $content, $code);
+                    }
+                    // Re-create temp stream for retry
+                    fclose($tmpFile);
+                    $tmpFile = tmpfile();
+                    fwrite($tmpFile, $content);
+                    rewind($tmpFile);
+                }
+            }
+            fclose($tmpFile);
+        }
+
+        // Fallback to Storage facade
+        return $this->uploadPdfFallback($remotePath, $content, $code);
+    }
+
+    /**
+     * Fallback upload via Laravel Storage facade (per-connection FTP).
+     */
+    private function uploadPdfFallback(string $remotePath, string $content, string $code): bool
+    {
+        for ($retry = 0; $retry < 3; $retry++) {
+            try {
+                if ($retry > 0) {
+                    Storage::purge('str_moon');
+                }
+                $uploaded = Storage::disk('str_moon')->put($remotePath, $content);
+                if ($uploaded) return true;
+                logger()->warning("[FTP] fallback put {$code} attempt={$retry} returned false");
+            } catch (\Throwable $e) {
+                logger()->warning("[FTP] fallback put {$code} attempt={$retry} exception: " . $e->getMessage());
+            }
+            if ($retry < 2) sleep(5);
+        }
+        return false;
+    }
+
+    /**
+     * Compute a content hash for PDF caching.
+     * Includes: header fields, barcode URLs, doc data keys/values, blade template mtime.
+     */
+    private function computePdfCacheKey(
+        string $idIzin,
+        string $method,
+        string $blade,
+        array $header,
+        array $barcodes,
+        array $docData
+    ): string {
+        $hashInput = [];
+
+        // Stable header fields (skip timestamps since they vary by run)
+        $headerKeys = ['jabatan_kerja', 'nomor_skema', 'tuk', 'nama_asesi', 'asesor_1', 'asesor_2',
+            'noreg_asesor_1', 'noreg_asesor_2', 'jenis_kelas', 'jenjang', 'nama_penyusun',
+            'nama_validator', 'nama_manajer', 'barcode_penyusun', 'barcode_validator',
+            'barcode_manajer', 'noreg_penyusun', 'noreg_validator'];
+        foreach ($headerKeys as $k) {
+            $hashInput[] = $k . '=' . ($header[$k] ?? 'null');
+        }
+
+        // Barcode url_ttd (stable) — skip volatile QR base64
+        $barcodeKeys = ['asesi', 'asesor1', 'asesor2'];
+        foreach ($barcodeKeys as $k) {
+            $hashInput[] = "{$k}_ttd=" . ($barcodes[$k]['url_ttd'] ?? 'null');
+        }
+
+        // Doc data keys and values (sorted for stability)
+        $docKeys = array_keys($docData);
+        sort($docKeys);
+        foreach ($docKeys as $k) {
+            if ($k === 'barcodes') continue; // already hashed separately
+            $v = $docData[$k];
+            if (is_array($v) || is_object($v)) {
+                $hashInput[] = $k . '=' . md5(json_encode($v));
+            } else {
+                $hashInput[] = $k . '=' . ((string) $v);
+            }
+        }
+
+        // Blade template mtime
+        $bladePath = resource_path("views/pdf/{$blade}.blade.php");
+        if (file_exists($bladePath)) {
+            $hashInput[] = 'blade_mtime=' . filemtime($bladePath);
+        }
+
+        return md5(implode('|', $hashInput));
+    }
 
     private function generateDocument(
         string $idIzin,
@@ -532,8 +807,34 @@ class GenerateDokumenService
             }
             logger()->debug("[LLM] PDF data untuk {$code} {$idIzin}: " . json_encode($llmInData));
 
-            $pdf = Pdf::loadView("pdf.{$blade}", $viewData)->setPaper('A4', 'portrait');
+            // ── PDF CACHE: Skip DomPDF+FTP if content hash matches and FTP file exists ──
             $path = "dok_asesmen/{$dir}/FR-{$code}-{$idIzin}.pdf";
+            $contentHash = $this->computePdfCacheKey($idIzin, $method, $blade, $header, $barcodes, $docData);
+
+            $cachedPdfKey = "pdf:cache:{$idIzin}:{$method}";
+            $cachedHash = \Illuminate\Support\Facades\Cache::get($cachedPdfKey);
+            $cachedUrl = \Illuminate\Support\Facades\Cache::get("pdf:url:{$idIzin}:{$method}");
+
+            if ($cachedHash === $contentHash && $cachedUrl) {
+                // Check if the FTP file still exists (quick size check via HTTP HEAD to moon URL)
+                try {
+                    $moonUrl = self::MOON_BASE . $path;
+                    $headResponse = \Illuminate\Support\Facades\Http::timeout(5)->head($moonUrl);
+                    if ($headResponse->successful()) {
+                        logger()->debug("[PDF-CACHE] {$code} {$idIzin} HIT — skipping DomPDF+FTP, reusing existing PDF");
+                        BuktiAsesmen::updateOrCreate(
+                            ['id_izin' => $idIzin],
+                            [$urlColumn => $cachedUrl]
+                        );
+                        return $cachedUrl;
+                    }
+                } catch (\Throwable $e) {
+                    // FTP check failed — regenerate
+                }
+            }
+            logger()->debug("[PDF-CACHE] {$code} {$idIzin} MISS — rendering DomPDF");
+
+            $pdf = Pdf::loadView("pdf.{$blade}", $viewData)->setPaper('A4', 'portrait');
             $pdfContent = $pdf->output();
 
             // Free DomPDF memory immediately
@@ -542,28 +843,18 @@ class GenerateDokumenService
             // ── Force garbage collection after every PDF ──
             gc_collect_cycles();
 
-            // Retry FTP upload up to 3 times with backoff
-            $pdfUploaded = false;
-            for ($retry = 0; $retry < 3; $retry++) {
-                try {
-                    // Purge disk to force a fresh FTP connection on each retry
-                    if ($retry > 0) {
-                        Storage::purge('str_moon');
-                    }
-                    $pdfUploaded = Storage::disk('str_moon')->put($path, $pdfContent);
-                    if ($pdfUploaded) break;
-                    logger()->warning("[QR] PDF put {$code} attempt={$retry} returned false (disk 'str_moon')");
-                } catch (\Throwable $ftpEx) {
-                    logger()->warning("[QR] PDF put {$code} attempt={$retry} exception: " . $ftpEx->getMessage());
-                }
-                if ($retry < 2) sleep(5);
-            }
+            // Upload via persistent FTP connection (with native retry + Storage fallback)
+            $pdfUploaded = $this->uploadPdf($path, $pdfContent, $code);
             unset($pdfContent);
             gc_collect_cycles();
 
             if (!$pdfUploaded) return null;
 
             $fullUrl = self::MOON_BASE . $path;
+
+            // Cache the content hash and URL so subsequent runs skip DomPDF+FTP
+            \Illuminate\Support\Facades\Cache::put($cachedPdfKey, $contentHash, 86400);
+            \Illuminate\Support\Facades\Cache::put("pdf:url:{$idIzin}:{$method}", $fullUrl, 86400);
 
             BuktiAsesmen::updateOrCreate(
                 ['id_izin' => $idIzin],
@@ -774,18 +1065,17 @@ class GenerateDokumenService
             ->orderBy('kategori')
             ->get();
 
+        // Read from pre-populated DB (see prePopulateAnswers); fallback to hardcoded text
+        $ak7Answers = \App\Models\Ak7Answer::where('id_izin', $idIzin)->get()->keyBy('referensi_id');
+
         // Inject jawaban
-        $kelompoks->each(function ($kelompok) use ($idIzin) {
-            $kelompok->kategoris->each(function ($kategori) use ($idIzin, $kelompok) {
-                $kategori->referensis->each(function ($referensi) use ($idIzin, $kelompok) {
+        $kelompoks->each(function ($kelompok) use ($idIzin, $ak7Answers) {
+            $kelompok->kategoris->each(function ($kategori) use ($idIzin, $kelompok, $ak7Answers) {
+                $kategori->referensis->each(function ($referensi) use ($idIzin, $kelompok, $ak7Answers) {
                     // kelompok 6 & 7 = text, others = boolean
                     if (in_array($kelompok->kategori, [6, 7])) {
-                        $context = [
-                            'nama_asesi' => \App\Models\Personal::where('id_izin', $idIzin)->value('nama'),
-                            'jabatan_kerja' => '',
-                            'referensi_nama' => $referensi->nama,
-                        ];
-                        $referensi->jawaban = $this->llmService->generateText('ak07_text', $context);
+                        $ak7Answer = $ak7Answers->get($referensi->id);
+                        $referensi->jawaban = $ak7Answer?->answer_text ?? $this->llmService->getFallback('ak07_text');
                     } else {
                         $referensi->answer_bool = true;
                     }
@@ -811,11 +1101,8 @@ class GenerateDokumenService
             });
         });
 
-        $context = [
-            'nama_asesi' => $header['nama_asesi'],
-            'jabatan_kerja' => $header['jabatan_kerja'],
-        ];
-        $alasan = $this->llmService->generateText('ak04_alasan', $context);
+        // No pre-populated DB table for AK04 alasan; use fallback (inline builder is last resort)
+        $alasan = $this->llmService->getFallback('ak04_alasan');
 
         return [
             'kelompoks' => $kelompoks,
@@ -885,11 +1172,8 @@ class GenerateDokumenService
             ];
         });
 
-        $context = [
-            'nama_asesi' => $header['nama_asesi'],
-            'jabatan_kerja' => $header['jabatan_kerja'],
-        ];
-        $umpanBalik = $this->llmService->generateText('ia01_umpan_balik', $context);
+        // No pre-populated DB table for IA01 feedback; use fallback (inline builder is last resort)
+        $umpanBalik = $this->llmService->getFallback('ia01_umpan_balik');
 
         return [
             'kelompok_kerja' => $kelompokKerja,
@@ -918,15 +1202,15 @@ class GenerateDokumenService
             ->get()
             ->groupBy('id_dokumen');
 
+        // No pre-populated DB tables for IA03 answers; use fallback (inline builder is last resort)
         $kelompokKerja = $units->map(function ($unit) use ($allSoals) {
             $soals = ($allSoals[$unit->id] ?? collect())->map(function ($soal) use ($unit) {
-                $context = ['soal_soal' => $soal->soal, 'unit_nama' => $unit->nama];
                 return [
                     'id' => $soal->id,
                     'soal' => $soal->soal,
-                    'tanggapan' => $this->llmService->generateText('ia03_tanggapan', $context),
+                    'tanggapan' => $this->llmService->getFallback('ia03_tanggapan'),
                     'pencapaian' => true,
-                    'umpan_balik' => $this->llmService->generateText('ia03_umpan_balik', $context),
+                    'umpan_balik' => $this->llmService->getFallback('ia03_umpan_balik'),
                 ];
             });
             return [
@@ -939,7 +1223,7 @@ class GenerateDokumenService
         return [
             'kelompok_kerja' => $kelompokKerja,
             'referensi_form' => collect([]),
-            'umpan_balik' => $this->llmService->generateText('ia03_umpan_balik', ['nama_asesi' => $header['nama_asesi'], 'jabatan_kerja' => $header['jabatan_kerja']]),
+            'umpan_balik' => $this->llmService->getFallback('ia03_umpan_balik'),
             'is_kompeten' => true,
         ];
     }
@@ -962,19 +1246,15 @@ class GenerateDokumenService
             ];
         }
 
-        $context = [
-            'nama_asesi' => $header['nama_asesi'],
-            'jabatan_kerja' => $header['jabatan_kerja'],
-        ];
-
         // Checkbox images
         $imgaChecked = base64_encode('checked');
         $imgaNochecked = base64_encode('unchecked');
 
+        // No pre-populated DB table for IA05 feedback; use fallback (inline builder is last resort)
         return [
             'dokumen' => null,
             'soal' => $soals,
-            'umpan_balik' => $this->llmService->generateText('ia05_umpan_balik', $context),
+            'umpan_balik' => $this->llmService->getFallback('ia05_umpan_balik'),
             'imga_checked' => $imgaChecked,
             'imga_nochecked' => $imgaNochecked,
         ];
@@ -986,32 +1266,32 @@ class GenerateDokumenService
 
     private function buildIa04aData(string $idIzin, array $header): array
     {
-        $soals = \App\Models\Soal::where('tipe', 'uraian')->limit(5)->get()->map(function ($soal) use ($header) {
-            $context = [
-                'soal_soal' => $soal->soal,
-                'jabatan_kerja' => $header['jabatan_kerja'],
-            ];
+        // Read from pre-populated DB (see prePopulateAnswers); fallback to hardcoded text
+        $ia4aAnswers = \App\Models\Ia4aAnswer::where('id_izin', $idIzin)->get()->keyBy('soal_id');
+
+        $soals = \App\Models\Soal::where('tipe', 'uraian')->limit(5)->get()->map(function ($soal) use ($ia4aAnswers) {
+            $answer = $ia4aAnswers->get($soal->id);
             return [
                 'id' => $soal->id,
                 'soal' => $soal->soal,
-                'jawaban' => $this->llmService->generateText('ia04a_jawaban', $context),
+                'jawaban' => $answer?->jawaban ?? $this->llmService->getFallback('ia04a_jawaban'),
                 'is_komentar' => false,
             ];
         });
 
-        $llmCtx = [
-            'nama_asesi' => $header['nama_asesi'] ?? '',
-            'jabatan_kerja' => $header['jabatan_kerja'] ?? '',
-        ];
+        // Dedicated IA04A fields stored at virtual sentinel IDs (see VIRTUAL_ID_* constants)
+        $persiapan = $ia4aAnswers->get(self::VIRTUAL_ID_PERSIAPAN)?->jawaban ?? $this->llmService->getFallback('ia04a_persiapan_kegiatan');
+        $demonstrasi = $ia4aAnswers->get(self::VIRTUAL_ID_DEMONSTRASI)?->jawaban ?? $this->llmService->getFallback('ia04a_demonstrasi');
+        $umpanBalik = $ia4aAnswers->get(self::VIRTUAL_ID_UMPAN_BALIK)?->jawaban ?? $this->llmService->getFallback('ia04a_umpan_balik');
 
         return [
             'kelompok_kerja' => [],
             'referensi_form' => collect([]),
             'soal' => $soals,
             'is_kompeten' => true,
-            'persiapan_kegiatan' => $this->llmService->generateText('ia04a_persiapan_kegiatan', $llmCtx),
-            'hal_demonstrasi' => $this->llmService->generateText('ia04a_demonstrasi', $llmCtx),
-            'umpan_balik' => $this->llmService->generateText('ia04a_umpan_balik', $llmCtx),
+            'persiapan_kegiatan' => $persiapan,
+            'hal_demonstrasi' => $demonstrasi,
+            'umpan_balik' => $umpanBalik,
         ];
     }
 
@@ -1064,54 +1344,51 @@ class GenerateDokumenService
             ];
         });
 
-        $context = [
-            'nama_asesi' => $header['nama_asesi'],
-            'jabatan_kerja' => $header['jabatan_kerja'],
-        ];
+        // Read from pre-populated DB (see prePopulateAnswers); fallback to hardcoded text
+        $ak2Feedback = \App\Models\Ak2Feedback::where('id_izin', $idIzin)->first();
 
         return [
             'data_unit_kompetensi' => $unitKompetensis,
-            'is_kompeten' => true,
-            'tindak_lanjut' => 'Lanjutkan ke tahap berikutnya',
-            'komentar' => $this->llmService->generateText('ak02_komentar', $context),
+            'is_kompeten' => $ak2Feedback?->is_kompeten ?? true,
+            'tindak_lanjut' => $ak2Feedback?->tindak_lanjut ?? 'Lanjutkan ke tahap berikutnya',
+            'komentar' => $ak2Feedback?->komentar ?? $this->llmService->getFallback('ak02_komentar'),
         ];
     }
 
     private function buildAk03Data(string $idIzin, array $header): array
     {
-        $soals = \App\Models\Soal::limit(5)->get()->map(function ($soal) use ($header) {
-            $context = ['soal_soal' => $soal->soal];
+        // Read from pre-populated DB (see prePopulateAnswers); fallback to hardcoded text
+        $ak3Answers = \App\Models\Ak3Answer::where('id_izin', $idIzin)->get()->keyBy('soal_id');
+        $ak3Note = \App\Models\Ak3Note::where('id_izin', $idIzin)->value('catatan');
+
+        $soals = \App\Models\Soal::limit(5)->get()->map(function ($soal) use ($ak3Answers) {
+            $answer = $ak3Answers->get($soal->id);
             return [
                 'id' => $soal->id,
                 'soal' => $soal->soal,
-                'is_kompeten' => true,
-                'catatan' => $this->llmService->generateText('ak03_catatan', $context),
+                'is_kompeten' => $answer?->is_kompeten ?? true,
+                'catatan' => $answer?->catatan ?? $this->llmService->getFallback('ak03_catatan'),
             ];
         });
 
         return [
             'soal' => $soals,
-            'catatan' => $this->llmService->generateText('ak03_catatan_umum', [
-                'nama_asesi' => $header['nama_asesi'],
-                'jabatan_kerja' => $header['jabatan_kerja'],
-            ]),
+            'catatan' => $ak3Note ?? $this->llmService->getFallback('ak03_catatan_umum'),
         ];
     }
 
     private function buildAk05Data(string $idIzin, array $header): array
     {
-        $context = [
-            'nama_asesi' => $header['nama_asesi'],
-            'jabatan_kerja' => $header['jabatan_kerja'],
-        ];
+        // Read from pre-populated DB (see prePopulateAnswers); fallback to hardcoded text
+        $ak5Answer = \App\Models\Ak5Answer::where('id_izin', $idIzin)->first();
 
         return [
             'kompeten' => true,
-            'keterangan' => $this->llmService->generateText('ak05_keterangan', $context),
-            'aspek' => $this->llmService->generateText('ak05_aspek', $context),
-            'pencatatan_penolakan' => '',
-            'saran' => $this->llmService->generateText('ak05_saran', $context),
-            'catatan' => $this->llmService->generateText('ak05_catatan', $context),
+            'keterangan' => $ak5Answer?->keterangan ?? $this->llmService->getFallback('ak05_keterangan'),
+            'aspek' => $ak5Answer?->aspek ?? $this->llmService->getFallback('ak05_aspek'),
+            'pencatatan_penolakan' => $ak5Answer?->pencatatan_penolakan ?? '',
+            'saran' => $ak5Answer?->saran ?? $this->llmService->getFallback('ak05_saran'),
+            'catatan' => $ak5Answer?->catatan ?? $this->llmService->getFallback('ak05_catatan'),
         ];
     }
 
@@ -1146,12 +1423,14 @@ class GenerateDokumenService
             'transfer_skills' => $dimensiLabel,
         ];
 
+        // Read from pre-populated DB (see prePopulateAnswers); fallback to hardcoded text
+        $ak6Feedback = \App\Models\Ak6Feedback::where('id_izin', $idIzin)->first();
         return [
             'aspek' => $aspeks,
-            'rekomendasi_prinsip' => $this->llmService->generateText('ak06_rekomendasi1', $context),
-            'rekomendasi_dimensi' => $this->llmService->generateText('ak06_rekomendasi2', $context),
-            'catatan_asesor1' => $this->llmService->generateText('ak06_catatan_asesor1', $context),
-            'catatan_asesor2' => $this->llmService->generateText('ak06_catatan_asesor2', $context),
+            'rekomendasi_prinsip' => $ak6Feedback?->rekomendasi1 ?? $this->llmService->getFallback('ak06_rekomendasi1'),
+            'rekomendasi_dimensi' => $ak6Feedback?->rekomendasi2 ?? $this->llmService->getFallback('ak06_rekomendasi2'),
+            'catatan_asesor1' => $ak6Feedback?->catatan_asesor1 ?? $this->llmService->getFallback('ak06_catatan_asesor1'),
+            'catatan_asesor2' => $ak6Feedback?->catatan_asesor2 ?? $this->llmService->getFallback('ak06_catatan_asesor2'),
             'dimensi_kompetensi' => $dimensi,
         ];
     }
@@ -1318,20 +1597,20 @@ class GenerateDokumenService
             );
             $idx++;
         }
-        // IA04A — dedicated fields (virtual soal_id = 0, -1, -2)
+        // IA04A — dedicated fields (virtual soal_id using high sentinel IDs for MySQL UNSIGNED compatibility)
         $ia04aPersiapan = $llmResults['ia04a_persiapan_kegiatan_' . $idx] ?? $this->llmService->getFallback('ia04a_persiapan_kegiatan');
         $ia04aDemonstrasi = $llmResults['ia04a_demonstrasi_' . ($idx + 1)] ?? $this->llmService->getFallback('ia04a_demonstrasi');
         $ia04aUmpanBalik = $llmResults['ia04a_umpan_balik_' . ($idx + 2)] ?? $this->llmService->getFallback('ia04a_umpan_balik');
         \App\Models\Ia4aAnswer::updateOrCreate(
-            ['id_izin' => $idIzin, 'soal_id' => 0],
+            ['id_izin' => $idIzin, 'soal_id' => self::VIRTUAL_ID_PERSIAPAN],
             ['jawaban' => $ia04aPersiapan]
         );
         \App\Models\Ia4aAnswer::updateOrCreate(
-            ['id_izin' => $idIzin, 'soal_id' => -1],
+            ['id_izin' => $idIzin, 'soal_id' => self::VIRTUAL_ID_DEMONSTRASI],
             ['jawaban' => $ia04aDemonstrasi]
         );
         \App\Models\Ia4aAnswer::updateOrCreate(
-            ['id_izin' => $idIzin, 'soal_id' => -2],
+            ['id_izin' => $idIzin, 'soal_id' => self::VIRTUAL_ID_UMPAN_BALIK],
             ['jawaban' => $ia04aUmpanBalik]
         );
         logger()->debug("[LLM] IA04A dedicated fields stored id_izin={$idIzin} persiapan_len=" . strlen($ia04aPersiapan) . " demonstrasi_len=" . strlen($ia04aDemonstrasi) . " umpan_len=" . strlen($ia04aUmpanBalik));
@@ -1509,22 +1788,27 @@ class GenerateDokumenService
         if (!$url) {
             return null;
         }
-        try {
-            $contents = @file_get_contents($url);
-            if ($contents === false) {
+
+        // Cache base64 images for 24h — these barcode/signature images don't change frequently
+        $cacheKey = 'img:base64:' . md5($url);
+        return \Illuminate\Support\Facades\Cache::remember($cacheKey, 86400, function () use ($url) {
+            try {
+                $contents = @file_get_contents($url);
+                if ($contents === false) {
+                    return null;
+                }
+                $extension = pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'png';
+                $mime = match (strtolower($extension)) {
+                    'jpg', 'jpeg' => 'image/jpeg',
+                    'gif' => 'image/gif',
+                    'svg' => 'image/svg+xml',
+                    default => 'image/png',
+                };
+                return 'data:' . $mime . ';base64,' . base64_encode($contents);
+            } catch (\Throwable $e) {
                 return null;
             }
-            $extension = pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'png';
-            $mime = match (strtolower($extension)) {
-                'jpg', 'jpeg' => 'image/jpeg',
-                'gif' => 'image/gif',
-                'svg' => 'image/svg+xml',
-                default => 'image/png',
-            };
-            return 'data:' . $mime . ';base64,' . base64_encode($contents);
-        } catch (\Throwable $e) {
-            return null;
-        }
+        });
     }
 
     /**
@@ -1592,8 +1876,8 @@ class GenerateDokumenService
             }
 
             return is_array($docData) ? $docData : null;
-        } catch (\ReflectionException $e) {
-            logger()->warning("[LLM] Reflection GAGAL untuk {$methodName}: " . $e->getMessage() . " — fallback ke inline builder");
+        } catch (\Throwable $e) {
+            logger()->warning("[LLM] Reflection/Invocation GAGAL untuk {$methodName}: " . $e->getMessage() . " — fallback ke inline builder");
             // Fall back to inline builder
             $inlineBuilder = "build{$method}Data";
             if (method_exists($this, $inlineBuilder)) {

@@ -22,9 +22,13 @@ class PermohonanSyncService
 
     public const BASE_URL = 'https://siki.pu.go.id/siki-api/v1';
 
+    /** @var int Consecutive SIKI API failures; reset to 0 on success */
+    private int $consecutiveFailures = 0;
+
     /**
      * Sync a single permohonan by id_izin with fallback.
      * Tries reguler first, then balai, then fg.
+     * Circuit breaker: after 3 consecutive failures, skip SIKI for subsequent calls.
      */
     public function syncWithFallback(string $id_izin): array
     {
@@ -32,15 +36,33 @@ class PermohonanSyncService
             return ['success' => true, 'type' => null, 'id_izin' => $id_izin, 'error' => null];
         }
 
+        // Circuit breaker: if SIKI is down, don't keep trying
+        if ($this->consecutiveFailures >= 3) {
+            logger()->warning("[SIKI] Circuit breaker OPEN — skipping sync for id_izin={$id_izin}");
+            return ['success' => false, 'type' => null, 'id_izin' => $id_izin, 'error' => 'SIKI circuit breaker open (consecutive failures)'];
+        }
+
+        $overallStart = microtime(true);
+
         foreach (self::SKK_TYPES as $type => $endpoint) {
+            // Total timeout: 30 seconds across all attempts
+            if (microtime(true) - $overallStart > 30) {
+                logger()->warning("[SIKI] Global timeout 30s exceeded for id_izin={$id_izin}");
+                break;
+            }
+
             try {
                 $this->syncSinglePermohonanData($id_izin, $type, $endpoint, self::BASE_URL);
+                $this->consecutiveFailures = 0; // Reset circuit breaker on success
                 return ['success' => true, 'type' => $type, 'id_izin' => $id_izin, 'error' => null];
             } catch (\Throwable $e) {
+                logger()->warning("[SIKI] id_izin={$id_izin} type={$type} failed: " . $e->getMessage());
                 continue;
             }
         }
 
+        $this->consecutiveFailures++;
+        logger()->warning("[SIKI] id_izin={$id_izin} ALL SOURCES FAILED (consecutive_failures={$this->consecutiveFailures})");
         return ['success' => false, 'type' => null, 'id_izin' => $id_izin, 'error' => 'Gagal sync dari semua sumber (reguler, balai, fg)'];
     }
 
@@ -67,7 +89,7 @@ class PermohonanSyncService
         ];
 
         $detail = Http::withHeaders($headers)
-            ->timeout(60)->connectTimeout(60)
+            ->timeout(15)->connectTimeout(10)
             ->get("$baseUrl/permohonan-skk{$endpoint}{$id_izin}")
             ->json();
 

@@ -67,7 +67,7 @@
             }
             .headera,
             .footera {
-                position: fixed;
+                position: static; /* was fixed, changed for DomPDF performance */
             }
             .headera {
                 top: 0px;

@@ -18,6 +18,14 @@ Spesifik terhadap konteks asesmen yang diberikan.
 Jawab HANYA teks yang diminta, to the point, jangan terlalu panjang tanpa penjelasan tambahan. maksimal 255 huruf. Semua metode uji observasi, jangan sebut portofolio.
 PROMPT;
 
+    /** Circuit breaker: after this many consecutive failures, skip LLM calls */
+    private const CIRCUIT_BREAKER_THRESHOLD = 3;
+    /** Circuit breaker cooldown: reset after this many seconds */
+    private const CIRCUIT_COOLDOWN = 60;
+
+    private int $consecutiveFailures = 0;
+    private ?int $circuitOpenedAt = null; // Unix timestamp when circuit opened
+
     /**
      * Generate text content for a document field using the LLM.
      * Falls back to a placeholder if the API is unreachable.
@@ -233,6 +241,19 @@ PROMPT;
 
     private function callLlm(string $userPrompt): ?string
     {
+        // Circuit breaker: skip API calls if LLM is failing
+        if ($this->consecutiveFailures >= self::CIRCUIT_BREAKER_THRESHOLD) {
+            if ($this->circuitOpenedAt && (time() - $this->circuitOpenedAt) > self::CIRCUIT_COOLDOWN) {
+                // Cooldown expired, reset and try again
+                logger()->info('[LLM] Circuit breaker cooldown expired, resetting');
+                $this->consecutiveFailures = 0;
+                $this->circuitOpenedAt = null;
+            } else {
+                logger()->warning('[LLM] Circuit breaker OPEN — skipping API call (failures=' . $this->consecutiveFailures . ')');
+                return null;
+            }
+        }
+
         $maxRetries = 3;
         $attempt = 0;
         $delay = 2000; // ms
@@ -241,7 +262,7 @@ PROMPT;
             try {
                 logger()->debug("[LLM] API call attempt=" . ($attempt + 1) . " url=" . self::API_URL . " prompt_len=" . strlen($userPrompt));
                 $start = microtime(true);
-                $response = Http::timeout(60)
+                $response = Http::timeout(30)
                     ->withHeaders([
                         'Content-Type' => 'application/json',
                         'Authorization' => 'Bearer ' . self::API_TOKEN,
@@ -265,6 +286,7 @@ PROMPT;
                     if (!$text || strlen(trim($text)) <= 5) {
                         $reasoning = $data['choices'][0]['message']['reasoning_content'] ?? null;
                         if ($reasoning && strlen(trim($reasoning)) > 5) {
+                            $this->consecutiveFailures = 0; // Reset circuit breaker on success
                             logger()->debug("[LLM] API success in {$elapsed}ms, using reasoning_content len=" . strlen($reasoning));
                             return trim($reasoning);
                         }
@@ -274,6 +296,7 @@ PROMPT;
                         logger()->warning("[LLM] API response raw (first 500 chars): " . substr(json_encode($data), 0, 500));
                     }
                     if ($text && strlen(trim($text)) > 5) {
+                        $this->consecutiveFailures = 0; // Reset circuit breaker on success
                         return trim($text);
                     }
                     if ($text && strlen(trim($text)) <= 5) {
@@ -293,6 +316,11 @@ PROMPT;
                     continue;
                 }
 
+                $this->consecutiveFailures++;
+                if ($this->consecutiveFailures >= self::CIRCUIT_BREAKER_THRESHOLD) {
+                    $this->circuitOpenedAt = time();
+                    logger()->warning('[LLM] Circuit breaker OPENED after ' . $this->consecutiveFailures . ' consecutive failures');
+                }
                 return null;
             } catch (\Throwable $e) {
                 logger()->warning("[LLM] API exception attempt=" . ($attempt + 1) . ": " . $e->getMessage());
@@ -304,6 +332,11 @@ PROMPT;
             }
         }
 
+        $this->consecutiveFailures++;
+        if ($this->consecutiveFailures >= self::CIRCUIT_BREAKER_THRESHOLD) {
+            $this->circuitOpenedAt = time();
+            logger()->warning('[LLM] Circuit breaker OPENED after ' . $this->consecutiveFailures . ' consecutive failures');
+        }
         logger()->error("[LLM] API call gagal setelah {$maxRetries} percobaan");
         return null;
     }

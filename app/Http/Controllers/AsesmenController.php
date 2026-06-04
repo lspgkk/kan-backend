@@ -2221,7 +2221,7 @@ class AsesmenController extends Controller
         ]);
     }
 
-    private function buildAk03Data($id): ?array
+    private function buildAk03Data(int|string $id, bool $forPdf = false): ?array
     {
         $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
             ->where('id_izin', $id)

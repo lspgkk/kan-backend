@@ -18,6 +18,7 @@ class GenerateDokumenJob implements ShouldQueue
     public string $tanggalUji;
     public ?string $jadwalId;
     public string $batchId;
+    public ?string $mode;
 
     public $timeout = 600;  // 10 min per job
     public $tries = 3;
@@ -30,7 +31,8 @@ class GenerateDokumenJob implements ShouldQueue
         string $noregAsesor2,
         string $tanggalUji,
         string $batchId,
-        ?string $jadwalId = null
+        ?string $jadwalId = null,
+        ?string $mode = null
     ) {
         $this->idIzin = $idIzin;
         $this->noregAsesor1 = $noregAsesor1;
@@ -38,9 +40,72 @@ class GenerateDokumenJob implements ShouldQueue
         $this->tanggalUji = $tanggalUji;
         $this->batchId = $batchId;
         $this->jadwalId = $jadwalId;
+        $this->mode = $mode;
+
+        // Pregen mode is fast: only LLM + DB, no PDF
+        if ($mode === 'pregen') {
+            $this->timeout = 120;
+        }
     }
 
     public function handle(GenerateDokumenService $service): void
+    {
+        // ── Default: full mode (pregen + pdf in one job, no synchronization between workers) ──
+        // Explicit 'pregen' or 'pdf' still available for manual two-phase runs
+        $this->runPhase($service, $this->mode ?? 'full');
+    }
+
+    /**
+     * Run pregen (LLM + DB prep), then dispatch a pdf job for the same id_izin.
+     * This prevents DeepSeek rate limiting — all pregen jobs finish before pdf jobs start.
+     */
+    private function runPregenThenPdf(GenerateDokumenService $service): void
+    {
+        $start = microtime(true);
+
+        // Phase 1: Pregen (LLM batch call + DB population)
+        $pregenResult = $this->runPhase($service, 'pregen');
+
+        if ($pregenResult['status'] === 'pregen') {
+            logger()->info("[JOB] PREGEN-DONE id_izin={$this->idIzin} — dispatching pdf phase");
+
+            // Phase 2: Dispatch PDF job (no LLM calls — reads pre-populated data from DB)
+            self::dispatch(
+                idIzin: $this->idIzin,
+                noregAsesor1: $this->noregAsesor1,
+                noregAsesor2: $this->noregAsesor2,
+                tanggalUji: $this->tanggalUji,
+                batchId: $this->batchId,
+                jadwalId: $this->jadwalId,
+                mode: 'pdf'
+            )->onQueue('generate-dokumen');
+
+            // Store pregen result in cache for the pdf phase to merge
+            Cache::put(
+                "batch:{$this->batchId}:pregen:{$this->idIzin}",
+                ['status' => 'pregen', 'id_izin' => $this->idIzin],
+                3600
+            );
+        } else {
+            // Pregen failed — store error result
+            $elapsed = round((microtime(true) - $start) * 1000);
+            logger()->warning("[JOB] PREGEN-FAILED id_izin={$this->idIzin} status={$pregenResult['status']} elapsed_ms={$elapsed}");
+
+            Cache::put(
+                "batch:{$this->batchId}:result:{$this->idIzin}",
+                $pregenResult,
+                86400
+            );
+
+            // Write JSON fallback
+            $this->saveJsonFallback($pregenResult);
+        }
+    }
+
+    /**
+     * Run a single phase (pregen, pdf, or full) and store results.
+     */
+    private function runPhase(GenerateDokumenService $service, ?string $mode): array
     {
         // ── Duplicate job guard: per-batch lock to prevent queue-retry from running 2x concurrently ──
         $lockKey = "gen:lock:{$this->batchId}:{$this->idIzin}";
@@ -48,7 +113,7 @@ class GenerateDokumenJob implements ShouldQueue
 
         if (!$lock->get()) {
             logger()->warning("[JOB] SKIP id_izin={$this->idIzin} batch={$this->batchId} — another instance is already running");
-            return;
+            return ['id_izin' => $this->idIzin, 'status' => 'skipped', 'error' => null, 'urls' => []];
         }
 
         try {
@@ -57,7 +122,7 @@ class GenerateDokumenJob implements ShouldQueue
                 @ini_set('memory_limit', '512M');
             }
 
-            logger()->debug("[JOB] START id_izin={$this->idIzin} batch={$this->batchId} memory=" . round(memory_get_usage(true) / 1024 / 1024, 1) . "MB");
+            logger()->debug("[JOB] START id_izin={$this->idIzin} batch={$this->batchId} mode={$mode} memory=" . round(memory_get_usage(true) / 1024 / 1024, 1) . "MB");
 
             $start = microtime(true);
 
@@ -66,34 +131,46 @@ class GenerateDokumenJob implements ShouldQueue
                 $this->noregAsesor1,
                 $this->noregAsesor2,
                 $this->tanggalUji,
-                $this->jadwalId
+                $this->jadwalId,
+                $mode
             );
 
             $elapsed = round((microtime(true) - $start) * 1000);
             $urlCount = count($result['urls'] ?? []);
-            logger()->info("[JOB] DONE id_izin={$this->idIzin} status={$result['status']} urls={$urlCount} elapsed_ms={$elapsed} memory=" . round(memory_get_usage(true) / 1024 / 1024, 1) . "MB peak=" . round(memory_get_peak_usage(true) / 1024 / 1024, 1) . "MB");
+            logger()->info("[JOB] DONE id_izin={$this->idIzin} mode={$mode} status={$result['status']} urls={$urlCount} elapsed_ms={$elapsed} memory=" . round(memory_get_usage(true) / 1024 / 1024, 1) . "MB peak=" . round(memory_get_peak_usage(true) / 1024 / 1024, 1) . "MB");
 
-            // Store in Cache (database driver)
-            Cache::put(
-                "batch:{$this->batchId}:result:{$this->idIzin}",
-                $result,
-                86400
-            );
+            // Store final results (only for pdf/full/pregen-failure; not for successful pregen)
+            if ($mode !== 'pregen' || $result['status'] !== 'pregen') {
+                Cache::put(
+                    "batch:{$this->batchId}:result:{$this->idIzin}",
+                    $result,
+                    86400
+                );
 
-            // Also store as JSON file (belt and suspenders)
-            $dir = storage_path("app/batches/{$this->batchId}");
-            if (!is_dir($dir)) {
-                @mkdir($dir, 0755, true);
+                $this->saveJsonFallback($result);
             }
-            $filePath = "{$dir}/{$this->idIzin}.json";
-            file_put_contents($filePath, json_encode($result));
+
+            return $result;
         } catch (\Throwable $e) {
             $elapsed = round((microtime(true) - $start) * 1000);
-            logger()->error("[JOB] EXCEPTION id_izin={$this->idIzin} elapsed_ms={$elapsed}: " . $e->getMessage());
+            logger()->error("[JOB] EXCEPTION id_izin={$this->idIzin} mode={$mode} elapsed_ms={$elapsed}: " . $e->getMessage());
             throw $e;
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * Write result as JSON file fallback (belt and suspenders).
+     */
+    private function saveJsonFallback(array $result): void
+    {
+        $dir = storage_path("app/batches/{$this->batchId}");
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        $filePath = "{$dir}/{$this->idIzin}.json";
+        file_put_contents($filePath, json_encode($result));
     }
 
     public function tags(): array
