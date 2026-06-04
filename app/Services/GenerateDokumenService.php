@@ -24,11 +24,6 @@ class GenerateDokumenService
 {
     private const MOON_BASE = 'https://moon.lspgatensi.id/files/new_gatensi/';
 
-    // Sentinel IDs for virtual/dedicated IA04A fields (must be positive for MySQL UNSIGNED)
-    private const VIRTUAL_ID_PERSIAPAN = 999999997;
-    private const VIRTUAL_ID_DEMONSTRASI = 999999998;
-    private const VIRTUAL_ID_UMPAN_BALIK = 999999999;
-
     private PermohonanSyncService $syncService;
     private LlmAutoFillService $llmService;
 
@@ -171,16 +166,34 @@ class GenerateDokumenService
         $jabatanKerjaId = $klasifikasi->jabatan_kerja;
         $tukId = $klasifikasi->tuk;
 
-        // ── Step 3: Resolve asesor ──
+        // ── Step 3: Resolve asesor (fetch from BNSP if not found locally) ──
         $asesor1 = AsesorBnsp::where('noreg', $noregAsesor1)->first();
         $asesor2 = AsesorBnsp::where('noreg', $noregAsesor2)->first();
-        if (!$asesor1 || !$asesor2) {
-            $missing = !$asesor1 ? $noregAsesor1 : $noregAsesor2;
-            logger()->warning("[GEN] {$idIzin} ASESOR_NOT_FOUND noreg={$missing}");
-            return array_merge($result, [
-                'status' => 'asesor_not_found',
-                'error' => 'Asesor dengan noreg ' . $missing . ' tidak ditemukan',
-            ]);
+
+        if (!$asesor1) {
+            logger()->info("[GEN] {$idIzin} ASESOR1 noreg={$noregAsesor1} tidak ditemukan di DB, fetch dari BNSP...");
+            $asesor1 = AsesorBnsp::fetchFromBnspByNoreg($noregAsesor1);
+            if (!$asesor1) {
+                logger()->warning("[GEN] {$idIzin} ASESOR1 noreg={$noregAsesor1} gagal fetch dari BNSP");
+                return array_merge($result, [
+                    'status' => 'asesor_not_found',
+                    'error' => 'Asesor 1 dengan noreg ' . $noregAsesor1 . ' tidak ditemukan di database dan gagal mengambil dari BNSP',
+                ]);
+            }
+            logger()->info("[GEN] {$idIzin} ASESOR1 noreg={$noregAsesor1} berhasil diambil dari BNSP");
+        }
+
+        if (!$asesor2) {
+            logger()->info("[GEN] {$idIzin} ASESOR2 noreg={$noregAsesor2} tidak ditemukan di DB, fetch dari BNSP...");
+            $asesor2 = AsesorBnsp::fetchFromBnspByNoreg($noregAsesor2);
+            if (!$asesor2) {
+                logger()->warning("[GEN] {$idIzin} ASESOR2 noreg={$noregAsesor2} gagal fetch dari BNSP");
+                return array_merge($result, [
+                    'status' => 'asesor_not_found',
+                    'error' => 'Asesor 2 dengan noreg ' . $noregAsesor2 . ' tidak ditemukan di database dan gagal mengambil dari BNSP',
+                ]);
+            }
+            logger()->info("[GEN] {$idIzin} ASESOR2 noreg={$noregAsesor2} berhasil diambil dari BNSP");
         }
 
         $asesor1User = User::where('noreg', $noregAsesor1)->first();
@@ -1279,19 +1292,11 @@ class GenerateDokumenService
             ];
         });
 
-        // Dedicated IA04A fields stored at virtual sentinel IDs (see VIRTUAL_ID_* constants)
-        $persiapan = $ia4aAnswers->get(self::VIRTUAL_ID_PERSIAPAN)?->jawaban ?? $this->llmService->getFallback('ia04a_persiapan_kegiatan');
-        $demonstrasi = $ia4aAnswers->get(self::VIRTUAL_ID_DEMONSTRASI)?->jawaban ?? $this->llmService->getFallback('ia04a_demonstrasi');
-        $umpanBalik = $ia4aAnswers->get(self::VIRTUAL_ID_UMPAN_BALIK)?->jawaban ?? $this->llmService->getFallback('ia04a_umpan_balik');
-
         return [
             'kelompok_kerja' => [],
             'referensi_form' => collect([]),
             'soal' => $soals,
             'is_kompeten' => true,
-            'persiapan_kegiatan' => $persiapan,
-            'hal_demonstrasi' => $demonstrasi,
-            'umpan_balik' => $umpanBalik,
         ];
     }
 
@@ -1519,19 +1524,18 @@ class GenerateDokumenService
         // ─── COLLECT ALL LLM FIELDS AND BATCH THE CALL ───
         $llmFields = []; // [fieldType, context]
 
-        // IA04A: pre-populate jawaban untuk SEMUA soal
+        // IA04A: only LLM-generate umpan balik (item 3). Items 1-2 have pre-written jawaban from DB.
         $ia04aDoc = \App\Models\JabatanDokumen::where('id_jabatan', $jabatanKerjaId)
             ->where('kode', 'FR.IA.04.A')->where('is_active', true)->first();
         $ia04aSoals = [];
         if ($ia04aDoc) {
             $ia04aSoals = \App\Models\Soal::where('id_dokumen', $ia04aDoc->id)->orderBy('urut')->get();
             foreach ($ia04aSoals as $soal) {
-                $llmFields[] = ['ia04a_jawaban', ['soal_soal' => $soal->soal] + $llmCtx];
+                // Only generate LLM for soal with is_komentar (umpan balik); others use pre-written jawaban
+                if ($soal->is_komentar) {
+                    $llmFields[] = ['ia04a_jawaban', ['soal_soal' => $soal->soal] + $llmCtx];
+                }
             }
-            // IA04A dedicated fields
-            $llmFields[] = ['ia04a_persiapan_kegiatan', $llmCtx];
-            $llmFields[] = ['ia04a_demonstrasi', $llmCtx];
-            $llmFields[] = ['ia04a_umpan_balik', $llmCtx];
         }
 
         // IA04B: question-type soals
@@ -1588,33 +1592,17 @@ class GenerateDokumenService
         // ─── DISTRIBUTE RESULTS ───
         $idx = 0;
 
-        // IA04A — soals
+        // IA04A — store LLM jawaban only for soal items with is_komentar (umpan balik)
         foreach ($ia04aSoals as $soal) {
-            $jawaban = $llmResults['ia04a_jawaban_' . $idx] ?? $this->llmService->getFallback('ia04a_jawaban');
-            \App\Models\Ia4aAnswer::updateOrCreate(
-                ['id_izin' => $idIzin, 'soal_id' => $soal->id],
-                ['jawaban' => $jawaban, 'pencapaian' => true]
-            );
-            $idx++;
+            if ($soal->is_komentar) {
+                $jawaban = $llmResults['ia04a_jawaban_' . $idx] ?? $this->llmService->getFallback('ia04a_jawaban');
+                \App\Models\Ia4aAnswer::updateOrCreate(
+                    ['id_izin' => $idIzin, 'soal_id' => $soal->id],
+                    ['jawaban' => $jawaban, 'pencapaian' => true]
+                );
+                $idx++;
+            }
         }
-        // IA04A — dedicated fields (virtual soal_id using high sentinel IDs for MySQL UNSIGNED compatibility)
-        $ia04aPersiapan = $llmResults['ia04a_persiapan_kegiatan_' . $idx] ?? $this->llmService->getFallback('ia04a_persiapan_kegiatan');
-        $ia04aDemonstrasi = $llmResults['ia04a_demonstrasi_' . ($idx + 1)] ?? $this->llmService->getFallback('ia04a_demonstrasi');
-        $ia04aUmpanBalik = $llmResults['ia04a_umpan_balik_' . ($idx + 2)] ?? $this->llmService->getFallback('ia04a_umpan_balik');
-        \App\Models\Ia4aAnswer::updateOrCreate(
-            ['id_izin' => $idIzin, 'soal_id' => self::VIRTUAL_ID_PERSIAPAN],
-            ['jawaban' => $ia04aPersiapan]
-        );
-        \App\Models\Ia4aAnswer::updateOrCreate(
-            ['id_izin' => $idIzin, 'soal_id' => self::VIRTUAL_ID_DEMONSTRASI],
-            ['jawaban' => $ia04aDemonstrasi]
-        );
-        \App\Models\Ia4aAnswer::updateOrCreate(
-            ['id_izin' => $idIzin, 'soal_id' => self::VIRTUAL_ID_UMPAN_BALIK],
-            ['jawaban' => $ia04aUmpanBalik]
-        );
-        logger()->debug("[LLM] IA04A dedicated fields stored id_izin={$idIzin} persiapan_len=" . strlen($ia04aPersiapan) . " demonstrasi_len=" . strlen($ia04aDemonstrasi) . " umpan_len=" . strlen($ia04aUmpanBalik));
-        $idx += 3;
 
         // IA04B
         foreach ($ia04bSoals as $soal) {
@@ -1765,10 +1753,6 @@ class GenerateDokumenService
                         'kelompok_kerja' => [],
                     ];
                 }
-                // Ensure LLM-generated fields exist
-                $docData['persiapan_kegiatan'] = $docData['persiapan_kegiatan'] ?? '';
-                $docData['hal_demonstrasi'] = $docData['hal_demonstrasi'] ?? '';
-                $docData['umpan_balik'] = $docData['umpan_balik'] ?? '';
                 break;
 
             case 'Ak03':

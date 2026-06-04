@@ -15,7 +15,7 @@
                     Arial,
                     sans-serif;
                 font-size: 11pt;
-                margin-top: 65px;
+                margin-top: 0;
             }
             .hd-dok {
                 background-color: #c00000;

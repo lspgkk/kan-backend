@@ -1001,8 +1001,8 @@ class PraAsesmenController extends Controller
                             'id_izin'       => $id,
                             'original_name' => $originalName,
                             'path'          => $url,
-                            'mime'          => null,
-                            'size'          => null,
+                            'mime'          => 'application/octet-stream',
+                            'size'          => 0,
                             'filetype'      => 'referensi_external',
                         ]);
 

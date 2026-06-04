@@ -92,7 +92,8 @@
       "Bash(sed -i '/^[[:space:]]*\\\\.headera,$/d' __TRACKED_VAR__.blade.php)",
       "Bash(sed -i '/^[[:space:]]*\\\\.footera,$/d' __TRACKED_VAR__.blade.php)",
       "Bash(sed -i '/^[[:space:]]*}$/{ /^[[:space:]]*}$/!b; x; /^[[:space:]]*\\\\.headera,$/d; }' __TRACKED_VAR__.blade.php)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(docker compose *)"
     ]
   }
 }

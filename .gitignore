@@ -3,6 +3,8 @@
 .env
 .env.backup
 .env.production
+# .env.compose is committed (safe defaults for Docker Compose only)
+!.env.compose
 .phpactor.json
 .phpunit.result.cache
 /.fleet

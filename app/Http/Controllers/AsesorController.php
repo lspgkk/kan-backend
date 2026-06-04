@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AsesorBnsp;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AsesorController extends Controller
@@ -44,6 +45,37 @@ class AsesorController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => $asesors,
+        ]);
+    }
+
+    /**
+     * Fetch asesor data from BNSP API by noreg and save/update to asesor_bnsp table.
+     *
+     * @param string $noreg
+     * @return JsonResponse
+     */
+    public function fetchBnsp(string $noreg): JsonResponse
+    {
+        if (empty($noreg)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Noreg wajib diisi',
+            ], 422);
+        }
+
+        $asesor = AsesorBnsp::fetchFromBnspByNoreg($noreg);
+
+        if (!$asesor) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal mengambil data asesor dari BNSP untuk noreg ' . $noreg,
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Asesor berhasil disimpan/diupdate dari BNSP',
+            'data' => $asesor,
         ]);
     }
 }

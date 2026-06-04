@@ -161,6 +161,7 @@ Route::middleware(['auth:api'])->group(function () {
 
     Route::prefix('asesor')->group(function () {
         Route::get('/', [AsesorController::class, 'index']);
+        Route::post('/bnsp/{noreg}', [AsesorController::class, 'fetchBnsp']);
     });
 
     Route::prefix('jenis-kelas')->group(function () {

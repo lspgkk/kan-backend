@@ -13,7 +13,7 @@
         body{
             font-family: 'DejaVu Sans', "Open Sans", Calibri,Arial,sans-serif;
             font-size:11pt;
-            margin-top:65px;
+            margin-top: 0;
         }
     .hd-dok{
         background-color:#D60000;
