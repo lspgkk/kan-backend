@@ -98,6 +98,7 @@ class AsesorBnsp extends Model
             $record = self::updateOrCreate(
                 ['noreg' => $noreg],
                 [
+                    'id'                   => self::where('noreg', $noreg)->value('id') ?? (self::max('id') ?? 0) + 1,
                     'id_asesor'            => $data['id_asesor'] ?? null,
                     'id_subklas'           => $data['id_sub_klas'] ?? null,
                     'id_klasifikasi'       => $data['id_klas'] ?? null,
