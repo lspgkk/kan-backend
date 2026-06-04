@@ -10,9 +10,11 @@ use Illuminate\Support\Facades\Log;
 class AsesorBnsp extends Model
 {
     public $timestamps = false;
+    public $incrementing = false;
     protected $table = 'asesor_bnsp';
 
     protected $fillable = [
+        'id',
         'id_asesor',
         'id_subklas',
         'id_klasifikasi',
@@ -98,7 +100,7 @@ class AsesorBnsp extends Model
             $record = self::updateOrCreate(
                 ['noreg' => $noreg],
                 [
-                    'id'                   => self::where('noreg', $noreg)->value('id') ?? (self::max('id') ?? 0) + 1,
+                    'id'                   => $data['id'] ?? null,
                     'id_asesor'            => $data['id_asesor'] ?? null,
                     'id_subklas'           => $data['id_sub_klas'] ?? null,
                     'id_klasifikasi'       => $data['id_klas'] ?? null,

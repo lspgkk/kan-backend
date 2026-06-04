@@ -709,15 +709,15 @@ class GenerateDokumenService
 
     /**
      * Compute a content hash for PDF caching.
-     * Includes: header fields, barcode URLs, doc data keys/values, blade template mtime.
+     * Only structural inputs (header, barcode URLs, blade). NOT docData (LLM text changes every run).
+     * Cache invalidates only on: header change, barcode change, blade template change, or manual flush.
      */
     private function computePdfCacheKey(
         string $idIzin,
         string $method,
         string $blade,
         array $header,
-        array $barcodes,
-        array $docData
+        array $barcodes
     ): string {
         $hashInput = [];
 
@@ -734,19 +734,6 @@ class GenerateDokumenService
         $barcodeKeys = ['asesi', 'asesor1', 'asesor2'];
         foreach ($barcodeKeys as $k) {
             $hashInput[] = "{$k}_ttd=" . ($barcodes[$k]['url_ttd'] ?? 'null');
-        }
-
-        // Doc data keys and values (sorted for stability)
-        $docKeys = array_keys($docData);
-        sort($docKeys);
-        foreach ($docKeys as $k) {
-            if ($k === 'barcodes') continue; // already hashed separately
-            $v = $docData[$k];
-            if (is_array($v) || is_object($v)) {
-                $hashInput[] = $k . '=' . md5(json_encode($v));
-            } else {
-                $hashInput[] = $k . '=' . ((string) $v);
-            }
         }
 
         // Blade template mtime
@@ -822,7 +809,7 @@ class GenerateDokumenService
 
             // ── PDF CACHE: Skip DomPDF+FTP if content hash matches and FTP file exists ──
             $path = "dok_asesmen/{$dir}/FR-{$code}-{$idIzin}.pdf";
-            $contentHash = $this->computePdfCacheKey($idIzin, $method, $blade, $header, $barcodes, $docData);
+            $contentHash = $this->computePdfCacheKey($idIzin, $method, $blade, $header, $barcodes);
 
             $cachedPdfKey = "pdf:cache:{$idIzin}:{$method}";
             $cachedHash = \Illuminate\Support\Facades\Cache::get($cachedPdfKey);
