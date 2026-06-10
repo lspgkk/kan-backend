@@ -225,7 +225,7 @@ class JadwalController extends Controller
         /** ===============================
          *  2️⃣ RESOLVE SKEMA IDS
          *  =============================== */
-        $authData = DB::table('b_n_s_p_auths')->value('x_authorization');
+        $authData = DB::connection('balai')->table('b_n_s_p_auths')->value('x_authorization');
         $skemaResult = $this->resolveBnspSkemaIdsFromIdIzinList($validated['all_id_izin'], $authData);
 
         if (!$skemaResult['success']) {
@@ -638,6 +638,56 @@ class JadwalController extends Controller
         ]);
     }
 
+    public function updateLinkVideo(Request $request, $jadwal_id)
+    {
+        $validated = $request->validate([
+            'link_video' => ['required', 'url'],
+        ]);
+
+        $jadwal = Jadwal::where('jadwal_id', $jadwal_id)->first();
+
+        if (!$jadwal) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Jadwal not found',
+            ], 404);
+        }
+
+        $jadwal->update([
+            'link_video' => $validated['link_video'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Link video berhasil disimpan',
+            'data' => [
+                'jadwal_id' => $jadwal->jadwal_id,
+                'link_video' => $jadwal->link_video,
+            ],
+        ]);
+    }
+
+    public function getLinkVideo($jadwal_id)
+    {
+        $jadwal = Jadwal::where('jadwal_id', $jadwal_id)->first(['jadwal_id', 'link_video']);
+
+        if (!$jadwal) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Jadwal not found',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Link video retrieved successfully',
+            'data' => [
+                'jadwal_id' => $jadwal->jadwal_id,
+                'link_video' => $jadwal->link_video,
+            ],
+        ]);
+    }
+
     /**
      * Push draft jadwal to BNSP and update status to sinkronisasi-bnsp
      */
@@ -659,7 +709,7 @@ class JadwalController extends Controller
             ], 400);
         }
 
-        $authData = DB::table('b_n_s_p_auths')->value('x_authorization');
+        $authData = DB::connection('balai')->table('b_n_s_p_auths')->value('x_authorization');
 
         // Load participant id_izin list
         $idIzinList = $jadwal->asesiJadwals->pluck('id_izin')->toArray();
@@ -722,6 +772,17 @@ class JadwalController extends Controller
 
         // Update related AsesiJadwal records with the real BNSP jadwal_id
         AsesiJadwal::where('jadwal_id', $localIdBefore)->update(['jadwal_id' => $realJadwalId]);
+
+        // Update all other related tables so records created during pra-asesmen/asesmen
+        // (before postToBnsp) don't become orphaned after jadwal_id changes
+        $relatedTables = ['ba_komteks', 'spt_komteks', 'spt_asesors', 'absen_komteks', 'sk_komteks', 'sk_pelaksanaan_ujis', 'verifikasi_tuk'];
+        foreach ($relatedTables as $table) {
+            DB::table($table)->where('jadwal_id', $localIdBefore)->update(['jadwal_id' => $realJadwalId]);
+        }
+        // Barcodes table uses id_jadwal instead of jadwal_id
+        DB::table('barcodes')->where('id_jadwal', $localIdBefore)->update(['id_jadwal' => $realJadwalId]);
+        // Bukti kegiatan also uses id_jadwal
+        DB::table('bukti_kegiatans')->where('id_jadwal', $localIdBefore)->update(['id_jadwal' => $realJadwalId]);
 
         // Push each participant (asesi) to BNSP
         $participantErrors = [];
@@ -898,14 +959,42 @@ class JadwalController extends Controller
             }
         }
 
+        // Check pre-existing document approval states BEFORE regeneration,
+        // because generateInitialDocuments will overwrite them without TTD
+        $sptAsesorWasSent = SPTAsesor::where('jadwal_id', $realJadwalId)
+            ->where('send', 1)
+            ->exists();
+
         // Generate documents with the real jadwal_id
         $this->generateInitialDocuments($realJadwalId);
 
+        // If SPT Asesor was already approved/sent before postToBnsp,
+        // the generateInitialDocuments above regenerated it WITHOUT TTD (send=0).
+        // Re-generate WITH TTD and re-send to BNSP now that the jadwal exists there.
+        if ($sptAsesorWasSent) {
+            try {
+                $this->generateAndSendSptAsesor($realJadwalId, true);
+                Log::info('SPT Asesor berhasil dikirim ulang ke BNSP setelah post jadwal', [
+                    'jadwal_id' => $realJadwalId,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Gagal mengirim ulang SPT Asesor ke BNSP setelah post jadwal', [
+                    'jadwal_id' => $realJadwalId,
+                    'error'     => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $reApprovedSptAsesor = SPTAsesor::where('jadwal_id', $realJadwalId)
+            ->where('send', 1)
+            ->exists();
+
         return response()->json([
-            'success'             => true,
-            'message'             => 'Jadwal berhasil di-sync ke BNSP',
-            'jadwal_id'           => $realJadwalId,
-            'participant_errors'  => $participantErrors,
+            'success'                     => true,
+            'message'                     => 'Jadwal berhasil di-sync ke BNSP',
+            'jadwal_id'                   => $realJadwalId,
+            'participant_errors'          => $participantErrors,
+            'spt_asesor_sent_to_bnsp'     => $sptAsesorWasSent && $reApprovedSptAsesor,
         ]);
     }
 
@@ -914,7 +1003,7 @@ class JadwalController extends Controller
         bool $withTtd = true
     ): array
     {
-        $authData = DB::table('b_n_s_p_auths')->value('x_authorization');
+        $authData = DB::connection('balai')->table('b_n_s_p_auths')->value('x_authorization');
 
         /** ===============================
          *  1. GET JADWAL DATA FROM BNSP
@@ -1166,7 +1255,7 @@ class JadwalController extends Controller
         /** ===============================
          *  3. GET JADWAL DATA FROM BNSP
          *  =============================== */
-        $authData = DB::table('b_n_s_p_auths')->value('x_authorization');
+        $authData = DB::connection('balai')->table('b_n_s_p_auths')->value('x_authorization');
 
         $response = Http::retry(5, 1000)->withHeaders([
             'Content-Type'    => 'application/json',
@@ -2050,9 +2139,12 @@ class JadwalController extends Controller
             'personals.nama',
             'asesi_jadwals.is_started',
             'asesi_jadwals.started_at',
-            'asesi_jadwals.kompeten',
         ])
-        ->get();
+        ->get()
+        ->map(function ($item) {
+            $item->kompeten = $this->resolveKomtekDecision($item->id_izin);
+            return $item;
+        });
 
         $sptAsesor = SPTAsesor::where('jadwal_id', $id)->first();
         $jadwal = Jadwal::where('jadwal_id', $id)->first(['file_verifikasi_tuk']);
@@ -2379,23 +2471,23 @@ class JadwalController extends Controller
      */
     private function generateSptAsesorWithoutTtd(int $jadwalId): array
     {
-        $last = SPTAsesor::latest('id')->first();
-        $noSpt = $last?->spt_no ?? '0/LSP GKK B.012-D/I/2024';
+        // Preserve existing SPT number if already assigned (e.g. approved before postToBnsp)
+        $existingSpt = SPTAsesor::where('jadwal_id', $jadwalId)->first();
+        if ($existingSpt && $existingSpt->spt_no && str_contains($existingSpt->spt_no, 'LSP GKK')) {
+            $noSpt = $existingSpt->spt_no;
+        } else {
+            $last = SPTAsesor::latest('id')->first();
+            $noSpt = $last?->spt_no ?? '0/LSP GKK B.012-D/I/2024';
 
-        $romawi = [
-            1 => 'I', 2 => 'II', 3 => 'III', 4 => 'IV',
-            5 => 'V', 6 => 'VI', 7 => 'VII', 8 => 'VIII',
-            9 => 'IX', 10 => 'X', 11 => 'XI', 12 => 'XII',
-        ];
+            $parts = explode('/', $noSpt);
+            $year  = now()->year;
 
-        $parts = explode('/', $noSpt);
-        $year  = now()->year;
+            $parts[0] = ((int)($parts[3] ?? 0) === $year) ? ((int)$parts[0] + 1) : 1;
+            $parts[2] = $this->bulanRomawi(now()->month);
+            $parts[3] = (string)$year;
 
-        $parts[0] = ((int)($parts[3] ?? 0) === $year) ? ((int)$parts[0] + 1) : 1;
-        $parts[2] = $this->bulanRomawi(now()->month);
-        $parts[3] = (string)$year;
-
-        $noSpt = implode('/', $parts);
+            $noSpt = implode('/', $parts);
+        }
 
         // Get jadwal data
         $jadwal = Jadwal::where('jadwal_id', $jadwalId)->firstOrFail();
@@ -2583,9 +2675,14 @@ class JadwalController extends Controller
             ];
         }
 
+        $existingBa = BaKomtek::where('jadwal_id', $jadwalId)->first();
+        $tanggal = $existingBa?->started_at
+            ? Carbon::parse($existingBa->started_at)->isoFormat('D MMMM Y')
+            : now()->isoFormat('D MMMM Y');
+
         $viewData = [
             'nomor' => $no_ba_komtek,
-            'tanggal' => now()->isoFormat('dddd, D MMMM Y'),
+            'tanggal' => $tanggal,
             'nama_komtek1' => $nama_komtek1,
             'nama_komtek2' => $nama_komtek2,
             'nama_komtek3' => $nama_komtek3,

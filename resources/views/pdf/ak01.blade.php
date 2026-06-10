@@ -197,7 +197,7 @@
             <tr>
                 <td style="font-weight: bold;">Waktu</td>
                 <td style="text-align: center; font-weight: bold;">:</td>
-                <td>{{ $dokumenHeader['waktu'] }}</td>
+                <td>{{ $waktu ?? $dokumenHeader['waktu'] }}</td>
             </tr>
             <tr>
                 <td style="font-weight: bold;">TUK</td>

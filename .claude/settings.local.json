@@ -94,7 +94,11 @@
       "Bash(sed -i '/^[[:space:]]*}$/{ /^[[:space:]]*}$/!b; x; /^[[:space:]]*\\\\.headera,$/d; }' __TRACKED_VAR__.blade.php)",
       "Bash(git checkout *)",
       "Bash(docker compose *)",
-      "Bash(powershell -Command \"Get-Content 'C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\storage\\\\logs\\\\laravel.log' -Wait -Tail 5 | Select-String -Pattern '\\\\[JOB\\\\]|\\\\[GEN\\\\]|PRA-DONE|ASESMEN-DONE|DONE|START'\")"
+      "Bash(powershell -Command \"Get-Content 'C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-backend\\\\storage\\\\logs\\\\laravel.log' -Wait -Tail 5 | Select-String -Pattern '\\\\[JOB\\\\]|\\\\[GEN\\\\]|PRA-DONE|ASESMEN-DONE|DONE|START'\")",
+      "PowerShell(php -r \"echo 'PHP memory_limit: ' . ini_get\\('memory_limit'\\) . PHP_EOL; echo 'Windows: ' . php_uname\\('s'\\) . PHP_EOL;\")",
+      "PowerShell(php artisan smart:sync --table=JabatanConfigA --dry-run 2>&1)",
+      "PowerShell(php artisan smart:sync --dry-run 2>&1)",
+      "Bash(findstr /i \"core\")"
     ]
   }
 }

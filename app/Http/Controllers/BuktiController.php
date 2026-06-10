@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AsesiJadwal;
 use App\Models\BuktiAsesmen;
 use App\Models\BuktiKegiatan;
+use App\Models\Jadwal;
 use App\Models\Pendidikan;
 use App\Models\Personal;
 use App\Models\Proyek;
@@ -85,13 +86,13 @@ class BuktiController extends Controller
         $referensiKerja = Proyek::where('id_izin', $id)->latest('created_at')->value('surat_referensi');
         $jadwalId = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
         $sptAsesor = SPTAsesor::where('jadwal_id', $jadwalId)->first();
-        $verifikasiTuk = null;
+        $verifikasiTuk = Jadwal::class::where('jadwal_id', $jadwalId)->value('file_verifikasi_tuk');
         $kebenaranData = [
             'ktp' => $personal->ktp,
             'npwp' => $personal->file_npwp,
             'ijazah' => $ijazah,
             'referensi_kerja' => $referensiKerja,
-            'spt_asesor' => $sptAsesor ? $sptAsesor->file_spt : null,
+            'spt_asesor' => $sptAsesor ? $sptAsesor->link : null,
             'verifikasi_tuk' => $verifikasiTuk,
         ];
         return response()->json([

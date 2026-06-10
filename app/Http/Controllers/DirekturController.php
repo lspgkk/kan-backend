@@ -190,13 +190,14 @@ class DirekturController extends Controller
             ];
         }
 
-        $tanggalBarcode = Carbon::parse($jadwal->tanggal_uji)
-            ->addDay()
-            ->setTimezone('Asia/Jakarta');
+        // Use started_at from BaKomtek if available, otherwise fallback to tanggal_uji
+        $tanggal = $ba->started_at
+            ? Carbon::parse($ba->started_at)->isoFormat('D MMMM Y')
+            : Carbon::parse($jadwal->tanggal_uji)->isoFormat('D MMMM Y');
 
         $viewData = [
             'nomor'          => $ba->no_surat,
-            'tanggal'        => $tanggalBarcode->copy()->subDay(),
+            'tanggal'        => $tanggal,
             'nama_komtek1'   => $komtek1Name,
             'nama_komtek2'   => $komtek2Name,
             'nama_komtek3'   => $komtek3Name,
@@ -343,7 +344,7 @@ class DirekturController extends Controller
         );
 
         // Post SPT Asesor to BNSP
-        $authData = DB::table('b_n_s_p_auths')->value('x_authorization');
+        $authData = DB::connection('balai')->table('b_n_s_p_auths')->value('x_authorization');
         $bnspUrl = 'https://konstruksi.bnsp.go.id/api/v1/jadwal/asesor/surat-tugas';
         $headers = [
             'Content-Type' => 'application/json',

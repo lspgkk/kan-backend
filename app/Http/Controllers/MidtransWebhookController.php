@@ -47,6 +47,14 @@ class MidtransWebhookController extends Controller
             $fraudStatus = $request->input('fraud_status');
             $statusCode = $request->input('status_code');
 
+            // Skip test notifications from Midtrans dashboard
+            if (str_starts_with($orderId, 'payment_notif_test_')) {
+                Log::info('Midtrans test notification ignored (not a real transaction)', [
+                    'order_id' => $orderId,
+                ]);
+                return response()->json(['status' => 'ok', 'message' => 'Test notification ignored']);
+            }
+
             // Find the Midtrans transaction
             $midtransTransaction = MidtransTransaction::where('order_id', $orderId)->first();
 

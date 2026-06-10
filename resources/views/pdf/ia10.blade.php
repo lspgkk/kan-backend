@@ -190,14 +190,14 @@ td, th {
     <tr>
       <td>
         Tanda tangan Asesor 1: <span style="float:right;">Tanggal:</span>
-        <div class="space">{!! $barcodes['asesor1']['url'] ?? '' !!}</div>
+        <div class="space"><img src="{{ $barcodes['asesor1']['url'] ?? '' }}" style="height:50px; width:50px; object-fit:contain;" /></div>
       </td>
     </tr>
 
     <tr>
       <td>
         Tanda tangan Asesor 2: <span style="float:right;">Tanggal:</span>
-        <div class="space">{!! $barcodes['asesor2']['url'] ?? '' !!}</div>
+        <div class="space"><img src="{{ $barcodes['asesor2']['url'] ?? '' }}" style="height:50px; width:50px; object-fit:contain;" /></div>
       </td>
     </tr>
   </table>

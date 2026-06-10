@@ -67,14 +67,14 @@ class HitStatusController extends Controller
 
         DB::beginTransaction();
         try {
-            // $httpClient = new \GuzzleHttp\Client();
-            // $httpClient->request('POST', $apiEndpoint, [
-            //     'headers' => [
-            //         'Content-Type' => 'application/json',
-            //         'token' => env('SIKI_TOKEN'),
-            //     ],
-            //     'json' => $apiData,
-            // ]);
+            $httpClient = new \GuzzleHttp\Client();
+            $httpClient->request('POST', $apiEndpoint, [
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'token' => env('SIKI_TOKEN'),
+                ],
+                'json' => $apiData,
+            ]);
 
             // Update verification status and wa fields in database
             $personal->update([
@@ -138,6 +138,11 @@ class HitStatusController extends Controller
 
     public function hitLengkap(Request $request, $id_izin)
     {
+        // Validate catatan (optional)
+        $validated = $request->validate([
+            'catatan' => 'nullable|string|max:1000',
+        ]);
+
         // Get the personal record to determine type
         $personal = Personal::where('id_izin', $id_izin)->first();
 
@@ -214,6 +219,7 @@ class HitStatusController extends Controller
             'status'        => '10',
             'validby_id'  => Auth::id(),
             'valid_time'  => now(),
+            'catatan'     => $validated['catatan'] ?? null,
         ]);
 
         return response()->json([
@@ -315,6 +321,11 @@ class HitStatusController extends Controller
 
     public function hitTidakLengkap(Request $request, $id_izin)
     {
+        // Validate catatan (optional)
+        $validated = $request->validate([
+            'catatan' => 'nullable|string|max:1000',
+        ]);
+
         // Get personal data
         $personal = Personal::where('id_izin', trim($id_izin))->first();
 
@@ -402,6 +413,7 @@ class HitStatusController extends Controller
             'status'      => '11',
             'verifby_id'  => null,
             'verif_time'  => null,
+            'catatan'     => $validated['catatan'] ?? null,
         ]);
 
         return response()->json([
@@ -417,6 +429,16 @@ class HitStatusController extends Controller
     public function hitTolak(Request $request)
     {
         $id_izin = $request->id_izin;
+
+        // Validate catatan (optional)
+        $catatan = $request->input('catatan');
+        if ($catatan !== null && !is_string($catatan)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Catatan harus berupa teks.',
+            ], 422);
+        }
+        $catatan = $catatan !== null ? substr($catatan, 0, 1000) : null;
 
         $api_url = "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . trim($id_izin);
 
@@ -451,7 +473,8 @@ class HitStatusController extends Controller
         }
 
         Personal::where('id_izin', $id_izin)->update([
-            "status" => "90"
+            "status"  => "90",
+            "catatan" => $catatan,
         ]);
 
         DB::connection("mygatensi_2")->table("mystatuspermohonan")->where('ID_Ijin', $id_izin)->update([

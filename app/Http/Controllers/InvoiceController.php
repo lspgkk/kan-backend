@@ -11,10 +11,17 @@ use App\Models\MyTuk;
 use App\Models\HargaInvoice;
 use App\Models\InvoiceDetail;
 use App\Models\Rekening;
+use App\Models\AsesorBnsp;
+use App\Models\AsesiJadwal;
+use App\Models\Jadwal;
+use App\Models\User;
+use App\Models\BuktiAsesmen;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
@@ -532,20 +539,30 @@ class InvoiceController extends Controller
                 }
 
                 /* =====================================================
-                * 4. INVOICE NUMBER
+                * 4. INVOICE NUMBER — format: AR-INV/LSP-GKK/tahun/bulan-nourut
+                *    Contoh: AR-INV/LSP-GKK/2026/05-0067
+                *    Nomor di-reset setiap bulan.
                 * ===================================================== */
-                $latest_inv = DB::table("invoices")
+                $prefix = 'AR-INV/LSP-GKK';
+                $year   = date('Y');
+                $month  = date('m');
+
+                $latestInv = DB::table('invoices')
                     ->orderByDesc('input_date')
                     ->value('invoice_number');
 
-                [$a,$b,$c,$d] = explode("/", $latest_inv);
-                $c = date('Y');
-                [$month,$num] = explode("-", $d);
+                if ($latestInv) {
+                    $parts = explode('/', $latestInv);
+                    $lastSegment = end($parts);
+                    $segParts = explode('-', $lastSegment);
+                    $lastMonth = $segParts[0] ?? null;
+                    $lastNum   = (int) ($segParts[1] ?? 0);
+                    $num       = ($lastMonth === $month) ? $lastNum + 1 : 1;
+                } else {
+                    $num = 1;
+                }
 
-                $num = ($month == date('m')) ? $num + 1 : 1;
-                $month = date('m');
-
-                $latest_invno = implode("/", [$a,$b,$c,$month . '-' . str_pad($num, 4, '0', STR_PAD_LEFT)]);
+                $latest_invno = sprintf('%s/%s/%s-%04d', $prefix, $year, $month, $num);
 
                 // Input excel
                 $invoice_sps = IOFactory::load(resource_path("views/template-invoice/invoice_sistem.xlsx"));
@@ -1642,5 +1659,180 @@ class InvoiceController extends Controller
                 'message' => 'Failed to update payment status: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Export Laporan Asesor (Excel) berdasarkan bulan & tahun invoice.
+     * Mirip seperti getlapasesor pada project balai.
+     */
+    public function lapAsesor(Request $request)
+    {
+        $bulan = $request->query('bulan', now()->month);
+        $tahun = $request->query('tahun', now()->year);
+
+        // Get invoices for the period
+        $invoices = Invoice::where('bulan', (int) $bulan)
+            ->where('tahun', (int) $tahun)
+            ->get();
+
+        if ($invoices->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => "Tidak ada invoice untuk bulan {$bulan} tahun {$tahun}",
+            ], 404);
+        }
+
+        $allData = [];
+
+        foreach ($invoices as $invoice) {
+            // Get all asesi for this invoice via invoice_details
+            $details = InvoiceDetail::where('no_invoice', $invoice->invoice_number)->get();
+
+            foreach ($details as $detail) {
+                $idIzin = $detail->id_izin;
+
+                // Personal data
+                $personal = Personal::where('id_izin', $idIzin)->first();
+                if (!$personal) continue;
+
+                // Klasifikasi
+                $klasifikasi = KlasifikasiKualifikasi::where('id_izin', $idIzin)->first();
+
+                // Jabatan kerja
+                $jabatanNama = null;
+                $jenjang = null;
+                $metode = null;
+                $tukNama = null;
+                if ($klasifikasi) {
+                    $jabatan = JabatanKerja::where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->first();
+                    $jabatanNama = $jabatan?->jabatan_kerja;
+                    $jenjang = $klasifikasi->jenjang;
+                    $metode = $klasifikasi->metode_uji;
+
+                    $tuk = MyTuk::find($klasifikasi->tuk);
+                    $tukNama = $tuk?->nama_tuk;
+                }
+
+                // AsesiJadwal → get jadwal_id
+                $asesiJadwal = AsesiJadwal::where('id_izin', $idIzin)->first();
+                $tanggalUji = null;
+                $asesor1Noreg = null;
+                $asesor2Noreg = null;
+                $komtek1 = null;
+                $komtek2 = null;
+                $komtek3 = null;
+                $kompeten = 'BK';
+
+                if ($asesiJadwal) {
+                    $jadwal = Jadwal::where('jadwal_id', $asesiJadwal->jadwal_id)->first();
+                    if ($jadwal) {
+                        $tanggalUji = $jadwal->tanggal_uji;
+
+                        // Asesor
+                        $asesor1 = AsesorBnsp::find($jadwal->asesor_id);
+                        $asesor2 = AsesorBnsp::find($jadwal->asesor2_id);
+                        $asesor1Noreg = $asesor1?->noreg;
+                        $asesor2Noreg = $asesor2?->noreg;
+
+                        // Komtek (stored as user_id)
+                        $komtek1 = $jadwal->komtek1 ? User::find($jadwal->komtek1)?->name : null;
+                        $komtek2 = $jadwal->komtek2 ? User::find($jadwal->komtek2)?->name : null;
+                        $komtek3 = $jadwal->komtek3 ? User::find($jadwal->komtek3)?->name : null;
+                    }
+
+                    // Kompeten from asesi_jadwals
+                    $kompeten = $asesiJadwal->kompeten ?? 'BK';
+                }
+
+                // Hadir: check bukti_asesmen exists
+                $bukti = BuktiAsesmen::where('id_izin', $idIzin)->first();
+                $hadir = $bukti ? 'Hadir' : 'Tidak Hadir';
+
+                $allData[] = [
+                    'nama'         => $personal->nama,
+                    'jabatan'      => $jabatanNama,
+                    'jenjang'      => $jenjang,
+                    'metode'       => $metode,
+                    'nama_tuk'     => $tukNama,
+                    'tanggal_uji'  => $tanggalUji ? Carbon::parse($tanggalUji)->format('Y-m-d') : null,
+                    'invoice_no'   => $invoice->invoice_number,
+                    'invoice_date' => $invoice->input_date ? Carbon::parse($invoice->input_date)->format('Y-m-d') : null,
+                    'asesor1'      => $asesor1Noreg,
+                    'asesor2'      => $asesor2Noreg,
+                    'komtek1'      => $komtek1,
+                    'komtek2'      => $komtek2,
+                    'komtek3'      => $komtek3,
+                    'kompeten'     => $kompeten,
+                    'hadir'        => $hadir,
+                ];
+            }
+        }
+
+        if (empty($allData)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak ada data asesi untuk periode ini',
+            ], 404);
+        }
+
+        // Generate Excel
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+
+        $headers = [
+            'No', 'Nama', 'Jabatan', 'Jenjang', 'Metode', 'Nama TUK', 'Tanggal Uji',
+            'Invoice No', 'Invoice Date', 'Asesor 1', 'Asesor 2',
+            'Komtek 1', 'Komtek 2', 'Komtek 3', 'Kompeten', 'Hadir'
+        ];
+
+        // Bold header
+        $headerStyle = [
+            'font' => ['bold' => true],
+        ];
+        $sheet->fromArray($headers, null, 'A1');
+        $sheet->getStyle('A1:P1')->applyFromArray($headerStyle);
+
+        // Data rows
+        $row = 2;
+        foreach ($allData as $index => $data) {
+            $sheet->fromArray([
+                $index + 1,
+                $data['nama'],
+                $data['jabatan'],
+                $data['jenjang'],
+                $data['metode'],
+                $data['nama_tuk'],
+                $data['tanggal_uji'],
+                $data['invoice_no'],
+                $data['invoice_date'],
+                $data['asesor1'],
+                $data['asesor2'],
+                $data['komtek1'],
+                $data['komtek2'],
+                $data['komtek3'],
+                $data['kompeten'],
+                $data['hadir'],
+            ], null, "A{$row}");
+            $row++;
+        }
+
+        // Auto-size columns
+        foreach (range('A', 'P') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $filename = "Laporan_Asesor_{$bulan}_{$tahun}.xlsx";
+
+        // Return as download response
+        $writer = new Xlsx($spreadsheet);
+        ob_start();
+        $writer->save('php://output');
+        $content = ob_get_clean();
+
+        return response($content, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Cache-Control' => 'max-age=0',
+        ]);
     }
 }

@@ -21,7 +21,7 @@ trait BantuanTrait
     {
         static $authData = null;
         if ($authData === null) {
-            $authData = DB::table('b_n_s_p_auths')->value('x_authorization');
+            $authData = DB::connection('balai')->table('b_n_s_p_auths')->value('x_authorization');
         }
         return [
             'Content-Type' => 'application/json',

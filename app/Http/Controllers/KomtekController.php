@@ -126,11 +126,47 @@ class KomtekController extends Controller
                 'komtek2' => (bool) ($ba->has_ttd_komtek2 ?? false),
                 'komtek3' => (bool) ($ba->has_ttd_komtek3 ?? false),
             ],
+            'is_started' => $ba ? !is_null($ba->started_at) : false,
+            'started_at' => $ba?->started_at?->isoFormat('D MMMM Y'),
             'my_position' => $komtekPosition,
             'my_ttd_signed' => $ttdSigned,
             'spt_komtek' => $spt_komtek,
             'sk_komtek' => env('APP_URL') . '/files/sk_komtek.pdf',
             'pleno_komtek' => $absen_komtek
+        ]);
+    }
+
+    /**
+     * Start BA Komtek (only komtek 1 / ketua can start).
+     * Marks the start time of the BA Komtek meeting.
+     */
+    public function startBaKomtek($id)
+    {
+        $user = auth()->user();
+
+        $jadwal = Jadwal::where('jadwal_id', $id)->firstOrFail();
+
+        // Only komtek 1 (ketua) can start
+        if ((int) $jadwal->komtek1 !== (int) $user->id) {
+            return response()->json([
+                'message' => 'Hanya Ketua Komite Teknis yang dapat memulai BA Komtek',
+            ], 403);
+        }
+
+        $ba = BaKomtek::updateOrCreate(
+            ['jadwal_id' => $id],
+            [
+                'started_at' => now(),
+                'inputby_id' => $user->id,
+            ]
+        );
+
+        return response()->json([
+            'message' => 'BA Komtek berhasil dimulai',
+            'data' => [
+                'is_started' => true,
+                'started_at' => $ba->started_at->isoFormat('D MMMM Y'),
+            ],
         ]);
     }
 

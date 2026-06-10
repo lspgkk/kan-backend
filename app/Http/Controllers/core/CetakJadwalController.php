@@ -167,7 +167,7 @@ class CetakJadwalController extends Controller
     public function storeCetakJadwal($jadwal_id)
     {
         // Auth from bnsp
-        $authData = DB::table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
+        $authData = DB::connection('balai')->table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
 
         // Get competent asesies by komtek majority decision
         $allAsesi = AsesiJadwal::where('jadwal_id', $jadwal_id)->get();

@@ -175,7 +175,7 @@ class BlankoController extends Controller
         $asesiBelumKompeten = $allAsesiJadwal->filter(fn($a) => $this->resolveKomtekDecision($a->id_izin) === 'BK');
 
         // Fetch auth once, reuse everywhere
-        $authData = DB::table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
+        $authData = DB::connection('balai')->table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
 
         // Validate jadwal exists on BNSP once (before both loops and blanko section)
         $responseJadwal = $this->fetchBnspJadwal($jadwal_id, $authData);

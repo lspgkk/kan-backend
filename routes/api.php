@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AsesmenController;
+use App\Http\Controllers\AsesiJadwalController;
 use App\Http\Controllers\AsesorController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
@@ -81,6 +82,44 @@ Route::prefix('survey')->middleware('static-api-key')->group(function () {
     Route::get('/', [SurveyController::class, 'index']);
     Route::get('/{id_izin}', [SurveyController::class, 'show']);
     Route::post('/{id_izin}', [SurveyController::class, 'submit']);
+});
+
+// ─────────────────────────────────────────────
+//  INTERNAL API — Document Generation (static API key)
+//  Used by the external document generator service to fetch all data
+//  without direct database access.
+// ─────────────────────────────────────────────
+Route::prefix('internal')->middleware(['static-api-key', 'throttle:300,1'])->group(function () {
+
+    Route::get('/initialize/{idIzin}', [\App\Http\Controllers\InternalDocumentDataController::class, 'initialize']);
+
+    Route::get('/header/{idIzin}', [\App\Http\Controllers\InternalDocumentDataController::class, 'dokumenHeader']);
+
+    // Build*Data endpoint — method is a URL parameter (Apl01, Apl02, Mapa01, etc.)
+    Route::get('/build/{method}/{idIzin}', [\App\Http\Controllers\InternalDocumentDataController::class, 'buildData']);
+
+    // Data operations
+    Route::get('/personal/{idIzin}', [\App\Http\Controllers\InternalDocumentDataController::class, 'getPersonal']);
+    Route::get('/asesor/{noreg}', [\App\Http\Controllers\InternalDocumentDataController::class, 'getAsesor']);
+    Route::get('/user/by-noreg/{noreg}', [\App\Http\Controllers\InternalDocumentDataController::class, 'getUserByNoreg']);
+    Route::get('/jabatan-kerja/{idJabatan}', [\App\Http\Controllers\InternalDocumentDataController::class, 'getJabatanKerja']);
+    Route::get('/komtek-decision/{idIzin}', [\App\Http\Controllers\InternalDocumentDataController::class, 'komtekDecision']);
+
+    // Barcode operations
+    Route::get('/barcodes/{idIzin}', [\App\Http\Controllers\InternalDocumentDataController::class, 'getBarcodes']);
+    Route::post('/barcode', [\App\Http\Controllers\InternalDocumentDataController::class, 'saveBarcode']);
+    Route::post('/barcodes/generate-all', [\App\Http\Controllers\InternalDocumentDataController::class, 'generateAllBarcodes']);
+
+    // Bukti asesmen operations
+    Route::get('/bukti-asesmen/{idIzin}', [\App\Http\Controllers\InternalDocumentDataController::class, 'getBuktiAsesmen']);
+    Route::post('/bukti-asesmen/{idIzin}', [\App\Http\Controllers\InternalDocumentDataController::class, 'updateBuktiAsesmen']);
+
+    // Pre-populate answer tables (write operation)
+    Route::post('/prepopulate/{idIzin}', [\App\Http\Controllers\InternalDocumentDataController::class, 'prePopulate']);
+
+    // Smart database sync
+    Route::get('/smart-sync', [\App\Http\Controllers\InternalDocumentDataController::class, 'syncSmartAll']);
+    Route::get('/smart-sync/{table}', [\App\Http\Controllers\InternalDocumentDataController::class, 'syncSmartTable']);
 });
 
 // Route::middleware(['auth:api', 'singlesession'])->group(function () {
@@ -181,6 +220,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/rekomendasi/{id}', [KomtekController::class, 'rekomendasi']);
         Route::get('/rekomendasi/{id}', [KomtekController::class, 'getRekomendasi']);
         Route::get('/files/{id}', [KomtekController::class, 'komtekFiles']);
+        Route::post('/start/{id}', [KomtekController::class, 'startBaKomtek']);
         Route::post('/approve-ba-komtek/{jadwal_id}', [DirekturController::class, 'approveBaKomtek']);
     });
 
@@ -206,6 +246,7 @@ Route::middleware(['auth:api'])->group(function () {
     });
 
     Route::prefix('invoice')->group(function () {
+        Route::get('/lap-asesor', [InvoiceController::class, 'lapAsesor']);
         Route::get('/reguler', [InvoiceController::class, 'viewInvoiceBaruReguler']);
         Route::get('/balai', [InvoiceController::class, 'viewInvoiceBaruBalai']);
         Route::get('/fg', [InvoiceController::class, 'viewInvoiceBaruFg']);
@@ -233,6 +274,12 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/post-ke-bnsp', [JadwalController::class, 'postToBnsp']);
         Route::get('/{id}', [JadwalController::class, 'show']);
         Route::put('/{jadwal_id}', [JadwalController::class, 'updateJadwal']);
+        Route::put('/{jadwal_id}/link-video', [JadwalController::class, 'updateLinkVideo']);
+        Route::get('/{jadwal_id}/link-video', [JadwalController::class, 'getLinkVideo']);
+    });
+
+    Route::prefix('asesi-jadwal')->group(function () {
+        Route::get('/id-izins', [AsesiJadwalController::class, 'listIdIzins']);
     });
 
     Route::prefix('dokumen')->group(function () {

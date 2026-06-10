@@ -82,7 +82,7 @@ class PengajuanTukController extends Controller
     public function submitAjj(Request $request)
     {
         $request->validate([
-            'jadwal_id'                   => 'required|string',
+            'jadwal_id'                   => 'nullable|string',
             'id_izin'                     => 'required|string',
             'ruangan_uji_images'          => 'required|array|min:1',
             'ruangan_uji_images.*'        => 'image|mimes:jpeg,png,jpg|max:2048',
@@ -92,11 +92,14 @@ class PengajuanTukController extends Controller
             'kecepatan_jaringan_images.*' => 'image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
-        $asesiJadwal = AsesiJadwal::where('jadwal_id', $request->jadwal_id)
-            ->where('id_izin', $request->id_izin)
-            ->first();
-        if (!$asesiJadwal) {
-            return response()->json(['message' => 'Asesi tidak ditemukan pada jadwal ini'], 404);
+        // Optional jadwal_id — AJJ may be submitted before jadwal is created
+        if ($request->filled('jadwal_id')) {
+            $asesiJadwal = AsesiJadwal::where('jadwal_id', $request->jadwal_id)
+                ->where('id_izin', $request->id_izin)
+                ->first();
+            if (!$asesiJadwal) {
+                return response()->json(['message' => 'Asesi tidak ditemukan pada jadwal ini'], 404);
+            }
         }
 
         $existing = PengajuanTuk::where('tuk_type', 'ajj')
@@ -108,7 +111,6 @@ class PengajuanTukController extends Controller
         }
 
         $personal = Personal::where('id_izin', $request->id_izin)->firstOrFail();
-        $jadwal   = Jadwal::where('jadwal_id', $request->jadwal_id)->firstOrFail();
 
         $refNumber = 'TUK-AJJ-' . strtoupper(Str::random(8));
         $user = $request->user();
@@ -145,7 +147,7 @@ class PengajuanTukController extends Controller
 
         $dataSewaktu = [
             'id_izin'                     => $request->id_izin,
-            'plannedExamDate'             => $jadwal->tanggal_uji ?? null,
+            'plannedExamDate'             => $personal->rencana_tanggal_uji,
             'kapasitasRuang'              => '30',
             'kesediaanObservasi'          => 'Ada',
             'perlengkapan'                => 'Meja ujian 1 unit, Kursi 1 unit, Proyektor, AC, WiFi',

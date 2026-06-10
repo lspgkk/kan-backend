@@ -178,21 +178,21 @@ KUK        : {{ $rekomendasiKuk ?? '' }}</div>
 <table class="section">
 <tr><td colspan="3"><b>Asesi</b></td></tr>
 <tr><td>Nama</td><td>:</td><td>{{ $dokumenHeader['nama_asesi'] ?? '' }}</td></tr>
-<tr><td>Tanda tangan dan tanggal</td><td>:</td><td>{!! $barcodes['asesi']['url'] ?? '' !!}</td></tr>
+<tr><td>Tanda tangan dan tanggal</td><td>:</td><td><img src="{{ $barcodes['asesi']['url'] ?? '' }}" style="height:50px; width:50px; object-fit:contain;" /></td></tr>
 </table>
 
 <table class="section">
 <tr><td colspan="3"><b>Asesor 1</b></td></tr>
 <tr><td>Nama</td><td>:</td><td>{{ $dokumenHeader['asesor_1'] ?? '' }}</td></tr>
 <tr><td>No. Reg</td><td>:</td><td>{{ $dokumenHeader['noreg_asesor_1'] ?? '' }}</td></tr>
-<tr><td>Tanda tangan dan tanggal</td><td>:</td><td>{!! $barcodes['asesor1']['url'] ?? '' !!}</td></tr>
+<tr><td>Tanda tangan dan tanggal</td><td>:</td><td><img src="{{ $barcodes['asesor1']['url'] ?? '' }}" style="height:50px; width:50px; object-fit:contain;" /></td></tr>
 </table>
 
 <table class="section">
 <tr><td colspan="3"><b>Asesor 2</b></td></tr>
 <tr><td>Nama</td><td>:</td><td>{{ $dokumenHeader['asesor_2'] ?? '' }}</td></tr>
 <tr><td>No. Reg</td><td>:</td><td>{{ $dokumenHeader['noreg_asesor_2'] ?? '' }}</td></tr>
-<tr><td>Tanda tangan dan tanggal</td><td>:</td><td>{!! $barcodes['asesor2']['url'] ?? '' !!}</td></tr>
+<tr><td>Tanda tangan dan tanggal</td><td>:</td><td><img src="{{ $barcodes['asesor2']['url'] ?? '' }}" style="height:50px; width:50px; object-fit:contain;" /></td></tr>
 </table>
 
 </body>

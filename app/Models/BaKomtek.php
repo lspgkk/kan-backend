@@ -14,5 +14,13 @@ class BaKomtek extends Model
         'has_ttd_komtek2',
         'has_ttd_komtek3',
         'inputby_id',
+        'started_at',
+    ];
+
+    protected $casts = [
+        'started_at' => 'datetime',
+        'has_ttd_komtek1' => 'boolean',
+        'has_ttd_komtek2' => 'boolean',
+        'has_ttd_komtek3' => 'boolean',
     ];
 }

@@ -58,7 +58,7 @@ class PenerbitanSertifikatController extends Controller
             : 1000;
 
         // Get bnsp authorization from db
-        $authData = DB::table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
+        $authData = DB::connection('balai')->table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
 
         $spt_asesor = SPTAsesor::where("jadwal_id", $request->input("jadwal_id"))->first();
         $jadwal = Jadwal::where("jadwal_id", $request->input("jadwal_id"))->first();
@@ -313,7 +313,7 @@ class PenerbitanSertifikatController extends Controller
 
 
         // Mulailah generate
-        $authData = DB::table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
+        $authData = DB::connection('balai')->table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
 
         // Get data jadwal_id from bnsp
         $url = 'https://konstruksi.bnsp.go.id/api/v1/jadwal/blanko?jadwal_id=' . $request->input("jadwal_id");
@@ -470,12 +470,6 @@ class PenerbitanSertifikatController extends Controller
                     "uji_lisan" => "1",
                     "wawancara" => "0",
                     "penyelenggaraan_uji" => $isBalaiFg ? '1' : ($klas_kua->metode_uji === 'onsite' ? '4' : '1'),
-                ];
-
-                // Include second asesor when set (optional for balai/fg)
-                if ($id_asesor_2) {
-                    $request_api_asesor["id_asesor_2"] = $id_asesor_2;
-                }
                     "url_surat_tugas" => $link_asesor,
                     "url_surat_rekomendasi_akhir" => $bukti->url_ak02,
                     "url_apl01" => $bukti->url_apl_01,
@@ -529,6 +523,11 @@ class PenerbitanSertifikatController extends Controller
                     "url_absensi_asesor_kegiatan_asesmen" => $bukti->url_absensi_asesor_asesmen,
                     "url_absensi_asesi_kegiatan_asesmen" => $bukti->url_absensi_asesi_asesmen,
                 ];
+
+                // Include second asesor when set (optional for balai/fg)
+                if ($id_asesor_2) {
+                    $request_api_asesor["id_asesor_2"] = $id_asesor_2;
+                }
 
                 if($klas_kua->jenjang < 4) {
                     $request_api_asesor['url_form_uji_praktek_atau_observasi_lapangan'] = $bukti->new_ia_01;
@@ -648,7 +647,7 @@ class PenerbitanSertifikatController extends Controller
         }
 
         // Mulailah generate
-        $authData = DB::table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
+        $authData = DB::connection('balai')->table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
 
         // Get data jadwal_id from bnsp
         $url = 'https://konstruksi.bnsp.go.id/api/v1/jadwal/blanko?jadwal_id=' . $request->input("jadwal_id");
@@ -1023,7 +1022,7 @@ class PenerbitanSertifikatController extends Controller
             $pencatatan_peserta = DataPencatatan::where("id_izin", $peserta->id_izin)->first();
             $klas_kua = KlasifikasiKualifikasi::select(['jabatan_kerja'])->where("id_izin", $peserta->id_izin)->first();
             $url = 'https://konstruksi.bnsp.go.id/api/v1/skema?kode_lpjk=' . $klas_kua->jabatan_kerja;
-            $authData = DB::table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
+            $authData = DB::connection('balai')->table('b_n_s_p_auths')->select('x_authorization')->first()->x_authorization;
 
             $response = rescue(function () use ($authData, $url) {
                 return Http::withHeaders([

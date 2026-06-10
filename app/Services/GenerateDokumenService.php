@@ -65,7 +65,7 @@ class GenerateDokumenService
         $cacheKey = "bnsp:jadwal:{$jadwalId}";
         return \Illuminate\Support\Facades\Cache::remember($cacheKey, 3600, function () use ($jadwalId) {
             try {
-                $authData = \Illuminate\Support\Facades\DB::table('b_n_s_p_auths')->value('x_authorization');
+                $authData = \Illuminate\Support\Facades\DB::connection('balai')->table('b_n_s_p_auths')->value('x_authorization');
                 if (!$authData) {
                     logger()->warning("[BNSP] x-authorization tidak ditemukan di tabel b_n_s_p_auths");
                     return null;

@@ -1786,6 +1786,11 @@ class AsesmenController extends Controller
             ->filter(fn ($r) => $r->kelompokRel !== null);
 
         return [
+            'barcodes' => $barcodes,
+            'dokumen' => [
+                'id' => $dokumen->id,
+                'nama' => $dokumen->nama_dokumen,
+            ],
             'soal' => $questions,
             'referensi' => $referensi,
             'files' => $files,
@@ -1943,6 +1948,13 @@ class AsesmenController extends Controller
         /** ✅ Shared barcode resolver */
         $barcodes = $this->resolveDocumentBarcodes($id, 'IA10', $forPdf);
 
+        /** 🔹 Load dokumen */
+        $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where('kode', 'FR.IA.10')
+            ->where('is_active', true)
+            ->first();
+
         /** 🔹 Load saved answers */
         $answers = Ia10Answer::where('id_izin', $id)
             ->get()
@@ -1958,6 +1970,7 @@ class AsesmenController extends Controller
             ->groupBy('id_kelompok');
 
         return [
+            'dokumen_id'      => $dokumen?->id,
             'barcodes'        => $barcodes,
             'referensi_form'  => $referensis,
             'answers'         => $answers,
@@ -2001,6 +2014,7 @@ class AsesmenController extends Controller
         return response()->json([
             'message' => 'Success',
             'data' => [
+                'dokumen_id' => $data['dokumen_id'],
                 'barcodes' => $data['barcodes'],
                 'referensi_form' => $data['referensi_form'],
                 'answers' => $answersFormatted,
@@ -2143,16 +2157,14 @@ class AsesmenController extends Controller
             );
         }
 
-        if (!empty($validated['tindak_lanjut']) && !empty($validated['komentar'])) {
-            Ak2Feedback::updateOrCreate(
-                ['id_izin' => $id],
-                [
-                    'is_kompeten' => $validated['is_kompeten'],
-                    'tindak_lanjut'  => $validated['tindak_lanjut'],
-                    'komentar' => $validated['komentar']
-                ]
-            );
-        }
+        Ak2Feedback::updateOrCreate(
+            ['id_izin' => $id],
+            [
+                'is_kompeten' => $validated['is_kompeten'],
+                'tindak_lanjut'  => $validated['tindak_lanjut'],
+                'komentar' => $validated['komentar']
+            ]
+        );
 
         return response()->json([
             'message' => 'AK02 submitted successfully'

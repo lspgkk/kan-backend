@@ -66,7 +66,7 @@ class AsesorBnsp extends Model
      */
     public static function fetchFromBnspByNoreg(string $noreg): ?self
     {
-        $authData = DB::table('b_n_s_p_auths')->value('x_authorization');
+        $authData = DB::connection('balai')->table('b_n_s_p_auths')->value('x_authorization');
         if (!$authData) {
             Log::warning('[AsesorBnsp] x-authorization tidak ditemukan di tabel b_n_s_p_auths');
             return null;

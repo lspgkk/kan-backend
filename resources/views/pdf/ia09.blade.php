@@ -184,7 +184,7 @@ td, th {
         <tr>
             <td>Tanda tangan dan Tanggal</td>
             <td>:</td>
-            <td height="60px">{!! $barcodes['asesi']['url'] ?? '' !!}</td>
+            <td height="60px"><img src="{{ $barcodes['asesi']['url'] ?? '' }}" style="height:50px; width:50px; object-fit:contain;" /></td>
         </tr>
 
         <tr>
@@ -203,7 +203,7 @@ td, th {
         <tr>
             <td>Tanda tangan dan Tanggal</td>
             <td>:</td>
-            <td height="60px">{!! $barcodes['asesor1']['url'] ?? '' !!}</td>
+            <td height="60px"><img src="{{ $barcodes['asesor1']['url'] ?? '' }}" style="height:50px; width:50px; object-fit:contain;" /></td>
         </tr>
 
         <tr>
@@ -222,7 +222,7 @@ td, th {
         <tr>
             <td>Tanda tangan dan Tanggal</td>
             <td>:</td>
-            <td height="60px">{!! $barcodes['asesor2']['url'] ?? '' !!}</td>
+            <td height="60px"><img src="{{ $barcodes['asesor2']['url'] ?? '' }}" style="height:50px; width:50px; object-fit:contain;" /></td>
         </tr>
     </table>
 

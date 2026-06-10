@@ -50,6 +50,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Ramsey\Uuid\Uuid;
@@ -918,7 +919,9 @@ class PraAsesmenController extends Controller
                                 ? $answer->files->map(fn ($file) => [
                                     'id'   => $file->id,
                                     'name' => $file->original_name,
-                                    'path' => $baseUrl . ltrim($file->path, '/'),
+                                    'path' => $file->path && (str_starts_with($file->path, 'http://') || str_starts_with($file->path, 'https://'))
+                                        ? $file->path
+                                        : $baseUrl . ltrim($file->path, '/'),
                                     'filetype' => $file->filetype,
                                 ])->values()
                                 : [],
@@ -954,8 +957,8 @@ class PraAsesmenController extends Controller
 
     public function submitApl02(Request $request, $id)
     {
-        $validated = $request->validate([
-            'metode' => 'required|string',
+        $validator = Validator::make($request->all(), [
+            'metode' => 'nullable|string',
             'is_dilanjutkan' => 'required|boolean',
             'answers' => 'required|array',
 
@@ -964,8 +967,25 @@ class PraAsesmenController extends Controller
             'answers.*.file_ids' => 'nullable|array',
             'answers.*.file_ids.*' => 'exists:apl2_files,id',
             'answers.*.file_urls' => 'nullable|array',
-            'answers.*.file_urls.*' => 'url',
+            'answers.*.file_urls.*.url' => 'required|url',
+            'answers.*.file_urls.*.name' => 'required|string|max:255',
         ]);
+
+        $validator->after(function ($validator) use ($request) {
+            foreach ($request->input('answers', []) as $index => $answer) {
+                $fileIds = $answer['file_ids'] ?? [];
+                $fileUrls = $answer['file_urls'] ?? [];
+
+                if (empty($fileIds) && empty($fileUrls)) {
+                    $validator->errors()->add(
+                        "answers.{$index}.file_ids",
+                        'Setiap jawaban harus memiliki minimal satu file (unggahan atau URL).'
+                    );
+                }
+            }
+        });
+
+        $validated = $validator->validate();
 
         DB::transaction(function () use ($validated, $id) {
 
@@ -993,22 +1013,35 @@ class PraAsesmenController extends Controller
 
                 // Create Apl2File records for external URLs and collect their IDs
                 if (!empty($answer['file_urls'])) {
-                    foreach ($answer['file_urls'] as $url) {
-                        $parsedUrl = parse_url($url);
-                        $originalName = basename($parsedUrl['path'] ?? 'file');
+                    foreach ($answer['file_urls'] as $item) {
+                        $fileUrl = $item['url'];
+                        $fileName = $item['name'];
 
-                        $file = Apl2File::create([
-                            'id_izin'       => $id,
-                            'original_name' => $originalName,
-                            'path'          => $url,
-                            'mime'          => 'application/octet-stream',
-                            'size'          => 0,
-                            'filetype'      => 'referensi_external',
-                        ]);
+                        // Cek apakah URL sudah pernah disimpan untuk id_izin ini
+                        $existingFile = Apl2File::where('id_izin', $id)
+                            ->where('path', $fileUrl)
+                            ->first();
 
-                        $fileIds[] = $file->id;
+                        if ($existingFile) {
+                            // Gunakan file yang sudah ada
+                            $fileIds[] = $existingFile->id;
+                        } else {
+                            $file = Apl2File::create([
+                                'id_izin'       => $id,
+                                'original_name' => $fileName,
+                                'path'          => $fileUrl,
+                                'mime'          => 'application/octet-stream',
+                                'size'          => 0,
+                                'filetype'      => 'referensi_external',
+                            ]);
+
+                            $fileIds[] = $file->id;
+                        }
                     }
                 }
+
+                // Hindari duplikasi ID dalam array (misal URL yg sama ada di file_ids dan file_urls)
+                $fileIds = array_unique($fileIds);
 
                 if (!empty($fileIds)) {
                     $aplAnswer->files()->sync($fileIds);
@@ -1148,8 +1181,7 @@ class PraAsesmenController extends Controller
 
     public function ttdApl02(Request $request, $id)
     {
-        $data = $this->generateTtdBarcode(
-            $request,
+        $data = $this->generateTtdBarcodeWithoutJadwal(
             'APL02',
             'ttd_apl02',
             $id
@@ -1772,6 +1804,13 @@ class PraAsesmenController extends Controller
 
                                         $answer = $item->ak07Answer;
 
+                                        // Untuk kelompok 5, jika nama asli null dan ada custom_name
+                                        // dari jawaban tersimpan, gunakan answer_text sebagai nama
+                                        $nama = $item->nama;
+                                        if ($kelompok->id == 5 && is_null($nama) && $answer && $answer->answer_text) {
+                                            $nama = $answer->answer_text;
+                                        }
+
                                         /** =========================
                                          * KELOMPOK 4 STRICT LOGIC
                                          * ========================= */
@@ -1808,19 +1847,19 @@ class PraAsesmenController extends Controller
                                         if ($answer) {
                                             return [
                                                 'id' => $item->id,
-                                                'nama' => $item->nama,
+                                                'nama' => $nama,
                                                 'jawaban' => $item->id_kelompok === 6
                                                     ? [
                                                         'bool' => $answer->answer_bool,
                                                         'text' => $answer->answer_text,
                                                     ]
-                                                    : ($answer->answer_text ?? $answer->answer_bool),
+                                                    : ($item->id_kelompok === 7 ? $answer->answer_text : $answer->answer_bool),
                                             ];
                                         }
 
                                         return [
                                             'id' => $item->id,
-                                            'nama' => $item->nama,
+                                            'nama' => $nama,
                                             'jawaban' => null,
                                         ];
                                     })->values(),
@@ -1916,7 +1955,8 @@ class PraAsesmenController extends Controller
             'answers' => 'nullable|array',
             'answers.*.referensi_id' => 'nullable|integer|exists:referensis,id',
             'answers.*.kelompok_id' => 'nullable|integer|exists:referensi_kelompoks,id',
-            'answers.*.value' => 'nullable'
+            'answers.*.value' => 'nullable',
+            'answers.*.custom_name' => 'nullable|string|max:255',
         ]);
 
         DB::transaction(function () use ($request, $id) {
@@ -1945,9 +1985,16 @@ class PraAsesmenController extends Controller
 
                 /* =========================
                 OTHER KELOMPOK (BOOLEAN ONLY)
+                — KELOMPOK 5: juga simpan custom_name di answer_text
+                  untuk referensi dengan nama null (opsi lainnya)
                 ========================= */
                 else {
                     $answerBool = (bool) $item['value'];
+
+                    // Kelompok 5 — simpan custom_name jika ada
+                    if ($kelompokId === 5 && !empty($item['custom_name'])) {
+                        $answerText = $item['custom_name'];
+                    }
                 }
 
                 Ak7Answer::updateOrCreate(
@@ -2422,9 +2469,14 @@ class PraAsesmenController extends Controller
             ];
         }
 
-        /** 📌 Resolve jadwal */
+        /** 📌 Resolve jadwal — fallback to AsesiJadwal if barcode lacks id_jadwal */
+        $barcodeJadwalId = $barcodes->first()->id_jadwal;
+        if (!$barcodeJadwalId) {
+            $barcodeJadwalId = AsesiJadwal::where('id_izin', $idIzin)->value('jadwal_id');
+        }
+
         $jadwal = Jadwal::select(['asesor_id', 'asesor2_id'])
-            ->where('jadwal_id', $barcodes->first()->id_jadwal)
+            ->where('jadwal_id', $barcodeJadwalId)
             ->first();
 
         if (!$jadwal) {
@@ -2578,7 +2630,10 @@ class PraAsesmenController extends Controller
         // 6️⃣ Public image URL
         $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
 
-        // 7️⃣ Save / update DB (without id_jadwal)
+        // 7️⃣ Save / update DB (resolve id_jadwal from AsesiJadwal so barcode
+        //    can be linked back to the jadwal for asesor resolution)
+        $idJadwal = AsesiJadwal::where('id_izin', $izinId)->value('jadwal_id');
+
         Barcode::updateOrCreate(
             [
                 'id_user'       => auth()->user()->id,
@@ -2586,6 +2641,7 @@ class PraAsesmenController extends Controller
                 'jenis_dokumen' => $docType,
             ],
             [
+                'id_jadwal' => $idJadwal,
                 'url_image' => $urlImage,
                 'url_ttd'   => $urlTtd,
                 'id_role'   => auth()->user()->role_id,

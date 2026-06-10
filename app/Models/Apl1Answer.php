@@ -21,4 +21,8 @@ class Apl1Answer extends Model
     ];
 
     public $timestamps = true;
+
+    protected $casts = [
+        'is_diterima' => 'boolean',
+    ];
 }

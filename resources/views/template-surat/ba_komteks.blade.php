@@ -224,23 +224,35 @@ Tim Pemutus sepakat memutuskan hal-hal sebagai berikut:
 <div class="word-list">
 
 <div>
-1. Keputusan Direktur Jenderal Bina Konstruksi Kementerian Pekerjaan Umum dan Perumahan Rakyat Nomor 114/KPTS/Dk/2024 Tentang Penetapan Jabatan Kerja dan Jenjang Kualifikasi Atas Jabatan Kerja di Bidang Jasa Konstruksi.
+1. Peraturan Pemerintah Republik Indonesia Nomor 14 Tahun 2021 tentang Perubahan Atas Peraturan Pemerintah No 22 Tahun 2020 Tentang Peraturan Pelaksanaan UUD No 2 Tahun 2017 Tentang Jasa Konstruksi;
 </div>
 
 <div>
-2. Surat Edaran Ketua Pengembangan Jasa Konstruksi Nomor 01/SE/LPJK/2025 Tentang Pedoman Pemberian Rekomendasi Lisensi Lembaga Sertifikasi Profesi (LSP).
+2. Peraturan Badan Nasional Sertifikasi Profesi 201 tentang Persyaratan Umum Lembaga Sertifikasi Profesi;
 </div>
 
 <div>
-3. Surat Keputusan Lembaga Pengembangan Jasa Konstruksi Nomor BK 0401-LK/164 Tentang Penyesuaian Skema Sertifikasi Jabatan Kerja Perbaikan dan Penjelasan Lampiran Surat Edaran Ketua LPJK.
+3. Keputusan Direktur Jenderal Bina Konstruksi Kementerian Pekerjaan Umum dan Perumahan Rakyat Nomor 114/KPTS/Dk/2024 Tentang Penetapan Jabatan Kerja dan Jenjang Kualifikasi Atas Jabatan Kerja di Bidang Jasa Konstruksi.
 </div>
 
 <div>
-4. Seluruh proses asesmen dan alur yang ditetapkan oleh LSP telah sesuai dengan ketentuan yang berlaku.
+4. Surat Edaran Ketua Pengembangan Jasa Konstruksi Nomor 01/SE/LPJK/2025 Tentang Pedoman Pemberian Rekomendasi Lisensi Lembaga Sertifikasi Profesi (LSP).
 </div>
 
 <div>
-5. Telah dilakukan kegiatan asesmen kepada asesi oleh para asesor kompetensi sesuai dengan aturan pelaksanaan asesmen dengan daftar terlampir sebagai berikut:
+5. Surat Keputusan Lembaga Pengembangan Jasa Konstruksi Nomor BK 0401-LK/164 Tentang Penyesuaian Skema Sertifikasi Jabatan Kerja Perbaikan dan Penjelasan Lampiran Surat Edaran Ketua LPJK;
+</div>
+
+<div>
+6. Surat Edaran Nomor 03/SE/LPJK/2025 Tentang Perubahan Atas Surat Edaran Ketua Pengembangan Jasa Konstruksi Nomor 01/SE/LPJK/2025 Tentang Pedoman Pemberian Rekomendasi Lisensi Lembaga Sertifikasi Profesi (LSP), Pencatatan Lembaga Sertifikasi Profesi (LSP) Terlisensi, Serta Daftar Penyesuaian Standar Kompetensi Kerja dan Skema Sertifikasi Jabatan Kerja Konstruksi;
+</div>
+
+<div>
+7. Seluruh proses asesmen dan alur yang ditetapkan oleh LSP telah sesuai dengan ketentuan yang berlaku.
+</div>
+
+<div>
+8. Telah dilakukan kegiatan asesmen kepada asesi oleh para asesor kompetensi sesuai dengan aturan pelaksanaan asesmen dengan daftar terlampir sebagai berikut:
 </div>
 
 </div>

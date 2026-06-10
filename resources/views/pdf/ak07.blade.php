@@ -202,7 +202,7 @@
                     @foreach($kelompoks[0]['kategoris'][0]['referensis'] as $item)
                     <div style="margin-bottom: 4px;">
                         <span class="checkbox {{ $item['jawaban'] ? 'checked' : '' }}"></span>
-                        {{ $item['nama'] }}
+                        {{ $item['nama'] ?? '' }}
                     </div>
                     @endforeach
                 </td>
@@ -222,12 +222,9 @@
 
             @foreach($kelompoks[1]['kategoris'] as $kategori)
                 @php
+                    if (is_null($kategori['nama'])) continue;
                     $refs = $kategori['referensis'] ?? [];
-                    $targetCount = 5;
-
-                    while (count($refs) < $targetCount) {
-                        $refs[] = ['nama' => '', 'jawaban' => null];
-                    }
+                    $total = count($refs);
                 @endphp
 
                 @foreach($refs as $idx => $ref)
@@ -235,7 +232,7 @@
                         {{-- NO --}}
                         <td
                             style="text-align:center; vertical-align:top;"
-                            class="{{ $idx == 0 ? 'no-bottom' : ($idx == count($refs)-1 ? 'no-top' : 'no-top-bottom') }}"
+                            class="{{ $idx == 0 ? 'no-bottom' : ($idx == $total - 1 ? 'no-top' : 'no-top-bottom') }}"
                         >
                             {{ $idx == 0 ? $kategori['urut'] : '' }}
                         </td>
@@ -243,19 +240,19 @@
                         {{-- KATEGORI --}}
                         <td
                             style="vertical-align:top;"
-                            class="{{ $idx == 0 ? 'no-bottom' : ($idx == count($refs)-1 ? 'no-top' : 'no-top-bottom') }}"
+                            class="{{ $idx == 0 ? 'no-bottom' : ($idx == $total - 1 ? 'no-top' : 'no-top-bottom') }}"
                         >
                             {{ $idx == 0 ? $kategori['nama'] : '' }}
                         </td>
 
                         {{-- YA --}}
                         <td style="text-align:center;">
-                            <span class="checkbox {{ !empty($ref['nama']) && ($ref['jawaban'] ?? false) ? 'checked' : '' }}"></span>
+                            <span class="checkbox {{ !is_null($ref['nama']) && $ref['jawaban'] === true ? 'checked' : '' }}"></span>
                         </td>
 
                         {{-- TIDAK --}}
                         <td style="text-align:center;">
-                            <span class="checkbox {{ !empty($ref['nama']) && !($ref['jawaban'] ?? false) ? 'checked' : '' }}"></span>
+                            <span class="checkbox {{ !is_null($ref['nama']) && $ref['jawaban'] === false ? 'checked' : '' }}"></span>
                         </td>
 
                         {{-- KETERANGAN --}}
@@ -277,16 +274,17 @@
                 <td class="hd-dok" style="width: 20%;"><strong>Keterangan</strong></td>
             </tr>
             @foreach($kelompoks[2]['kategoris'][0]['referensis'] as $idx => $item)
+            @php $jawaban = $item['jawaban'] ?? null; @endphp
             <tr>
                 <td style="text-align: center; vertical-align: top;">{{ $idx + 1 }}</td>
                 <td style="vertical-align: top;">{{ $item['nama'] }}</td>
                 <td style="text-align: center;">
-                    <span class="checkbox {{ $item['jawaban']['bool'] ? 'checked' : '' }}"></span>
+                    <span class="checkbox {{ $jawaban && $jawaban['bool'] ? 'checked' : '' }}"></span>
                 </td>
                 <td style="text-align: center;">
-                    <span class="checkbox {{ !$item['jawaban']['bool'] ? 'checked' : '' }}"></span>
+                    <span class="checkbox {{ $jawaban && !$jawaban['bool'] ? 'checked' : '' }}"></span>
                 </td>
-                <td>{{ $item['jawaban']['text'] ?? '' }}</td>
+                <td>{{ $jawaban['text'] ?? '' }}</td>
             </tr>
             @endforeach
         </table>

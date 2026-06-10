@@ -56,6 +56,7 @@ class Personal extends Model
         'wa_uuid',
         'account',
         'password_plain',
+        'catatan',
     ];
 
     public function pendidikans()
