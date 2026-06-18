@@ -163,28 +163,30 @@
                 <th>K</th>
                 <th>BK</th>
             </tr>
+            @foreach($asesiList as $index => $asesi)
             <tr>
-                <td style="text-align:center;">1</td>
+                <td style="text-align:center;">{{ $index + 1 }}</td>
 
                 <td>
-                    {{ $dokumenHeader['nama_asesi'] }}
+                    {{ strtoupper($asesi['nama']) }}
                 </td>
 
                 <!-- K -->
                 <td style="text-align:center;">
-                    <span class="checkbox @if($kompeten) checked @endif"></span>
+                    <span class="checkbox @if($asesi['kompeten']) checked @endif"></span>
                 </td>
 
                 <!-- BK -->
                 <td style="text-align:center;">
-                    <span class="checkbox @if(!$kompeten) checked @endif"></span>
+                    <span class="checkbox @if(!$asesi['kompeten']) checked @endif"></span>
                 </td>
 
                 <!-- Keterangan -->
                 <td>
-                    {{ $answers['keterangan'] ?? '' }}
+                    {{ $asesi['keterangan'] ?? '' }}
                 </td>
             </tr>
+            @endforeach
         </table>
         <br />
         <strong>** tuliskan Kode dan Judul Unit Kompetesi yang dinyatakan BK bila mengases satu skema</strong>
@@ -216,7 +218,7 @@
             </tr>
             <tr>
                 <td>Nama</td>
-                <td>{{ $dokumenHeader['asesor_1'] }}</td>
+                <td>{{ strtoupper($dokumenHeader['asesor_1']) }}</td>
             </tr>
             <tr>
                 <td>No Reg</td>
@@ -238,7 +240,7 @@
             </tr>
             <tr>
                 <td>Nama</td>
-                <td>{{ $dokumenHeader['asesor_2'] }}</td>
+                <td>{{ strtoupper($dokumenHeader['asesor_2']) }}</td>
             </tr>
             <tr>
                 <td>No Reg</td>
@@ -264,7 +266,7 @@
             </tr>
             <tr>
                 <td>Nama</td>
-                <td>{{ $dokumenHeader['asesor_1'] }}</td>
+                <td>{{ strtoupper($dokumenHeader['asesor_1']) }}</td>
             </tr>
             <tr>
                 <td>No Reg</td>

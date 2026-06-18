@@ -69,7 +69,7 @@
         }
 
         .right-text {
-            margin-left: 100px;
+            margin-left: 80px;
         }
 
         .right-section img {
@@ -200,9 +200,9 @@
             <div class="right-section">
                 <img src="{{ asset('images/logo-template.png') }}" class="logo">
 
-                <div class="info-text right-text bold" style="text-align: left;">
-                    No. Invoice : {{ $latest_invno }} <br>
-                    Tanggal Invoice : {{ \Carbon\Carbon::now()->format('d F Y') }}
+                <div class="info-text right-text bold" style="text-align: left; white-space: nowrap;">
+                    <span>No. Invoice : {{ $latest_invno }}</span><br>
+                    Tanggal Invoice : {{ \Carbon\Carbon::now()->isoFormat('D MMMM YYYY') }}
                 </div>
             </div>
         </div>
@@ -290,10 +290,30 @@
                     </div>
 
                     <div style="margin-top:4px;">
-                        Transfer ke Rekening<br>
-                        BTN Kantor Cabang Jakarta Kuningan<br>
-                        00001.01.30.001326.6<br>
-                        Atas Nama LSP GATENSI KARYA KONSTRUKSI
+                        @if(isset($payment_method) && $payment_method === 'midtrans')
+                            <strong>Midtrans Payment Gateway</strong><br>
+                            @if(isset($payment_status) && $payment_status === 'paid' && isset($midtrans_detail))
+                                <span style="color:#008000;font-weight:bold;">Status: LUNAS</span><br>
+                                @if($midtrans_detail['payment_type_display'])
+                                    Metode: {{ $midtrans_detail['payment_type_display'] }}<br>
+                                @endif
+                                @if(!empty($midtrans_detail['bank']) && !empty($midtrans_detail['va_number']))
+                                    Bank: {{ strtoupper($midtrans_detail['bank']) }}<br>
+                                    VA Number: {{ $midtrans_detail['va_number'] }}<br>
+                                @endif
+                                @if($midtrans_detail['transaction_time'])
+                                    Waktu: {{ $midtrans_detail['transaction_time'] }}<br>
+                                @endif
+                            @else
+                                <span style="color:#003d73;">Status: Menunggu Pembayaran</span><br>
+                                <span style="font-size:9px;">Klik tautan pembayaran yang telah dikirimkan untuk menyelesaikan pembayaran.</span>
+                            @endif
+                        @else
+                            <strong>Transfer ke Rekening</strong><br>
+                            BTN Kantor Cabang Jakarta Kuningan<br>
+                            00001.01.30.001326.6<br>
+                            Atas Nama LSP GATENSI KARYA KONSTRUKSI
+                        @endif
                     </div>
                 </td>
 
@@ -324,12 +344,39 @@
                             </td>
                         </tr>
 
-                        <tr style="color: black; font-weight:bold;">
-                            <td colspan="2" style="padding-top:40px;">
-                                Issued by: {{ $issued_by }}
-                            </td>
-                        </tr>
+                        @if(isset($personal_type) && $personal_type === 'reguler')
+                            <tr style="color: black; font-weight:bold;">
+                                <td colspan="2" style="padding-top:40px; font-size:9px; line-height:1.4;">
+                                    Invoice ini diterbitkan secara elektronik<br>
+                                    oleh {{ $user_jabatan ?? 'Staff' }} "{{ $issued_by }}"<br>
+                                    dan sah tanpa tanda tangan<br>
+                                    maupun cap perusahaan.
+                                </td>
+                            </tr>
+                        @else
+                            <tr>
+                                <td colspan="2" style="padding-top:25px; font-size:10px; font-weight:bold;">
+                                    LSP GATENSI KARYA KONSTRUKSI
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2">
+                                    <img src="{{ asset('images/ttd-silviana.png') }}" style="width:70px; height:auto; display:block;">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2" style="font-size:10px; line-height:1.4;">
+                                    <span style="font-weight:bold;">SILVIANA ROSMA DP</span><br>
+                                    <span style="font-weight:normal; font-size:9px;">FINANCE</span>
+                                </td>
+                            </tr>
+                        @endif
                     </table>
+                    @if(!isset($personal_type) || $personal_type !== 'reguler')
+                        <div style="margin-top:8px;">
+                            <img src="{{ asset('images/stamp.png') }}" style="width:70px; height:auto;">
+                        </div>
+                    @endif
                 </td>
             </tr>
         </table>

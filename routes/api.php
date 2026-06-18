@@ -122,11 +122,14 @@ Route::prefix('internal')->middleware(['static-api-key', 'throttle:300,1'])->gro
     Route::get('/smart-sync/{table}', [\App\Http\Controllers\InternalDocumentDataController::class, 'syncSmartTable']);
 });
 
-// Route::middleware(['auth:api', 'singlesession'])->group(function () {
-Route::middleware(['auth:api'])->group(function () {
+Route::middleware(['auth:api', 'singlesession'])->group(function () {
 
     // --- WebSocket Test Endpoint ---
     Route::post('/test-broadcast', [PraAsesmenController::class, 'testBroadcast']);
+
+    // --- Connection health checks ---
+    Route::get('/check-siki-connection', [\App\Http\Controllers\SikiController::class, 'checkConnection']);
+    Route::get('/check-bnsp-connection', [\App\Http\Controllers\SikiController::class, 'checkBnspConnection']);
 
     // --- Auth & Users ---
     Route::post('/auth/logout', [AuthController::class, 'logout']);
@@ -170,6 +173,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/validasi/fg', [PermohonanController::class, 'skkValidasiFgList']);
         Route::get('/sync/permohonan', [PermohonanController::class, 'syncPermohonan']);
         Route::post('/sync/single', [PermohonanController::class, 'syncSinglePermohonan']);
+        Route::post('/refetch/single', [PermohonanController::class, 'refetchPermohonan']);
         Route::get('/{id}', [PermohonanController::class, 'detailPermohonan']);
     });
 
@@ -179,6 +183,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/siki/{id}', [TukController::class, 'showTukSiki']);
         Route::put('/siki/{id}', [TukController::class, 'updateKategori']);
         Route::get('/bnsp', [TukController::class, 'allTukBnsp']);
+        Route::get('/list', [TukController::class, 'listTuk']);
     });
 
     Route::prefix('klasifikasi')->group(function () {
@@ -270,6 +275,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/blanko', [JadwalController::class, 'blankos']);
         Route::get('/sertifikasi', [JadwalController::class, 'sertifikasi']);
         Route::get('/list-asesi-create', [JadwalController::class, 'listAsesiCreateJadwal']);
+        Route::get('/pengajuan-tuk-list', [JadwalController::class, 'pengajuanTukList']);
         Route::post('/create-jadwal', [JadwalController::class, 'store']);
         Route::post('/{id}/post-ke-bnsp', [JadwalController::class, 'postToBnsp']);
         Route::get('/{id}', [JadwalController::class, 'show']);
@@ -306,6 +312,7 @@ Route::middleware(['auth:api'])->group(function () {
     });
 
     Route::get('/dokumen/asesi/{id}', [AsesmenController::class, 'dokumenAsesi']);
+    Route::get('/dokumen/asesi/{id}/download', [AsesmenController::class, 'downloadDokumenAsesi']);
     Route::get('/dokumen/absen/{id}', [AsesmenController::class, 'absensi']);
     Route::get('/generate-penyusun', [BarcodeController::class, 'generateBarcodePenyusun']);
     Route::get('/generate-manajer', [BarcodeController::class, 'generateBarcodeManajer']);

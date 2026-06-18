@@ -124,21 +124,21 @@
             @if(!empty($dokumenHeader['asesor_2']))
                 <tr>
                     <td colspan="2"><strong>Nama Asesor 1</strong></td>
-                    <td colspan="2">{{($dokumenHeader['asesor_1']) }}{{ $dokumenHeader['noreg_asesor_1'] ? ' (' . $dokumenHeader['noreg_asesor_1'] . ')' : '' }}</td>
+                    <td colspan="2">{{ strtoupper($dokumenHeader['asesor_1']) }}{{ $dokumenHeader['noreg_asesor_1'] ? ' (' . $dokumenHeader['noreg_asesor_1'] . ')' : '' }}</td>
                 </tr>
                 <tr>
                     <td colspan="2"><strong>Nama Asesor 2</strong></td>
-                    <td colspan="2">{{($dokumenHeader['asesor_2']) }}{{ $dokumenHeader['noreg_asesor_2'] ? ' (' . $dokumenHeader['noreg_asesor_2'] . ')' : '' }}</td>
+                    <td colspan="2">{{ strtoupper($dokumenHeader['asesor_2']) }}{{ $dokumenHeader['noreg_asesor_2'] ? ' (' . $dokumenHeader['noreg_asesor_2'] . ')' : '' }}</td>
                 </tr>
             @else
                 <tr>
                     <td colspan="2"><strong>Nama Asesor</strong></td>
-                    <td colspan="2">{{($dokumenHeader['asesor_1']) }}{{ $dokumenHeader['noreg_asesor_1'] ? ' (' . $dokumenHeader['noreg_asesor_1'] . ')' : '' }}</td>
+                    <td colspan="2">{{ strtoupper($dokumenHeader['asesor_1']) }}{{ $dokumenHeader['noreg_asesor_1'] ? ' (' . $dokumenHeader['noreg_asesor_1'] . ')' : '' }}</td>
                 </tr>
             @endif
             <tr>
                 <td colspan="2"><strong>Nama Asesi</strong></td>
-                <td colspan="2">{{($dokumenHeader['nama_asesi']) }}</td>
+                <td colspan="2">{{ strtoupper($dokumenHeader['nama_asesi']) }}</td>
             </tr>
             <tr>
                 <td colspan="2"><strong>Tanggal</strong></td>
@@ -310,7 +310,7 @@
             @if(isset($barcodes['asesor2']))
             <tr>
                 <td style="width: 50%; height: 100px; vertical-align: top;">
-                    <div>Nama Asesor 1 : {{($dokumenHeader['asesor_1']) }}</div>
+                    <div>Nama Asesor 1 : {{ strtoupper($dokumenHeader['asesor_1']) }}</div>
                     @if($dokumenHeader['noreg_asesor_1'])
                     <div>No. Reg : {{ $dokumenHeader['noreg_asesor_1'] }}</div>
                     @endif
@@ -325,7 +325,7 @@
             </tr>
             <tr>
                 <td style="width: 50%; height: 100px; vertical-align: top;">
-                    <div>Nama Asesor 2 : {{($dokumenHeader['asesor_2']) }}</div>
+                    <div>Nama Asesor 2 : {{ strtoupper($dokumenHeader['asesor_2']) }}</div>
                     @if($dokumenHeader['noreg_asesor_2'])
                     <div>No. Reg : {{ $dokumenHeader['noreg_asesor_2'] }}</div>
                     @endif
@@ -341,7 +341,7 @@
             @else
             <tr>
                 <td style="width: 50%; height: 100px; vertical-align: top;">
-                    <div>Nama Asesor : {{($dokumenHeader['asesor_1']) }}</div>
+                    <div>Nama Asesor : {{ strtoupper($dokumenHeader['asesor_1']) }}</div>
                     @if($dokumenHeader['noreg_asesor_1'])
                     <div>No. Reg : {{ $dokumenHeader['noreg_asesor_1'] }}</div>
                     @endif

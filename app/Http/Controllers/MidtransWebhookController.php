@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Invoice;
 use App\Models\MidtransTransaction;
 use App\Models\Personal;
+use App\Services\SikiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -169,6 +170,17 @@ class MidtransWebhookController extends Controller
                 'amount' => $invoice->total_biaya,
             ]);
 
+            // Regenerate invoice PDF and update Excel with paid status
+            try {
+                $invoiceController = app(\App\Http\Controllers\InvoiceController::class);
+                $invoiceController->regenerateInvoiceAfterPayment($invoice->invoice_number);
+            } catch (\Exception $regErr) {
+                Log::error('Failed to regenerate invoice files after payment (non-blocking)', [
+                    'invoice_number' => $invoice->invoice_number,
+                    'error' => $regErr->getMessage(),
+                ]);
+            }
+
             return response()->json(['status' => 'success', 'message' => 'Payment processed successfully']);
 
         } catch (\Exception $e) {
@@ -221,24 +233,31 @@ class MidtransWebhookController extends Controller
      */
     private function updateSikiStatusAfterPayment($id_izin, $statusCode, $keterangan)
     {
+        $siki = app(SikiService::class);
+
+        if (!$siki->isActive()) {
+            Log::info('SIKI API call skipped (is_active=false)', [
+                'id_izin' => $id_izin,
+                'kd_status' => $statusCode,
+                'action' => 'updateSikiStatusAfterPayment',
+            ]);
+            Personal::where('id_izin', $id_izin)->update(['status' => (int)$statusCode]);
+            return;
+        }
+
         $maxRetries = 4;
         $attempt = 0;
 
         while ($attempt < $maxRetries) {
             try {
-                $api_url = "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $id_izin;
-
-                $headers = [
-                    'Content-Type' => 'application/json',
-                    'token' => env('SIKI_TOKEN'),
-                ];
+                $api_url = $siki->getBaseUrl() . "/permohonan-skk/" . $id_izin;
 
                 $statusPayload = [
                     "kd_status" => $statusCode,
                     "keterangan" => $keterangan
                 ];
 
-                $response = Http::withHeaders($headers)
+                $response = Http::withHeaders($siki->getHeaders())
                     ->timeout(30)
                     ->connectTimeout(30)
                     ->post($api_url, $statusPayload);

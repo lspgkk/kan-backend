@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 
 class Personal extends Model
 {
@@ -102,5 +103,26 @@ class Personal extends Model
     public function city()
     {
         return $this->belongsTo(City::class, 'kabupaten', 'kode_kabupaten_dagri');
+    }
+
+    /**
+     * Scope to filter personal data by the current user's TUK.
+     * For adm_tuk users (role_id = 3), only return personals whose
+     * klasifikasi_kualifikasi.tuk matches the user's tuk_id.
+     * Uses a raw subquery (whereIn) to avoid any relationship/resolution issues.
+     */
+    public function scopeForUserTuk($query)
+    {
+        $user = Auth::user();
+        if ($user && (int) $user->role_id === 3 && $user->tuk_id) {
+            $tukId = $user->tuk_id;
+            $query->whereIn('id_izin', function ($q) use ($tukId) {
+                $q->select('id_izin')
+                  ->from('klasifikasi_kualifikasis')
+                  ->where('tuk', $tukId)
+                  ->whereNotNull('tuk');
+            });
+        }
+        return $query;
     }
 }

@@ -1373,14 +1373,23 @@ class GenerateDokumenService
     {
         // Read from pre-populated DB (see prePopulateAnswers); fallback to hardcoded text
         $ak5Answer = \App\Models\Ak5Answer::where('id_izin', $idIzin)->first();
+        $namaAsesi = $header['nama_asesi'] ?? \App\Models\Personal::where('id_izin', $idIzin)->value('nama') ?? '';
 
         return [
+            'asesiList' => [
+                [
+                    'nama' => $namaAsesi,
+                    'kompeten' => true,
+                    'keterangan' => $ak5Answer?->keterangan ?? $this->llmService->getFallback('ak05_keterangan'),
+                ],
+            ],
+            'answers' => [
+                'aspek' => $ak5Answer?->aspek ?? $this->llmService->getFallback('ak05_aspek'),
+                'pencatatan_penolakan' => $ak5Answer?->pencatatan_penolakan ?? '',
+                'saran' => $ak5Answer?->saran ?? $this->llmService->getFallback('ak05_saran'),
+                'catatan' => $ak5Answer?->catatan ?? $this->llmService->getFallback('ak05_catatan'),
+            ],
             'kompeten' => true,
-            'keterangan' => $ak5Answer?->keterangan ?? $this->llmService->getFallback('ak05_keterangan'),
-            'aspek' => $ak5Answer?->aspek ?? $this->llmService->getFallback('ak05_aspek'),
-            'pencatatan_penolakan' => $ak5Answer?->pencatatan_penolakan ?? '',
-            'saran' => $ak5Answer?->saran ?? $this->llmService->getFallback('ak05_saran'),
-            'catatan' => $ak5Answer?->catatan ?? $this->llmService->getFallback('ak05_catatan'),
         ];
     }
 
@@ -1742,12 +1751,40 @@ class GenerateDokumenService
                 }
                 break;
 
-            case 'Ak03':
-                // View expects: $catatan (not $ak3_note)
-                if (!isset($docData['catatan'])) {
-                    $docData['catatan'] = $docData['ak3_note'] ?? '';
+            case 'Ak05':
+                // Template now expects $asesiList and $answers array (jadwal-based)
+                if (!isset($docData['asesiList'])) {
+                    $namaAsesi = $header['nama_asesi'] ?? '';
+
+                    // Capture flat keys (inline builder format)
+                    $kompeten   = $docData['kompeten'] ?? true;
+                    $keterangan = $docData['keterangan'] ?? '';
+                    $aspek      = $docData['aspek'] ?? '';
+                    $penolakan  = $docData['pencatatan_penolakan'] ?? '';
+                    $saran      = $docData['saran'] ?? '';
+                    $catatan    = $docData['catatan'] ?? '';
+
+                    // If answers object exists (controller's buildAk05Data via reflection)
+                    $answersData = $docData['answers'] ?? null;
+                    if ($answersData) {
+                        $keterangan = $answersData->keterangan ?? $keterangan;
+                        $aspek      = $answersData->aspek      ?? $aspek;
+                        $penolakan  = $answersData->pencatatan_penolakan ?? $penolakan;
+                        $saran      = $answersData->saran      ?? $saran;
+                        $catatan    = $answersData->catatan    ?? $catatan;
+                    }
+
+                    $docData['asesiList'] = [
+                        ['nama' => $namaAsesi, 'kompeten' => $kompeten, 'keterangan' => $keterangan],
+                    ];
+                    $docData['answers'] = [
+                        'aspek'                => $aspek,
+                        'pencatatan_penolakan' => $penolakan,
+                        'saran'                => $saran,
+                        'catatan'              => $catatan,
+                    ];
+                    unset($docData['keterangan'], $docData['aspek'], $docData['pencatatan_penolakan'], $docData['saran'], $docData['catatan']);
                 }
-                unset($docData['ak3_note']);
                 break;
         }
 

@@ -220,4 +220,28 @@ class TukController extends Controller
             'data' => $tuks,
         ]);
     }
+
+    /**
+     * Simple list of all TUKs for dropdown selections.
+     * Returns only id and nama_tuk.
+     * For adm_tuk users (role_id = 3), filters to only their assigned TUK.
+     */
+    public function listTuk(Request $request)
+    {
+        $query = MyTuk::select('id', 'nama_tuk')
+            ->where('id_lsp', 16);
+
+        // Role-based filtering (adm_tuk only sees their own TUK)
+        $user = $request->user();
+        if ($user && (int) $user->role_id === 3 && $user->tuk_id) {
+            $query->where('id', $user->tuk_id);
+        }
+
+        $tuks = $query->orderBy('nama_tuk')->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $tuks,
+        ]);
+    }
 }

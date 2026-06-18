@@ -64,6 +64,10 @@ td, th{
     border:1px solid #000;
     display:inline-block;
 }
+
+.checked::after {
+    content: "✔";
+}
 </style>
 </head>
 <body>
@@ -81,10 +85,10 @@ td, th{
 <td>{{ $dokumenHeader['nomor_skema'] ?? '' }}</td>
 </tr>
 <tr><td>TUK</td><td>:</td><td>{{ $dokumenHeader['tuk'] ?? '' }}</td></tr>
-<tr><td>Nama Asesor 1</td><td>:</td><td>{{ $dokumenHeader['asesor_1'] ?? '' }}</td></tr>
-<tr><td>Nama Asesor 2</td><td>:</td><td>{{ $dokumenHeader['asesor_2'] ?? '' }}</td></tr>
-<tr><td>Nama Asesi</td><td>:</td><td>{{ $dokumenHeader['nama_asesi'] ?? '' }}</td></tr>
-<tr><td>Tanggal</td><td>:</td><td>{{ $dokumenHeader['tanggal_uji'] ?? '' }}</td></tr>
+<tr><td>Nama Asesor 1</td><td>:</td><td>{{ strtoupper($dokumenHeader['asesor_1'] ?? '') }}</td></tr>
+<tr><td>Nama Asesor 2</td><td>:</td><td>{{ strtoupper($dokumenHeader['asesor_2'] ?? '') }}</td></tr>
+<tr><td>Nama Asesi</td><td>:</td><td>{{ strtoupper($dokumenHeader['nama_asesi'] ?? '') }}</td></tr>
+<tr><td>Tanggal</td><td>:</td><td>{{ isset($dokumenHeader['tanggal_uji']) ? \Carbon\Carbon::parse($dokumenHeader['tanggal_uji'])->locale('id')->translatedFormat('d F Y') : '' }}</td></tr>
 </table>
 
 <div class="small">*Coret yang tidak perlu</div>
@@ -123,14 +127,14 @@ td, th{
 @foreach($soal[1] as $item)
 <tr>
 <td>{{ $item->no ?? '' }}. {{ $item->soal ?? '' }}</td>
-<td class="center">@if(isset($answers[$item->id]['valid']) && $answers[$item->id]['valid'] === true)✓@endif</td>
-<td class="center">@if(isset($answers[$item->id]['valid']) && $answers[$item->id]['valid'] === false)✓@endif</td>
-<td class="center">@if(isset($answers[$item->id]['asli']) && $answers[$item->id]['asli'] === true)✓@endif</td>
-<td class="center">@if(isset($answers[$item->id]['asli']) && $answers[$item->id]['asli'] === false)✓@endif</td>
-<td class="center">@if(isset($answers[$item->id]['terkini']) && $answers[$item->id]['terkini'] === true)✓@endif</td>
-<td class="center">@if(isset($answers[$item->id]['terkini']) && $answers[$item->id]['terkini'] === false)✓@endif</td>
-<td class="center">@if(isset($answers[$item->id]['memadai']) && $answers[$item->id]['memadai'] === true)✓@endif</td>
-<td class="center">@if(isset($answers[$item->id]['memadai']) && $answers[$item->id]['memadai'] === false)✓@endif</td>
+<td class="center">@if(isset($answers[$item->id]['valid']) && $answers[$item->id]['valid'] === true)<span class="checkbox checked"></span>@endif</td>
+<td class="center">@if(isset($answers[$item->id]['valid']) && $answers[$item->id]['valid'] === false)<span class="checkbox checked"></span>@endif</td>
+<td class="center">@if(isset($answers[$item->id]['asli']) && $answers[$item->id]['asli'] === true)<span class="checkbox checked"></span>@endif</td>
+<td class="center">@if(isset($answers[$item->id]['asli']) && $answers[$item->id]['asli'] === false)<span class="checkbox checked"></span>@endif</td>
+<td class="center">@if(isset($answers[$item->id]['terkini']) && $answers[$item->id]['terkini'] === true)<span class="checkbox checked"></span>@endif</td>
+<td class="center">@if(isset($answers[$item->id]['terkini']) && $answers[$item->id]['terkini'] === false)<span class="checkbox checked"></span>@endif</td>
+<td class="center">@if(isset($answers[$item->id]['memadai']) && $answers[$item->id]['memadai'] === true)<span class="checkbox checked"></span>@endif</td>
+<td class="center">@if(isset($answers[$item->id]['memadai']) && $answers[$item->id]['memadai'] === false)<span class="checkbox checked"></span>@endif</td>
 </tr>
 @endforeach
 </table>
@@ -146,7 +150,7 @@ td, th{
 </tr>
 @foreach($soal[2] as $item)
 <tr>
-<td class="center">@if(isset($unitAnswers[$item->id]) && $unitAnswers[$item->id])✓@endif</td>
+<td class="center">@if(isset($unitAnswers[$item->id]) && $unitAnswers[$item->id])<span class="checkbox checked"></span>@endif</td>
 <td>{{ $item->unit->kode ?? '' }}</td>
 <td class="center">{{ $item->kuk->kode ?? '' }}</td>
 <td>{{ $item->subunit->nama ?? '' }}</td>
@@ -164,9 +168,9 @@ td, th{
 <tr>
 <td class="red">Rekomendasi Asesor</td>
 <td>
-<div>@if(isset($isKompeten) && $isKompeten === true)✓ @endif Asesi telah memenuhi pencapaian seluruh kriteria
+<div>@if(isset($isKompeten) && $isKompeten === true)<span class="checkbox checked"></span> @endif Asesi telah memenuhi pencapaian seluruh kriteria
 unjuk kerja, direkomendasikan KOMPETEN </div>
-<div>@if(isset($isKompeten) && $isKompeten === false)✓ @endif Asesi belum memenuhi pencapaian seluruh kriteria
+<div>@if(isset($isKompeten) && $isKompeten === false)<span class="checkbox checked"></span> @endif Asesi belum memenuhi pencapaian seluruh kriteria
 unjuk kerja, direkomendasikan uji demonstrasi pada: <br/>
 Unit         : {{ $rekomendasiUnit ?? '' }}<br/>
 Elemen   : {{ $rekomendasiElemen ?? '' }}<br/>
@@ -177,20 +181,20 @@ KUK        : {{ $rekomendasiKuk ?? '' }}</div>
 
 <table class="section">
 <tr><td colspan="3"><b>Asesi</b></td></tr>
-<tr><td>Nama</td><td>:</td><td>{{ $dokumenHeader['nama_asesi'] ?? '' }}</td></tr>
+<tr><td>Nama</td><td>:</td><td>{{ strtoupper($dokumenHeader['nama_asesi'] ?? '') }}</td></tr>
 <tr><td>Tanda tangan dan tanggal</td><td>:</td><td><img src="{{ $barcodes['asesi']['url'] ?? '' }}" style="height:50px; width:50px; object-fit:contain;" /></td></tr>
 </table>
 
 <table class="section">
 <tr><td colspan="3"><b>Asesor 1</b></td></tr>
-<tr><td>Nama</td><td>:</td><td>{{ $dokumenHeader['asesor_1'] ?? '' }}</td></tr>
+<tr><td>Nama</td><td>:</td><td>{{ strtoupper($dokumenHeader['asesor_1'] ?? '') }}</td></tr>
 <tr><td>No. Reg</td><td>:</td><td>{{ $dokumenHeader['noreg_asesor_1'] ?? '' }}</td></tr>
 <tr><td>Tanda tangan dan tanggal</td><td>:</td><td><img src="{{ $barcodes['asesor1']['url'] ?? '' }}" style="height:50px; width:50px; object-fit:contain;" /></td></tr>
 </table>
 
 <table class="section">
 <tr><td colspan="3"><b>Asesor 2</b></td></tr>
-<tr><td>Nama</td><td>:</td><td>{{ $dokumenHeader['asesor_2'] ?? '' }}</td></tr>
+<tr><td>Nama</td><td>:</td><td>{{ strtoupper($dokumenHeader['asesor_2'] ?? '') }}</td></tr>
 <tr><td>No. Reg</td><td>:</td><td>{{ $dokumenHeader['noreg_asesor_2'] ?? '' }}</td></tr>
 <tr><td>Tanda tangan dan tanggal</td><td>:</td><td><img src="{{ $barcodes['asesor2']['url'] ?? '' }}" style="height:50px; width:50px; object-fit:contain;" /></td></tr>
 </table>

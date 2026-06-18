@@ -27,6 +27,7 @@ class User extends Authenticatable implements JWTSubject
         'phone',
         'avatar',
         'role_id',
+        'tuk_id',
         'password',
         'fcm_token',
         'address',
@@ -35,6 +36,7 @@ class User extends Authenticatable implements JWTSubject
         'deleted_by',
         'noreg',
         'token_version',
+        'token_expires_at',
     ];
 
     /**
@@ -58,6 +60,7 @@ class User extends Authenticatable implements JWTSubject
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'token_version' => 'integer',
+            'token_expires_at' => 'datetime',
         ];
     }
 
@@ -74,4 +77,6 @@ class User extends Authenticatable implements JWTSubject
     }
 
     public function role() { return $this->belongsTo(Role::class, 'role_id'); }
+
+    public function tuk() { return $this->belongsTo(MyTuk::class, 'tuk_id'); }
 }

@@ -33,7 +33,7 @@ class PermohonanController extends Controller
 
     public function detailPermohonan(string $id)
     {
-        $personals = Personal::with(['province', 'city'])->where('id_izin', $id)->get();
+        $personals = Personal::forUserTuk()->with(['province', 'city'])->where('id_izin', $id)->get();
 
         if ($personals->isEmpty()) {
             return response()->json([
@@ -375,6 +375,48 @@ class PermohonanController extends Controller
         }
     }
 
+    /**
+     * Refetch (overwrite) existing permohonan data from SIKI for a given id_izin.
+     * Same as syncSinglePermohonan but deletes existing child records first
+     * so the local data is a full refresh from SIKI.
+     */
+    public function refetchPermohonan(Request $request)
+    {
+        $validated = $request->validate([
+            'id_izin' => 'required|string',
+            'type' => 'required|string|in:reguler,balai,fg',
+            'base_url' => 'nullable|string',
+        ]);
+
+        $id_izin = $validated['id_izin'];
+        $type = $validated['type'];
+        $baseUrl = $validated['base_url'] ?? 'https://siki.pu.go.id/siki-api/v1';
+        $endpoint = PermohonanSyncService::SKK_TYPES[$type];
+
+        if (!Personal::where('id_izin', $id_izin)->exists()) {
+            return response()->json([
+                'message' => 'Data not found locally. Use sync/single instead.',
+                'id_izin' => $id_izin,
+            ], 404);
+        }
+
+        try {
+            $this->syncService->refetchSinglePermohonanData($id_izin, $type, $endpoint, $baseUrl);
+
+            return response()->json([
+                'message' => 'Permohonan data refetched and overwritten successfully',
+                'id_izin' => $id_izin,
+                'type' => $type,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Failed to refetch permohonan data',
+                'id_izin' => $id_izin,
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     private function syncPermohonanByType(string $type)
     {
         $endpoint = PermohonanSyncService::SKK_TYPES[$type];
@@ -436,7 +478,7 @@ class PermohonanController extends Controller
             return response()->json(['message' => 'Invalid type'], 422);
         }
 
-        $query = Personal::with('klasifikasi_kualifikasi.tuk')
+        $query = Personal::forUserTuk()->with('klasifikasi_kualifikasi.tuk')
             ->where('type', $type)
             ->orderBy('created', 'desc');
 

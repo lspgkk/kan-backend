@@ -967,16 +967,34 @@ class PraAsesmenController extends Controller
             'answers.*.file_ids' => 'nullable|array',
             'answers.*.file_ids.*' => 'exists:apl2_files,id',
             'answers.*.file_urls' => 'nullable|array',
-            'answers.*.file_urls.*.url' => 'required|url',
-            'answers.*.file_urls.*.name' => 'required|string|max:255',
+            // Accept both: array of objects {url, name?} OR flat array of URL strings
+            'answers.*.file_urls.*' => 'nullable',
         ]);
 
         $validator->after(function ($validator) use ($request) {
             foreach ($request->input('answers', []) as $index => $answer) {
                 $fileIds = $answer['file_ids'] ?? [];
-                $fileUrls = $answer['file_urls'] ?? [];
+                $rawFileUrls = $answer['file_urls'] ?? [];
 
-                if (empty($fileIds) && empty($fileUrls)) {
+                // Normalize file_urls: extract valid URLs from mixed formats
+                $normalizedUrls = collect($rawFileUrls)
+                    ->filter(function ($item) {
+                        if (is_string($item)) {
+                            // Flat array of URL strings
+                            return filter_var($item, FILTER_VALIDATE_URL) !== false;
+                        }
+                        if (is_array($item)) {
+                            // Object format {url: ..., name?: ...}
+                            return !empty($item['url']) && filter_var($item['url'], FILTER_VALIDATE_URL) !== false;
+                        }
+                        return false;
+                    })
+                    ->values()
+                    ->toArray();
+
+                $hasFileUrls = !empty($normalizedUrls);
+
+                if (empty($fileIds) && !$hasFileUrls) {
                     $validator->errors()->add(
                         "answers.{$index}.file_ids",
                         'Setiap jawaban harus memiliki minimal satu file (unggahan atau URL).'
@@ -1011,9 +1029,30 @@ class PraAsesmenController extends Controller
 
                 $fileIds = $answer['file_ids'] ?? [];
 
+                // Normalize file_urls again for processing
+                $rawFileUrls = $answer['file_urls'] ?? [];
+                $normalizedFileUrls = collect($rawFileUrls)
+                    ->filter(function ($item) {
+                        if (is_string($item)) {
+                            return filter_var($item, FILTER_VALIDATE_URL) !== false;
+                        }
+                        if (is_array($item)) {
+                            return !empty($item['url']) && filter_var($item['url'], FILTER_VALIDATE_URL) !== false;
+                        }
+                        return false;
+                    })
+                    ->map(function ($item) {
+                        if (is_string($item)) {
+                            return ['url' => $item, 'name' => basename($item)];
+                        }
+                        return ['url' => $item['url'], 'name' => $item['name'] ?? basename($item['url'])];
+                    })
+                    ->values()
+                    ->toArray();
+
                 // Create Apl2File records for external URLs and collect their IDs
-                if (!empty($answer['file_urls'])) {
-                    foreach ($answer['file_urls'] as $item) {
+                if (!empty($normalizedFileUrls)) {
+                    foreach ($normalizedFileUrls as $item) {
                         $fileUrl = $item['url'];
                         $fileName = $item['name'];
 

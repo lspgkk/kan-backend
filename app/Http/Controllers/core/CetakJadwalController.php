@@ -19,6 +19,7 @@ use Ramsey\Uuid\Uuid;
 use mikehaertl\pdftk\Pdf;
 use App\Traits\BantuanTrait;
 use App\Traits\ResolvesKomtekDecision;
+use App\Services\SikiService;
 
 class CetakJadwalController extends Controller
 {
@@ -222,11 +223,8 @@ class CetakJadwalController extends Controller
             }
 
             // hit api
-            $url = 'https://siki.pu.go.id/siki-api/v1/izin-final-skk/' . $asesiJadwal->id_izin;
-            $headers = [
-                'Content-Type' => 'application/json',
-                'token' => env('SIKI_TOKEN'),
-            ];
+            $siki = app(SikiService::class);
+            $url = $siki->getBaseUrl() . '/izin-final-skk/' . $asesiJadwal->id_izin;
 
             $request_izin_final = array(
                 'file_lampiran' => array(
@@ -235,8 +233,14 @@ class CetakJadwalController extends Controller
                 )
             );
 
-            $response_post_bnsp = rescue(function () use ($headers, $url, $request_izin_final) {
-                return Http::retry(8, 1000)->withHeaders($headers)->post($url, $request_izin_final);
+            if (!$siki->isActive()) {
+                Log::info('SIKI API call skipped (is_active=false)', [
+                    'id_izin' => $asesiJadwal->id_izin,
+                    'action' => 'izinFinalSkk',
+                ]);
+            } else {
+                $response_post_bnsp = rescue(function () use ($siki, $url, $request_izin_final) {
+                    return Http::retry(8, 1000)->withHeaders($siki->getHeaders())->post($url, $request_izin_final);
             }, function ($e) {
                 return $e->response;
             });
@@ -270,6 +274,7 @@ class CetakJadwalController extends Controller
                     'error' => $errorMessage
                 ], 500);
             }
+            } /* END of isActive else */
         }
         /* END OF IZIN FINAL */
 
@@ -320,14 +325,10 @@ class CetakJadwalController extends Controller
         // Get non-competent asesies by komtek majority decision
         $asesiBelumKompeten = $allAsesi->filter(fn($a) => $this->resolveKomtekDecision($a->id_izin) === 'BK');
 
+        $siki = app(SikiService::class);
+
         foreach ($asesiBelumKompeten as $asesiJadwal) {
-            $url = 'https://siki.pu.go.id/siki-api/v1/permohonan-skk/' . $asesiJadwal->id_izin;
-
-            $headers = [
-                'Content-Type' => 'application/json',
-                'token' => env('SIKI_TOKEN'),
-            ];
-
+            $url = $siki->getBaseUrl() . '/permohonan-skk/' . $asesiJadwal->id_izin;
             $status90 = [
                 "kd_status" => "90",
                 "keterangan" => "Tolak Permohonan"
@@ -335,8 +336,20 @@ class CetakJadwalController extends Controller
 
             DB::beginTransaction();
 
-            $response_post_bnsp = rescue(function () use ($headers, $url, $status90) {
-                return Http::retry(8, 1000)->withHeaders($headers)->post($url, $status90);
+            if (!$siki->isActive()) {
+                Log::info('SIKI API call skipped (is_active=false)', [
+                    'id_izin' => $asesiJadwal->id_izin,
+                    'action' => 'status90',
+                ]);
+                Personal::where("id_izin", trim($asesiJadwal->id_izin))->update([
+                    'status' => "90"
+                ]);
+                DB::commit();
+                continue;
+            }
+
+            $response_post_bnsp = rescue(function () use ($siki, $url, $status90) {
+                return Http::retry(8, 1000)->withHeaders($siki->getHeaders())->post($url, $status90);
             }, function ($e) {
                 return $e->response;
             });

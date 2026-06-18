@@ -111,11 +111,11 @@ class Invoice extends Model
     }
 
     /**
-     * Scope: Filter unpaid invoices
+     * Scope: Filter unpaid invoices (also includes failed for retry)
      */
     public function scopeUnpaid($query)
     {
-        return $query->where('payment_status', 'unpaid');
+        return $query->whereIn('payment_status', ['unpaid', 'failed']);
     }
 
     /**

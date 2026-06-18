@@ -135,7 +135,7 @@
         <td>Tempat/tgl. Lahir</td>
         <td colspan=4>
             {{ $data_pribadi['tempat_lahir'] }},
-            {{ \Carbon\Carbon::parse($data_pribadi['tanggal_lahir'])->translatedFormat('d F Y') }}
+            {{ \Carbon\Carbon::parse($data_pribadi['tanggal_lahir'])->locale('id')->translatedFormat('d F Y') }}
         </td>
     </tr>
     <tr>
@@ -390,7 +390,7 @@
         @if($barcodes['asesi']['base64'] ?? $barcodes['asesi']['url'] ?? null)
             <td>
                 <img src="{{ $barcodes['asesi']['base64'] ?? $barcodes['asesi']['url'] }}" width="80" height="80"><br>
-                {{ \Carbon\Carbon::parse($barcodes['asesi']['tanggal'])->translatedFormat('d F Y') }}
+                {{ \Carbon\Carbon::parse($barcodes['asesi']['tanggal'])->locale('id')->translatedFormat('d F Y') }}
             </td>
         @else
         <td></td>

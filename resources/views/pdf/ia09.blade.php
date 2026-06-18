@@ -61,6 +61,21 @@ td, th {
 .small {
     font-size: 11px;
 }
+
+.checkbox {
+    width: 12px;
+    height: 12px;
+    border: 1px solid #000;
+    display: inline-block;
+    text-align: center;
+    line-height: 11px;
+    font-size: 15px;
+    font-family: "DejaVu Sans", sans-serif;
+}
+
+.checked::after {
+    content: "✔";
+}
 </style>
 </head>
 
@@ -93,22 +108,22 @@ td, th {
         <tr>
             <td>Nama Asesor 1</td>
             <td>:</td>
-            <td>{{ $dokumenHeader['asesor_1'] ?? '' }}</td>
+            <td>{{ strtoupper($dokumenHeader['asesor_1'] ?? '') }}</td>
         </tr>
         <tr>
             <td>Nama Asesor 2</td>
             <td>:</td>
-            <td>{{ $dokumenHeader['asesor_2'] ?? '' }}</td>
+            <td>{{ strtoupper($dokumenHeader['asesor_2'] ?? '') }}</td>
         </tr>
         <tr>
             <td>Nama Asesi</td>
             <td>:</td>
-            <td>{{ $dokumenHeader['nama_asesi'] ?? '' }}</td>
+            <td>{{ strtoupper($dokumenHeader['nama_asesi'] ?? '') }}</td>
         </tr>
         <tr>
             <td>Tanggal</td>
             <td>:</td>
-            <td>{{ $dokumenHeader['tanggal_uji'] ?? '' }}</td>
+            <td>{{ isset($dokumenHeader['tanggal_uji']) ? \Carbon\Carbon::parse($dokumenHeader['tanggal_uji'])->locale('id')->translatedFormat('d F Y') : '' }}</td>
         </tr>
     </table>
 
@@ -164,8 +179,8 @@ td, th {
             <td class="center">{{ $loop->index }}.</td>
             <td>{{ $item->soal ?? '' }}</td>
             <td>{{ $answers[$item->id]['kesimpulan'] ?? '' }}</td>
-            <td class="center">@if(isset($answers[$item->id]['is_kompeten']) && $answers[$item->id]['is_kompeten'] === true)✓@endif</td>
-            <td class="center">@if(isset($answers[$item->id]['is_kompeten']) && $answers[$item->id]['is_kompeten'] === false)✓@endif</td>
+            <td class="center">@if(isset($answers[$item->id]['is_kompeten']) && $answers[$item->id]['is_kompeten'] === true)<span class="checkbox checked"></span>@endif</td>
+            <td class="center">@if(isset($answers[$item->id]['is_kompeten']) && $answers[$item->id]['is_kompeten'] === false)<span class="checkbox checked"></span>@endif</td>
         </tr>
         @endforeach
     </table>
@@ -179,7 +194,7 @@ td, th {
         <tr>
             <td width="20%">Nama</td>
             <td width="5%">:</td>
-            <td>{{ $dokumenHeader['nama_asesi'] ?? '' }}</td>
+            <td>{{ strtoupper($dokumenHeader['nama_asesi'] ?? '') }}</td>
         </tr>
         <tr>
             <td>Tanda tangan dan Tanggal</td>
@@ -193,7 +208,7 @@ td, th {
         <tr>
             <td>Nama</td>
             <td>:</td>
-            <td>{{ $dokumenHeader['asesor_1'] ?? '' }}</td>
+            <td>{{ strtoupper($dokumenHeader['asesor_1'] ?? '') }}</td>
         </tr>
         <tr>
             <td>No. Reg</td>
@@ -212,7 +227,7 @@ td, th {
         <tr>
             <td>Nama</td>
             <td>:</td>
-            <td>{{ $dokumenHeader['asesor_2'] ?? '' }}</td>
+            <td>{{ strtoupper($dokumenHeader['asesor_2'] ?? '') }}</td>
         </tr>
         <tr>
             <td>No. Reg</td>

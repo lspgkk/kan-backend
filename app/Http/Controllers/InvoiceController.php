@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Personal;
 use App\Models\KlasifikasiKualifikasi;
 use App\Models\JabatanKerja;
+use App\Models\MidtransTransaction;
 use App\Models\MyTuk;
 use App\Models\HargaInvoice;
 use App\Models\InvoiceDetail;
@@ -16,6 +17,7 @@ use App\Models\AsesiJadwal;
 use App\Models\Jadwal;
 use App\Models\User;
 use App\Models\BuktiAsesmen;
+use App\Models\JenisKelas;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -26,6 +28,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Services\SikiService;
 
 class InvoiceController extends Controller
 {
@@ -34,31 +37,49 @@ class InvoiceController extends Controller
      */
     public function viewInvoiceBaruReguler(Request $request)
     {
-        $perPage = $request->get('per_page', 10);
+        $tukFiltered = $request->filled('tuk_id');
+        $perPage = $tukFiltered ? 999999 : $request->get('per_page', 10);
         $search  = $request->get('search');
 
         // 1️⃣ Paginate FIRST (with search)
         $asesiPaginated = Personal::query()
+            ->forUserTuk()
             ->where('status', 10)
-            ->where('type', 'reguler')
+            ->when($request->filled('type'), function ($q) use ($request) {
+                $q->where('type', $request->input('type'));
+            })
+            ->when($request->filled('tuk_id'), function ($q) use ($request) {
+                $q->whereIn('id_izin', function ($sub) use ($request) {
+                    $sub->select('id_izin')
+                        ->from('klasifikasi_kualifikasis')
+                        ->where('tuk', $request->integer('tuk_id'));
+                });
+            })
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($w) use ($search) {
                     $w->where('id_izin', 'like', "%{$search}%")
-                    ->orWhere('nik', 'like', "%{$search}%")
                     ->orWhere('nama', 'like', "%{$search}%")
+                    ->orWhere('type', 'like', "%{$search}%")
                     ->orWhereExists(function ($sub) use ($search) {
                         $sub->select(DB::raw(1))
                             ->from('klasifikasi_kualifikasis as kk')
                             ->join('mytuk as t', 't.id', '=', 'kk.tuk')
                             ->whereColumn('kk.id_izin', 'personals.id_izin')
                             ->where('t.nama_tuk', 'like', "%{$search}%");
+                    })
+                    ->orWhereExists(function ($sub) use ($search) {
+                        $sub->select(DB::raw(1))
+                            ->from('klasifikasi_kualifikasis as kk')
+                            ->join('jabatan_kerjas as jk', 'jk.id_jabatan_kerja', '=', 'kk.jabatan_kerja')
+                            ->whereColumn('kk.id_izin', 'personals.id_izin')
+                            ->where('jk.jabatan_kerja', 'like', "%{$search}%");
                     });
                 });
             })
-            ->orderBy('created_at', 'desc')
+            ->orderBy('id_izin', 'desc')
             ->paginate($perPage);
 
-        // 2️⃣ Transform (UNCHANGED)
+        // 2️⃣ Transform
         $asesiPaginated->getCollection()->transform(function ($asesi) {
 
             $klasifikasi = KlasifikasiKualifikasi::where('id_izin', $asesi->id_izin)->first();
@@ -77,11 +98,11 @@ class InvoiceController extends Controller
 
             return [
                 'nama'          => $asesi->nama,
-                'nik'           => $asesi->nik,
                 'id_izin'       => $asesi->id_izin,
                 'jabatan_kerja' => $jabker->jabatan_kerja ?? '-',
                 'jenjang'       => $klasifikasi->jenjang,
                 'tuk'           => $tuk->nama_tuk ?? '-',
+                'type'          => ucwords($asesi->type),
                 'harga_bayar'   => ($harga->tahap1 ?? 0) + ($harga->tahap2 ?? 0),
             ];
         });
@@ -99,17 +120,25 @@ class InvoiceController extends Controller
 
     public function viewInvoiceBaruBalai(Request $request)
     {
-        $perPage = $request->get('per_page', 10);
+        $tukFiltered = $request->filled('tuk_id');
+        $perPage = $tukFiltered ? 999999 : $request->get('per_page', 10);
         $search  = $request->get('search');
 
         // 1️⃣ Paginate FIRST (with search)
         $asesiPaginated = Personal::query()
+            ->forUserTuk()
             ->where('status', 30)
             ->where('type', 'balai')
+            ->when($request->filled('tuk_id'), function ($q) use ($request) {
+                $q->whereIn('id_izin', function ($sub) use ($request) {
+                    $sub->select('id_izin')
+                        ->from('klasifikasi_kualifikasis')
+                        ->where('tuk', $request->integer('tuk_id'));
+                });
+            })
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($w) use ($search) {
                     $w->where('id_izin', 'like', "%{$search}%")
-                    ->orWhere('nik', 'like', "%{$search}%")
                     ->orWhere('nama', 'like', "%{$search}%")
                     ->orWhereExists(function ($sub) use ($search) {
                         $sub->select(DB::raw(1))
@@ -117,6 +146,13 @@ class InvoiceController extends Controller
                             ->join('mytuk as t', 't.id', '=', 'kk.tuk')
                             ->whereColumn('kk.id_izin', 'personals.id_izin')
                             ->where('t.nama_tuk', 'like', "%{$search}%");
+                    })
+                    ->orWhereExists(function ($sub) use ($search) {
+                        $sub->select(DB::raw(1))
+                            ->from('klasifikasi_kualifikasis as kk')
+                            ->join('jabatan_kerjas as jk', 'jk.id_jabatan_kerja', '=', 'kk.jabatan_kerja')
+                            ->whereColumn('kk.id_izin', 'personals.id_izin')
+                            ->where('jk.jabatan_kerja', 'like', "%{$search}%");
                     });
                 });
             })
@@ -142,7 +178,6 @@ class InvoiceController extends Controller
 
             return [
                 'nama'          => $asesi->nama,
-                'nik'           => $asesi->nik,
                 'id_izin'       => $asesi->id_izin,
                 'jabatan_kerja' => $jabker->jabatan_kerja ?? '-',
                 'jenjang'       => $klasifikasi->jenjang,
@@ -164,17 +199,25 @@ class InvoiceController extends Controller
 
     public function viewInvoiceBaruFg(Request $request)
     {
-        $perPage = $request->get('per_page', 10);
+        $tukFiltered = $request->filled('tuk_id');
+        $perPage = $tukFiltered ? 999999 : $request->get('per_page', 10);
         $search  = $request->get('search');
 
         // 1️⃣ Paginate FIRST (with search)
         $asesiPaginated = Personal::query()
+            ->forUserTuk()
             ->where('status', 10)
             ->where('type', 'fg')
+            ->when($request->filled('tuk_id'), function ($q) use ($request) {
+                $q->whereIn('id_izin', function ($sub) use ($request) {
+                    $sub->select('id_izin')
+                        ->from('klasifikasi_kualifikasis')
+                        ->where('tuk', $request->integer('tuk_id'));
+                });
+            })
             ->when($search, function ($q) use ($search) {
                 $q->where(function ($w) use ($search) {
                     $w->where('id_izin', 'like', "%{$search}%")
-                    ->orWhere('nik', 'like', "%{$search}%")
                     ->orWhere('nama', 'like', "%{$search}%")
                     ->orWhereExists(function ($sub) use ($search) {
                         $sub->select(DB::raw(1))
@@ -182,6 +225,13 @@ class InvoiceController extends Controller
                             ->join('mytuk as t', 't.id', '=', 'kk.tuk')
                             ->whereColumn('kk.id_izin', 'personals.id_izin')
                             ->where('t.nama_tuk', 'like', "%{$search}%");
+                    })
+                    ->orWhereExists(function ($sub) use ($search) {
+                        $sub->select(DB::raw(1))
+                            ->from('klasifikasi_kualifikasis as kk')
+                            ->join('jabatan_kerjas as jk', 'jk.id_jabatan_kerja', '=', 'kk.jabatan_kerja')
+                            ->whereColumn('kk.id_izin', 'personals.id_izin')
+                            ->where('jk.jabatan_kerja', 'like', "%{$search}%");
                     });
                 });
             })
@@ -207,7 +257,6 @@ class InvoiceController extends Controller
 
             return [
                 'nama'          => $asesi->nama,
-                'nik'           => $asesi->nik,
                 'id_izin'       => $asesi->id_izin,
                 'jabatan_kerja' => $jabker->jabatan_kerja ?? '-',
                 'jenjang'       => $klasifikasi->jenjang,
@@ -239,10 +288,12 @@ class InvoiceController extends Controller
 
     public function viewKonfirmasi(Request $request)
     {
-        // default per page = 10
-        $perPage = $request->integer('per_page', 10);
+        $tukFiltered = $request->filled('nama_tuk');
+        $perPage = $tukFiltered ? 999999 : $request->integer('per_page', 10);
 
         $query = Invoice::where('bayar_tahap2', 0);
+
+        $this->applyTukFilter($query);
 
         if ($request->filled('nama_tuk')) {
             $query->where('nama_tuk', $request->nama_tuk);
@@ -294,6 +345,9 @@ class InvoiceController extends Controller
 
     public function history(Request $request)
     {
+        $tukFiltered = $request->filled('nama_tuk');
+        $perPage = $tukFiltered ? 999999 : $request->get('per_page', 10);
+
         $query = Invoice::select([
             'invoice_number',
             'nama_tuk',
@@ -308,6 +362,8 @@ class InvoiceController extends Controller
             'midtrans_va_number',
             'midtrans_order_id',
         ]);
+
+        $this->applyTukFilter($query);
 
         // 🔍 Search
         if ($request->filled('search')) {
@@ -335,7 +391,7 @@ class InvoiceController extends Controller
 
         $invoices = $query
             ->orderByDesc('input_date')
-            ->paginate($request->get('per_page', 10));
+            ->paginate($perPage);
 
         // optional filter list
         $tukFiltered = Invoice::select('nama_tuk')
@@ -412,7 +468,6 @@ class InvoiceController extends Controller
             "metode_pembayaran"   => ['required', 'in:manual,midtrans'],
             "nama_tuk"            => ['required'],
             "rekening"            => ['required_if:metode_pembayaran,manual'],
-            "jatuh_tempo"         => ['required'],
             "tanggal_uji"         => ['required'],
         ]);
 
@@ -534,9 +589,15 @@ class InvoiceController extends Controller
                         "harga_2" => (int)$harga->tahap2,
                         "nama_tuk" => $nama_tuk,
                         "diskon" => $diskon,
-                        "tanggal_uji" => $request->jatuh_tempo,
+                        "tanggal_uji" => $request->tanggal_uji,
                     ];
                 }
+
+                /* =====================================================
+                * 3b. DETECT PERSONAL TYPE for template selection
+                * ===================================================== */
+                $firstId = $validatedData['id_izin_kompeten'][0] ?? '';
+                $personalType = Personal::where('id_izin', $firstId)->value('type') ?? 'reguler';
 
                 /* =====================================================
                 * 4. INVOICE NUMBER — format: AR-INV/LSP-GKK/tahun/bulan-nourut
@@ -564,8 +625,9 @@ class InvoiceController extends Controller
 
                 $latest_invno = sprintf('%s/%s/%s-%04d', $prefix, $year, $month, $num);
 
-                // Input excel
-                $invoice_sps = IOFactory::load(resource_path("views/template-invoice/invoice_sistem.xlsx"));
+                // Input excel — choose template by personal type
+                $templateName = ($personalType === 'reguler') ? 'invoice_reguler' : 'invoice_sistem';
+                $invoice_sps = IOFactory::load(resource_path("views/template-invoice/{$templateName}.xlsx"));
                 $worksheet = $invoice_sps->getActiveSheet();
                 $cell_to_copy = ["B", "C", "D", "E", "F", "G", "H"];
 
@@ -578,10 +640,6 @@ class InvoiceController extends Controller
                     $worksheet->setCellValue('E' . (string)$formatRows + $i, $data_asesi_beserta_harga[$i]['jabatan_kerja']);
                     $worksheet->setCellValue('F' . (string)$formatRows + $i, $data_asesi_beserta_harga[$i]['jenjang']);
                     $worksheet->setCellValue('G' . (string)$formatRows + $i, (int)$data_asesi_beserta_harga[$i]['harga'] + (int)$data_asesi_beserta_harga[$i]['harga_2']);
-                    if($i === count($data_asesi_beserta_harga) - 1) {
-                        $worksheet->setCellValue('F' . (string)39 + $i, 'Issued by:');
-                        $worksheet->setCellValue('G' . (string)39 + $i, Auth::user()->name);
-                    }
 
                     // Insert the new row
                     if ($i != count($data_asesi_beserta_harga) - 1) {
@@ -622,6 +680,25 @@ class InvoiceController extends Controller
                 $worksheet->getCell('E' . str($formatRows + count($data_asesi_beserta_harga) + 2))->setValue($total_in_word);
 
 
+                // Set payment method info in Excel
+                $shift = count($data_asesi_beserta_harga) - 1;
+                if ($validatedData['metode_pembayaran'] === 'midtrans') {
+                    $worksheet->setCellValue('C' . (26 + $shift), 'Midtrans Payment Gateway');
+                    $worksheet->setCellValue('C' . (27 + $shift), 'Status: Menunggu Pembayaran');
+                    $worksheet->setCellValue('C' . (28 + $shift), 'Klik tautan pembayaran yang telah');
+                    $worksheet->setCellValue('C' . (29 + $shift), 'dikirimkan untuk menyelesaikan pembayaran.');
+                }
+
+                // Set electronic statement for reguler template
+                if ($personalType === 'reguler') {
+                    $n = count($data_asesi_beserta_harga);
+                    // Original row 31 → 31 + n - 1 = 30 + n
+                    $elecRow = $formatRows + $n + 8; // 22 + n + 8 = 30 + n
+                    $jabatan = optional(Auth::user()->role)->name ?? Auth::user()->role ?? 'Staff';
+                    $worksheet->setCellValue('C' . $elecRow, 'Invoice ini diterbitkan secara elektronik oleh ' . $jabatan . ' "' . Auth::user()->name . '"');
+                }
+
+
                 // Save to xlsx
                 $writer = IOFactory::createWriter($invoice_sps, "Xlsx");
                 // $writer->save(resource_path("views/template-invoice/results.xlsx"));
@@ -637,6 +714,7 @@ class InvoiceController extends Controller
                 * 6. PDF GENERATION (OUTSIDE TRANSACTION)
                 * ===================================================== */
                 if($result_save) {
+                    $jabatan = optional(Auth::user()->role)->name ?? Auth::user()->role ?? 'Staff';
                     $pdf = Pdf::loadView('template-invoice.pdf-invoice', [
                         'latest_invno' => $latest_invno,
                         'data_instansi' => $data_instansi,
@@ -648,6 +726,9 @@ class InvoiceController extends Controller
                         'kategori_tuk' => $tuk_disc->kategori,
                         'total_word' => $total_in_word,
                         'issued_by' => Auth::user()->name,
+                        'payment_method' => $validatedData['metode_pembayaran'],
+                        'personal_type' => $personalType,
+                        'user_jabatan' => $jabatan,
                     ]);
 
                     $pdf_filename = 'inv_' . now()->format('Ymd_His') . '.pdf';
@@ -1010,10 +1091,21 @@ class InvoiceController extends Controller
 
     /**
      * Update SIKI status helper method
-     * TEMPORARILY DISABLED
+     * Skips SIKI API call when SikiAuth is not active.
      */
     private function updateSikiStatus($api_url, $headers, $status_payload, $status_code, $id_izin)
     {
+        $siki = app(SikiService::class);
+
+        if (!$siki->isActive()) {
+            Log::info('SIKI API call skipped (is_active=false)', [
+                'id_izin' => $id_izin,
+                'kd_status' => $status_code,
+                'action' => 'updateSikiStatus',
+            ]);
+            return;
+        }
+
         $maxRetries = 4;
         $attempt = 0;
 
@@ -1369,11 +1461,13 @@ class InvoiceController extends Controller
     {
         try {
             $user = Auth::user();
-            $perPage = $request->get('per_page', 10);
+            $tukFiltered = $request->filled('nama_tuk');
+            $perPage = $tukFiltered ? 999999 : $request->get('per_page', 10);
 
             if ($user->role === 'superadmin') {
                 // Can see all unpaid invoices
                 $invoices = Invoice::unpaid()
+                    ->when($request->filled('nama_tuk'), fn ($q) => $q->where('nama_tuk', $request->nama_tuk))
                     ->orderByDesc('input_date')
                     ->paginate($perPage);
             } elseif ($user->role === 'adm_tuk') {
@@ -1461,62 +1555,68 @@ class InvoiceController extends Controller
 
             DB::beginTransaction();
 
-            // TEMPORARILY DISABLED: SIKI API calls in invoice confirmation
+            $siki = app(SikiService::class);
+
             foreach ($asesi_invoice as $asesi) {
-                // Update local status without SIKI API call
                 Personal::where('id_izin', $asesi->id_izin)->update(['status' => 31]);
 
-                while (true) {
-                    error_log("try again");
+                if (!$siki->isActive()) {
+                    Log::info('SIKI API call skipped (is_active=false)', [
+                        'id_izin' => $asesi->id_izin,
+                        'kd_status' => '31',
+                        'action' => 'confirmInvoice',
+                    ]);
+                    continue;
+                }
 
-                    $api_url = "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi->id_izin;
+                $api_url = "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . $asesi->id_izin;
+                $status31 = [
+                    "kd_status" => "31",
+                    "keterangan" => "Konfirmasi Pembayaran"
+                ];
 
-                    $status31 = [
-                        "kd_status" => "31",
-                        "keterangan" => "Konfirmasi Pembayaran"
-                    ];
+                try {
+                    $response_post_bnsp = Http::withHeaders($siki->getHeaders())->post($api_url, $status31);
+                } catch (\Exception $e) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Server SIKI sedang bermasalah',
+                        'detail'  => $e->getMessage(),
+                    ], 503);
+                }
 
-                    try {
-                        $response_post_bnsp = Http::withHeaders($headers)->post($api_url, $status31);
-                    } catch (\Exception $e) {
-                        error_log("try again");
-                        continue;
-                    }
+                if ($response_post_bnsp->successful()) {
+                    $responseData = $response_post_bnsp->json();
 
-                    if ($response_post_bnsp->successful()) {
-                        $responseData = $response_post_bnsp->json();
+                    if ($responseData['status'] == "success") {
+                        Personal::where('id_izin', $asesi->id_izin)
+                            ->update(['status' => 31]);
 
-                        if ($responseData['status'] == "success") {
-                            Personal::where('id_izin', $asesi->id_izin)
-                                ->update(['status' => 31]);
-                            break;
-
-                        } elseif ($responseData['status'] == "errors") {
-                            DB::rollBack();
-                            return response()->json([
-                                'success' => false,
-                                'message' => 'Terjadi kesalahan saat naik ke 31',
-                                'detail'  => $responseData['message'] ?? null,
-                            ], 422);
-
-                        } else {
-                            DB::rollBack();
-                            return response()->json([
-                                'success' => false,
-                                'message' => 'Terjadi kesalahan post pencatatan siki',
-                                'detail'  => $responseData['message'] ?? null,
-                            ], 500);
-                        }
+                    } elseif ($responseData['status'] == "errors") {
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Terjadi kesalahan saat naik ke 31',
+                            'detail'  => $responseData['message'] ?? null,
+                        ], 422);
 
                     } else {
-                        $errorMessage = $response_post_bnsp->json()['message'] ?? null;
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Terjadi kesalahan post pencatatan siki',
+                            'detail'  => $responseData['message'] ?? null,
+                        ], 500);
+                    }
 
-                        if ($errorMessage === 'tidak dapat mengirim kode status 31, kode status saat ini 31') {
-                            Personal::where('id_izin', $asesi->id_izin)
-                                ->update(['status' => 31]);
-                            break;
-                        }
+                } else {
+                    $errorMessage = $response_post_bnsp->json()['message'] ?? null;
 
+                    if ($errorMessage === 'tidak dapat mengirim kode status 31, kode status saat ini 31') {
+                        Personal::where('id_izin', $asesi->id_izin)
+                            ->update(['status' => 31]);
+                    } else {
                         DB::rollBack();
                         return response()->json([
                             'success' => false,
@@ -1707,7 +1807,6 @@ class InvoiceController extends Controller
                     $jabatan = JabatanKerja::where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->first();
                     $jabatanNama = $jabatan?->jabatan_kerja;
                     $jenjang = $klasifikasi->jenjang;
-                    $metode = $klasifikasi->metode_uji;
 
                     $tuk = MyTuk::find($klasifikasi->tuk);
                     $tukNama = $tuk?->nama_tuk;
@@ -1738,6 +1837,10 @@ class InvoiceController extends Controller
                         $komtek1 = $jadwal->komtek1 ? User::find($jadwal->komtek1)?->name : null;
                         $komtek2 = $jadwal->komtek2 ? User::find($jadwal->komtek2)?->name : null;
                         $komtek3 = $jadwal->komtek3 ? User::find($jadwal->komtek3)?->name : null;
+
+                        // Metode uji from jadwal's jenis_kelas
+                        $jenisKelas = JenisKelas::find($jadwal->jenis_kelas);
+                        $metode = $jenisKelas?->nama_kelas;
                     }
 
                     // Kompeten from asesi_jadwals
@@ -1834,5 +1937,283 @@ class InvoiceController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
             'Cache-Control' => 'max-age=0',
         ]);
+    }
+
+    /**
+     * Convert number to Indonesian words (terbilang)
+     */
+    private function terbilang($number)
+    {
+        $number = abs((int) $number);
+        $words = [
+            0 => '', 1 => 'Satu', 2 => 'Dua', 3 => 'Tiga', 4 => 'Empat',
+            5 => 'Lima', 6 => 'Enam', 7 => 'Tujuh', 8 => 'Delapan', 9 => 'Sembilan',
+            10 => 'Sepuluh', 11 => 'Sebelas'
+        ];
+
+        if ($number < 12) return $words[$number];
+        if ($number < 20) return $words[$number - 10] . ' Belas';
+        if ($number < 100) return $this->terbilang(floor($number / 10)) . ' Puluh' . ($number % 10 > 0 ? ' ' . $this->terbilang($number % 10) : '');
+        if ($number < 200) return 'Seratus' . ($number > 100 ? ' ' . $this->terbilang($number - 100) : '');
+        if ($number < 1000) return $this->terbilang(floor($number / 100)) . ' Ratus' . ($number % 100 > 0 ? ' ' . $this->terbilang($number % 100) : '');
+        if ($number < 1000000) return $this->terbilang(floor($number / 1000)) . ' Ribu' . ($number % 1000 > 0 ? ' ' . $this->terbilang($number % 1000) : '');
+        if ($number < 1000000000) return $this->terbilang(floor($number / 1000000)) . ' Juta' . ($number % 1000000 > 0 ? ' ' . $this->terbilang($number % 1000000) : '');
+        if ($number < 1000000000000) return $this->terbilang(floor($number / 1000000000)) . ' Milyar' . ($number % 1000000000 > 0 ? ' ' . $this->terbilang($number % 1000000000) : '');
+
+        return number_format($number, 0, ',', '.');
+    }
+
+    /**
+     * Regenerate invoice PDF and update Excel after successful Midtrans payment.
+     * Called from MidtransWebhookController after payment is confirmed.
+     */
+    public function regenerateInvoiceAfterPayment($invoiceNumber)
+    {
+        try {
+            $invoice = Invoice::with('details')->where('invoice_number', $invoiceNumber)->first();
+            if (!$invoice) {
+                Log::error('Invoice not found for regeneration', ['invoice_number' => $invoiceNumber]);
+                return false;
+            }
+
+            // Get TUK data
+            $data_instansi = MyTuk::select(['nama_tuk as nama', 'alamat', 'id'])
+                ->where('nama_tuk', $invoice->nama_tuk)
+                ->first();
+
+            if (!$data_instansi) {
+                Log::error('TUK not found for invoice regeneration', ['invoice_number' => $invoiceNumber]);
+                return false;
+            }
+
+            // Get discount config
+            $tuk_disc = DB::table('tuk_discounts')
+                ->where('id_tuk_lpjk', $data_instansi->id)
+                ->first();
+
+            // Reconstruct participants data from invoice details
+            $data_asesi_beserta_harga = [];
+            $total_harga = 0;
+            $total_diskon = 0;
+
+            foreach ($invoice->details as $detail) {
+                $nama = Personal::where('id_izin', $detail->id_izin)->value('nama');
+
+                $klas_kua = KlasifikasiKualifikasi::select(['id_izin', 'jenjang', 'tuk', 'jabatan_kerja'])
+                    ->where('id_izin', $detail->id_izin)
+                    ->first();
+
+                $jabatan_kerja = null;
+                $jenjang = null;
+                if ($klas_kua) {
+                    $jenjang = $klas_kua->jenjang;
+                    $jabatan_kerja = JabatanKerja::where('id_jabatan_kerja', $klas_kua->jabatan_kerja)->value('jabatan_kerja');
+                }
+
+                $harga_tahap1 = (int) $detail->deposit; // deposit stores tahap1
+                $harga_tahap2 = (int) $detail->biaya - $harga_tahap1;
+                $diskon = (int) $detail->biaya - (int) $detail->ditagihkan;
+
+                $total_harga += $harga_tahap1 + $harga_tahap2;
+                $total_diskon += $diskon;
+
+                $data_asesi_beserta_harga[] = [
+                    'id_izin' => $detail->id_izin,
+                    'nama' => $nama ?? 'Unknown',
+                    'jabatan_kerja' => $jabatan_kerja ?? '-',
+                    'jenjang' => $jenjang ?? 0,
+                    'harga' => $harga_tahap1,
+                    'harga_2' => $harga_tahap2,
+                    'nama_tuk' => $invoice->nama_tuk,
+                    'diskon' => $diskon,
+                ];
+            }
+
+            // Get Midtrans transaction for payment details
+            $midtransTransaction = MidtransTransaction::where('invoice_number', $invoiceNumber)
+                ->whereIn('status', ['capture', 'settlement'])
+                ->first();
+
+            // Build midtrans display details from callback
+            $midtransDetail = null;
+            if ($midtransTransaction && $midtransTransaction->callback_response) {
+                $cb = $midtransTransaction->callback_response;
+                $midtransDetail = [
+                    'transaction_status' => $cb['transaction_status'] ?? 'settlement',
+                    'payment_type' => $cb['payment_type'] ?? '',
+                    'payment_type_display' => $this->getMidtransPaymentTypeDisplay($cb['payment_type'] ?? ''),
+                    'transaction_time' => isset($cb['transaction_time'])
+                        ? \Carbon\Carbon::parse($cb['transaction_time'])->isoFormat('D MMMM YYYY HH:mm')
+                        : '',
+                    'bank' => $cb['va_numbers'][0]['bank'] ?? $cb['bank'] ?? '',
+                    'va_number' => $cb['va_numbers'][0]['va_number'] ?? $cb['va_number'] ?? '',
+                    'transaction_id' => $cb['transaction_id'] ?? '',
+                    'gross_amount' => $cb['gross_amount'] ?? $midtransTransaction->gross_amount ?? 0,
+                ];
+            }
+
+            /* =====================================================
+             * UPDATE EXCEL FILE
+             * ===================================================== */
+            try {
+                // Extract filename from inv_excel URL
+                $excelUrl = $invoice->inv_excel;
+                if ($excelUrl) {
+                    $excelPath = parse_url($excelUrl, PHP_URL_PATH);
+                    // Convert URL path to storage path
+                    $excelStoragePath = str_replace('/files/new_gatensi', '', $excelPath);
+
+                    $excelContent = Storage::disk('str_moon')->get($excelStoragePath);
+                    if ($excelContent) {
+                        $tempFile = tempnam(sys_get_temp_dir(), 'invoice_') . '.xlsx';
+                        file_put_contents($tempFile, $excelContent);
+
+                        $invoiceSps = IOFactory::load($tempFile);
+                        $worksheet = $invoiceSps->getActiveSheet();
+
+                        // Update payment status cells
+                        $worksheet->setCellValue('C26', 'Midtrans Payment Gateway');
+                        $worksheet->setCellValue('C27', 'Status: LUNAS');
+                        $worksheet->setCellValue('C28', '');
+                        $worksheet->setCellValue('C29', '');
+
+                        // If we have midtrans details, show them
+                        if ($midtransDetail && $midtransDetail['payment_type']) {
+                            $worksheet->setCellValue('C26', 'Midtrans Payment Gateway (' . $midtransDetail['payment_type_display'] . ')');
+                            if ($midtransDetail['bank'] && $midtransDetail['va_number']) {
+                                $worksheet->setCellValue('C27', 'Bank ' . strtoupper($midtransDetail['bank']) . ' - VA: ' . $midtransDetail['va_number']);
+                            } else {
+                                $worksheet->setCellValue('C27', 'Status: LUNAS');
+                            }
+                        }
+
+                        $writer = IOFactory::createWriter($invoiceSps, 'Xlsx');
+                        ob_start();
+                        $writer->save('php://output');
+                        $newContent = ob_get_clean();
+
+                        Storage::disk('str_moon')->put($excelStoragePath, $newContent);
+
+                        // Clean up temp file
+                        if (file_exists($tempFile)) unlink($tempFile);
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::error('Failed to update Excel after payment', [
+                    'invoice_number' => $invoiceNumber,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            /* =====================================================
+             * REGENERATE PDF
+             * ===================================================== */
+            try {
+                $total_word = $this->terbilang($total_harga - $total_diskon) . ' Rupiah';
+
+                // Determine personal type from invoice details
+                $firstDetailId = $invoice->details->first()?->id_izin;
+                $regenPersonalType = 'reguler';
+                if ($firstDetailId) {
+                    $regenPersonalType = Personal::where('id_izin', $firstDetailId)->value('type') ?? 'reguler';
+                }
+                $regenJabatan = optional(User::where('email', $invoice->input_by)->first()?->role)->name ?? 'Staff';
+
+                $pdfData = [
+                    'latest_invno' => $invoice->invoice_number,
+                    'data_instansi' => $data_instansi,
+                    'data_asesi_beserta_harga' => $data_asesi_beserta_harga,
+                    'total_harga' => $total_harga,
+                    'total_diskon' => $total_diskon,
+                    'tanggal_uji' => $invoice->tgl_uji,
+                    'metode' => $invoice->class_uji,
+                    'kategori_tuk' => $tuk_disc->kategori ?? '',
+                    'total_word' => $total_word . ' #',
+                    'issued_by' => $invoice->input_by,
+                    'payment_method' => 'midtrans',
+                    'payment_status' => 'paid',
+                    'midtrans_detail' => $midtransDetail,
+                    'personal_type' => $regenPersonalType,
+                    'user_jabatan' => $regenJabatan,
+                ];
+
+                $pdf = Pdf::loadView('template-invoice.pdf-invoice', $pdfData);
+
+                // Extract filename from inv_link URL
+                $pdfUrl = $invoice->inv_link;
+                if ($pdfUrl) {
+                    $pdfPath = parse_url($pdfUrl, PHP_URL_PATH);
+                    $pdfStoragePath = str_replace('/files/new_gatensi', '', $pdfPath);
+
+                    Storage::disk('str_moon')->put($pdfStoragePath, $pdf->output());
+
+                    Log::info('Invoice PDF regenerated after payment', [
+                        'invoice_number' => $invoiceNumber,
+                    ]);
+                } else {
+                    // No existing PDF, create new filename
+                    $pdfFilename = 'inv_' . now()->format('Ymd_His') . '.pdf';
+                    Storage::disk('str_moon')->put('/invoice-tuk/' . $pdfFilename, $pdf->output());
+
+                    $newPdfUrl = 'https://moon.lspgatensi.id/files/new_gatensi/invoice-tuk/' . $pdfFilename;
+                    $invoice->update(['inv_link' => $newPdfUrl]);
+                }
+            } catch (\Exception $e) {
+                Log::error('Failed to regenerate PDF after payment', [
+                    'invoice_number' => $invoiceNumber,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error('Failed to regenerate invoice files after payment', [
+                'invoice_number' => $invoiceNumber,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Get human-readable display name for Midtrans payment type
+     */
+    private function getMidtransPaymentTypeDisplay($paymentType)
+    {
+        $map = [
+            'bank_transfer' => 'Transfer Bank',
+            'credit_card' => 'Kartu Kredit',
+            'gopay' => 'GoPay',
+            'shopeepay' => 'ShopeePay',
+            'qris' => 'QRIS',
+            'cstore' => 'Convenience Store',
+            'echannel' => 'Mandiri Bill Payment',
+            'bca_klikpay' => 'BCA KlikPay',
+            'bca_klikbca' => 'KlikBCA',
+            'cimb_clicks' => 'CIMB Clicks',
+            'danamon_online' => 'Danamon Online',
+            'akulaku' => 'Akulaku',
+            'permata_va' => 'Permata VA',
+            'other_va' => 'Virtual Account',
+        ];
+
+        return $map[$paymentType] ?? ucwords(str_replace('_', ' ', $paymentType));
+    }
+
+    /**
+     * Apply TUK filter to invoice query for adm_tuk users.
+     * Restricts to invoices belonging to the user's assigned TUK.
+     */
+    private function applyTukFilter($query): void
+    {
+        $user = Auth::user();
+        if ($user && (int) $user->role_id === 3 && $user->tuk_id) {
+            $tuk = MyTuk::find($user->tuk_id);
+            if ($tuk) {
+                $query->where('nama_tuk', $tuk->nama_tuk);
+            }
+        }
     }
 }

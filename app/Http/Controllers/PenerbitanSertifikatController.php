@@ -28,6 +28,7 @@ use Ramsey\Uuid\Uuid;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use App\Traits\BantuanTrait;
 use App\Traits\ResolvesKomtekDecision;
+use App\Services\SikiService;
 
 class PenerbitanSertifikatController extends Controller
 {
@@ -551,14 +552,19 @@ class PenerbitanSertifikatController extends Controller
                 ], 400);
             }
 
-            $url = 'https://siki.pu.go.id/siki-api/v2/asesor-lsp-penugasan/' . $peserta->id_izin;
+            $siki = app(SikiService::class);
+            $url = $siki->getBaseUrl() . '/v2/asesor-lsp-penugasan/' . $peserta->id_izin;
 
-            $headers = [
-                'Content-Type' => 'application/json',
-                'token' => env('SIKI_TOKEN'),
-            ];
+            if (!$siki->isActive()) {
+                Log::info('SIKI API call skipped (is_active=false)', [
+                    'id_izin' => $peserta->id_izin,
+                    'action' => 'asesorLspPenugasan',
+                ]);
+                usleep(500);
+                continue;
+            }
 
-            $response_post_bnsp = Http::withHeaders($headers)->timeout(30)->connectTimeout(30)->post($url, $request_api_asesor);
+            $response_post_bnsp = Http::withHeaders($siki->getHeaders())->timeout(30)->connectTimeout(30)->post($url, $request_api_asesor);
             if ($response_post_bnsp->successful()) {
                 $responseData = $response_post_bnsp->json();
                 if ($responseData['status'] == "success") {
@@ -822,14 +828,19 @@ class PenerbitanSertifikatController extends Controller
 
         foreach ($peserta_kompeten as $peserta) {
             // Hit api bnsp
-            $url = 'https://siki.pu.go.id/siki-api/v1/komtek-lsp-penugasan/' . $peserta->id_izin;
+            $siki = app(SikiService::class);
+            $url = $siki->getBaseUrl() . '/v1/komtek-lsp-penugasan/' . $peserta->id_izin;
 
-            $headers = [
-                'Content-Type' => 'application/json',
-                'token' => env('SIKI_TOKEN'),
-            ];
+            if (!$siki->isActive()) {
+                Log::info('SIKI API call skipped (is_active=false)', [
+                    'id_izin' => $peserta->id_izin,
+                    'action' => 'komtekLspPenugasan',
+                ]);
+                usleep(1000);
+                continue;
+            }
 
-            $response_post_bnsp = Http::withHeaders($headers)->timeout(30)->connectTimeout(30)->post($url, $request_api_komtek);
+            $response_post_bnsp = Http::withHeaders($siki->getHeaders())->timeout(30)->connectTimeout(30)->post($url, $request_api_komtek);
             if ($response_post_bnsp->successful()) {
                 $responseData = $response_post_bnsp->json();
                 if ($responseData['status'] == "success") {
@@ -873,12 +884,8 @@ class PenerbitanSertifikatController extends Controller
             // Hit api bnsp with type-specific endpoint
             $type = Personal::where('id_izin', $peserta->id_izin)->value('type') ?? 'reguler';
             $suffix = $suffixMap[$type] ?? '';
-            $url = 'https://siki.pu.go.id/siki-api/v1/pencatatan-skk' . $suffix . '/' . $peserta->id_izin;
-
-            $headers = [
-                'Content-Type' => 'application/json',
-                'token' => env('SIKI_TOKEN'),
-            ];
+            $siki = app(SikiService::class);
+            $url = $siki->getBaseUrl() . '/v1/pencatatan-skk' . $suffix . '/' . $peserta->id_izin;
 
             $request_api_asesor = array(
                 "nomor_registrasi_lsp" => $id_izin->nomor_registrasi_lsp,
@@ -886,8 +893,23 @@ class PenerbitanSertifikatController extends Controller
                 "nomor_blangko_bnsp" => $id_izin->nomor_blangko_bnsp
             );
 
+            if (!$siki->isActive()) {
+                Log::info('SIKI API call skipped (is_active=false)', [
+                    'id_izin' => $peserta->id_izin,
+                    'action' => 'pencatatanSkk',
+                ]);
+                DB::beginTransaction();
+                DataPencatatan::where("id_izin", $peserta->id_izin)->update([
+                    'nomor_registrasi_lpjk' => $request_api_asesor['nomor_registrasi_lsp'],
+                    'nomor_registrasi_lsp' => $request_api_asesor['nomor_registrasi_lsp'],
+                ]);
+                DB::commit();
+                usleep(500);
+                continue;
+            }
+
             DB::beginTransaction();
-            $response_post_bnsp = Http::withHeaders($headers)->timeout(30)->connectTimeout(30)->post($url, $request_api_asesor);
+            $response_post_bnsp = Http::withHeaders($siki->getHeaders())->timeout(30)->connectTimeout(30)->post($url, $request_api_asesor);
             if ($response_post_bnsp->successful()) {
                 $responseData = $response_post_bnsp->json();
                 if ($responseData['status'] == "success") {

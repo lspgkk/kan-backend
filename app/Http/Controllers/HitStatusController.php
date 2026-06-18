@@ -9,6 +9,7 @@ use App\Models\KlasifikasiKualifikasi;
 use App\Models\Personal;
 use App\Models\User;
 use App\Services\QontakService;
+use App\Services\SikiService;
 use GuzzleHttp\Exception\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -67,14 +68,20 @@ class HitStatusController extends Controller
 
         DB::beginTransaction();
         try {
-            $httpClient = new \GuzzleHttp\Client();
-            $httpClient->request('POST', $apiEndpoint, [
-                'headers' => [
-                    'Content-Type' => 'application/json',
-                    'token' => env('SIKI_TOKEN'),
-                ],
-                'json' => $apiData,
-            ]);
+            $siki = app(SikiService::class);
+            if ($siki->isActive()) {
+                $httpClient = new \GuzzleHttp\Client();
+                $httpClient->request('POST', $apiEndpoint, [
+                    'headers' => $siki->getHeaders(),
+                    'json' => $apiData,
+                ]);
+            } else {
+                Log::info('SIKI API call skipped (is_active=false)', [
+                    'id_izin' => $id_izin,
+                    'kd_status' => '20',
+                    'action' => 'hitVerifikasi',
+                ]);
+            }
 
             // Update verification status and wa fields in database
             $personal->update([
@@ -172,46 +179,50 @@ class HitStatusController extends Controller
 
         $api_url = 'https://siki.pu.go.id/siki-api/v1/permohonan-skk' . $suffix . $id_izin;
 
-        $headers = [
-            'Content-Type' => 'application/json',
-            'token' => env('SIKI_TOKEN'),
-        ];
-
         $payload = [
             'kd_status'  => '10',
             'keterangan' => 'Dokumen Permohonan Dinyatakan Lengkap',
         ];
 
-        $response = Http::withHeaders($headers)->post($api_url, $payload);
+        $siki = app(SikiService::class);
+        if ($siki->isActive()) {
+            $response = Http::withHeaders($siki->getHeaders())->post($api_url, $payload);
 
-        if (!$response->successful()) {
-            $message = $response->json()['message'] ?? 'Terjadi kesalahan pada SIKI';
+            if (!$response->successful()) {
+                $message = $response->json()['message'] ?? 'Terjadi kesalahan pada SIKI';
 
-            if (in_array($message, [
-                'tidak dapat mengirim kode status 10, kode status saat ini 32',
-                'tidak dapat mengirim kode status 10, kode status saat ini 30',
-            ])) {
+                if (in_array($message, [
+                    'tidak dapat mengirim kode status 10, kode status saat ini 32',
+                    'tidak dapat mengirim kode status 10, kode status saat ini 30',
+                ])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'ID Izin sudah divalidasi!'
+                    ], 409);
+                }
+
                 return response()->json([
                     'success' => false,
-                    'message' => 'ID Izin sudah divalidasi!'
-                ], 409);
+                    'message' => "Terjadi masalah pada ID Izin ($id_izin)",
+                    'detail'  => $message
+                ], 500);
             }
 
-            return response()->json([
-                'success' => false,
-                'message' => "Terjadi masalah pada ID Izin ($id_izin)",
-                'detail'  => $message
-            ], 500);
-        }
+            $responseData = $response->json();
 
-        $responseData = $response->json();
-
-        if (($responseData['status'] ?? null) !== 'success') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan saat validasi',
-                'detail'  => $responseData['message'] ?? null
-            ], 422);
+            if (($responseData['status'] ?? null) !== 'success') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Terjadi kesalahan saat validasi',
+                    'detail'  => $responseData['message'] ?? null
+                ], 422);
+            }
+        } else {
+            Log::info('SIKI API call skipped (is_active=false)', [
+                'id_izin' => $id_izin,
+                'kd_status' => '10',
+                'action' => 'hitLengkap',
+            ]);
         }
 
         // Update local data
@@ -260,47 +271,51 @@ class HitStatusController extends Controller
         $suffix = $endpointMap[$type] ?? '/';
         $api_url = 'https://siki.pu.go.id/siki-api/v1/permohonan-skk' . $suffix . $id_izin;
 
-        $headers = [
-            'Content-Type' => 'application/json',
-            'token' => env('SIKI_TOKEN'),
-        ];
-
         $payload = [
             'kd_status'  => '30',
             'keterangan' => 'Validasi PJ',
         ];
 
-        $response = Http::withHeaders($headers)->post($api_url, $payload);
+        $siki = app(SikiService::class);
+        if ($siki->isActive()) {
+            $response = Http::withHeaders($siki->getHeaders())->post($api_url, $payload);
 
-        if (!$response->successful()) {
-            $message = $response->json()['message'] ?? 'Terjadi kesalahan pada SIKI';
+            if (!$response->successful()) {
+                $message = $response->json()['message'] ?? 'Terjadi kesalahan pada SIKI';
 
-            if (in_array($message, [
-                'tidak dapat mengirim kode status 30, kode status saat ini 32',
-                'tidak dapat mengirim kode status 30, kode status saat ini 30',
-                'tidak dapat mengirim kode status 30, kode status saat ini 31',
-            ])) {
+                if (in_array($message, [
+                    'tidak dapat mengirim kode status 30, kode status saat ini 32',
+                    'tidak dapat mengirim kode status 30, kode status saat ini 30',
+                    'tidak dapat mengirim kode status 30, kode status saat ini 31',
+                ])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'ID Izin sudah divalidasi PJ!',
+                    ], 409);
+                }
+
                 return response()->json([
                     'success' => false,
-                    'message' => 'ID Izin sudah divalidasi PJ!',
-                ], 409);
+                    'message' => "Terjadi masalah pada ID Izin ($id_izin)",
+                    'detail'  => $message,
+                ], 500);
             }
 
-            return response()->json([
-                'success' => false,
-                'message' => "Terjadi masalah pada ID Izin ($id_izin)",
-                'detail'  => $message,
-            ], 500);
-        }
+            $responseData = $response->json();
 
-        $responseData = $response->json();
-
-        if (($responseData['status'] ?? null) !== 'success') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan saat validasi PJ',
-                'detail'  => $responseData['message'] ?? null,
-            ], 422);
+            if (($responseData['status'] ?? null) !== 'success') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Terjadi kesalahan saat validasi PJ',
+                    'detail'  => $responseData['message'] ?? null,
+                ], 422);
+            }
+        } else {
+            Log::info('SIKI API call skipped (is_active=false)', [
+                'id_izin' => $id_izin,
+                'kd_status' => '30',
+                'action' => 'hitValidasiPJ',
+            ]);
         }
 
         Personal::where('id_izin', $id_izin)->update([
@@ -323,7 +338,7 @@ class HitStatusController extends Controller
     {
         // Validate catatan (optional)
         $validated = $request->validate([
-            'catatan' => 'nullable|string|max:1000',
+            'catatan' => 'required|string|max:1000',
         ]);
 
         // Get personal data
@@ -364,48 +379,52 @@ class HitStatusController extends Controller
 
         $api_url = 'https://siki.pu.go.id/siki-api/v1/permohonan-skk' . $suffix . $id_izin;
 
-        $headers = [
-            'Content-Type' => 'application/json',
-            'token'        => env('SIKI_TOKEN'),
-        ];
-
         $payload = [
             'kd_status'  => '11',
             'keterangan' => 'Dokumen Tidak Lengkap',
         ];
 
-        $response = Http::withHeaders($headers)->post($api_url, $payload);
+        $siki = app(SikiService::class);
+        if ($siki->isActive()) {
+            $response = Http::withHeaders($siki->getHeaders())->post($api_url, $payload);
 
-        // HTTP failure
-        if (!$response->successful()) {
-            $message = $response->json()['message'] ?? 'Terjadi kesalahan pada SIKI';
+            // HTTP failure
+            if (!$response->successful()) {
+                $message = $response->json()['message'] ?? 'Terjadi kesalahan pada SIKI';
 
-            if (in_array($message, [
-                'tidak dapat mengirim kode status 11, kode status saat ini 32',
-                'tidak dapat mengirim kode status 11, kode status saat ini 30',
-            ])) {
+                if (in_array($message, [
+                    'tidak dapat mengirim kode status 11, kode status saat ini 32',
+                    'tidak dapat mengirim kode status 11, kode status saat ini 30',
+                ])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'ID Izin sudah divalidasi!'
+                    ], 409);
+                }
+
                 return response()->json([
                     'success' => false,
-                    'message' => 'ID Izin sudah divalidasi!'
-                ], 409);
+                    'message' => "Terjadi masalah pada ID Izin ($id_izin)",
+                    'detail'  => $message
+                ], 500);
             }
 
-            return response()->json([
-                'success' => false,
-                'message' => "Terjadi masalah pada ID Izin ($id_izin)",
-                'detail'  => $message
-            ], 500);
-        }
+            $responseData = $response->json();
 
-        $responseData = $response->json();
-
-        // SIKI logical failure
-        if (($responseData['status'] ?? null) !== 'success') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan saat validasi',
-                'detail'  => $responseData['message'] ?? null
-            ], 422);
+            // SIKI logical failure
+            if (($responseData['status'] ?? null) !== 'success') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Terjadi kesalahan saat validasi',
+                    'detail'  => $responseData['message'] ?? null
+                ], 422);
+            }
+        } else {
+            Log::info('SIKI API call skipped (is_active=false)', [
+                'id_izin' => $id_izin,
+                'kd_status' => '11',
+                'action' => 'hitTidakLengkap',
+            ]);
         }
 
         // Update local database
@@ -426,62 +445,102 @@ class HitStatusController extends Controller
         ]);
     }
     
-    public function hitTolak(Request $request)
+    public function hitTolak(Request $request, $id_izin)
     {
-        $id_izin = $request->id_izin;
-
         // Validate catatan (optional)
-        $catatan = $request->input('catatan');
-        if ($catatan !== null && !is_string($catatan)) {
+        $validated = $request->validate([
+            'catatan' => 'required|string|max:1000',
+        ]);
+
+        // Get the personal record to determine type
+        $personal = Personal::where('id_izin', trim($id_izin))->first();
+
+        if (!$personal) {
             return response()->json([
                 'success' => false,
-                'message' => 'Catatan harus berupa teks.',
-            ], 422);
+                'message' => 'Data asesi tidak ditemukan.'
+            ], 404);
         }
-        $catatan = $catatan !== null ? substr($catatan, 0, 1000) : null;
 
-        $api_url = "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . trim($id_izin);
-
-        $headers = [
-            'Content-Type' => 'application/json',
-            'token' => env('SIKI_TOKEN')
+        // Determine endpoint based on type
+        $type = $personal->type; // reguler | balai | fg
+        $endpointMap = [
+            'reguler' => '/',
+            'balai'   => '-balai/',
+            'fg'      => '-fg/',
         ];
 
-        $status11 = [
-            "kd_status" => "90",
-            "keterangan" => "Permohonan Ditolak"
+        $suffix = $endpointMap[$type] ?? '/';
+        $api_url = 'https://siki.pu.go.id/siki-api/v1/permohonan-skk' . $suffix . $id_izin;
+
+        $payload = [
+            'kd_status'  => '90',
+            'keterangan' => 'Permohonan Ditolak',
         ];
 
-        $response_post_bnsp = Http::withHeaders($headers)->timeout(60)->connectTimeout(60)->post($api_url, $status11);
-        if ($response_post_bnsp->successful()) {
-            $responseData = $response_post_bnsp->json();
-            if ($responseData['status'] == "success") {
-                Log::info('sukses!');
-            } else if ($responseData['status'] == "errors") {
-                return back()->with("error", "Terjadi kesalahan saat validasi, " . str($responseData['message']));
-            } else {
-                return back()->with("error", "Terjadi kesalahan pada SIKI");
+        $siki = app(SikiService::class);
+        if ($siki->isActive()) {
+            $response = Http::withHeaders($siki->getHeaders())->post($api_url, $payload);
+
+            if (!$response->successful()) {
+                $message = $response->json()['message'] ?? 'Terjadi kesalahan pada SIKI';
+
+                if (in_array($message, [
+                    'tidak dapat mengirim kode status 90, kode status saat ini 90',
+                ])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'ID Izin sudah ditolak!'
+                    ], 409);
+                }
+
+                if (in_array($message, [
+                    'tidak dapat mengirim kode status 90, kode status saat ini 30',
+                ])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Status sudah divalidasi!'
+                    ], 409);
+                }
+
+                return response()->json([
+                    'success' => false,
+                    'message' => "Terjadi masalah pada ID Izin ($id_izin)",
+                    'detail'  => $message
+                ], 500);
+            }
+
+            $responseData = $response->json();
+
+            if (($responseData['status'] ?? null) !== 'success') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Terjadi kesalahan saat tolak permohonan',
+                    'detail'  => $responseData['message'] ?? null
+                ], 422);
             }
         } else {
-            if ($response_post_bnsp->json()['message'] == 'tidak dapat mengirim kode status 90, kode status saat ini 90') {
-                return back()->with("error", "ID Izin sudah ditolak!");
-            } else if ($response_post_bnsp->json()['message'] == 'tidak dapat mengirim kode status 90, kode status saat ini 30') {
-                return back()->with("error", "Status sudah divalidasi!");
-            } else {
-                return back()->with("error", "Terjadi masalah pada ($id_izin), info: " . $response_post_bnsp->json()['message'])->withInput();
-            }
+            Log::info('SIKI API call skipped (is_active=false)', [
+                'id_izin' => $id_izin,
+                'kd_status' => '90',
+                'action' => 'hitTolak',
+            ]);
         }
 
+        // Update local data
         Personal::where('id_izin', $id_izin)->update([
-            "status"  => "90",
-            "catatan" => $catatan,
+            'status'  => '90',
+            'catatan' => $validated['catatan'] ?? null,
         ]);
 
-        DB::connection("mygatensi_2")->table("mystatuspermohonan")->where('ID_Ijin', $id_izin)->update([
-            'Status' => 'Permohonan Ditolak'
+        return response()->json([
+            'success' => true,
+            'message' => 'Sukses Tolak!',
+            'data' => [
+                'id_izin' => $id_izin,
+                'status'  => '90',
+            ]
         ]);
-
-        return back()->with("success", "Sukses tolak id izin!");
     }
 
     public function hitCabut(Request $request)
@@ -497,15 +556,16 @@ class HitStatusController extends Controller
         $error_id_izin = [];
         $success_id_izin = 0;
 
-        $headers = [
-            'Content-Type' => 'application/json',
-            'token' => env('SIKI_TOKEN')
-        ];
-
         $status70 = [
             "kd_status" => "11",
             "keterangan" => "Dokumen Tidak Lengkap"
         ];
+
+        $siki = app(SikiService::class);
+        $sikiActive = $siki->isActive();
+        if (!$sikiActive) {
+            Log::info('SIKI API calls skipped (is_active=false)', ['action' => 'hitCabut']);
+        }
 
         // $status91 = [
         //     "kd_status" => "91",
@@ -523,28 +583,30 @@ class HitStatusController extends Controller
             } else {
                 $api_url = "https://siki.pu.go.id/siki-api/v1/permohonan-skk/" . trim($id_izin);
             }
-            $response_post_bnsp = Http::withHeaders($headers)->timeout(60)->connectTimeout(60)->post($api_url, $status70);
-            $data = $response_post_bnsp->json();
-            if ($response_post_bnsp->successful()) {
-                $responseData = $response_post_bnsp->json();
-                if ($responseData['status'] == "success") {
-                    Log::info('sukses!');
-                } else if ($responseData['status'] == "errors") {
-                    array_push($error_id_izin,  ["id_izin" => $id_izin, "msg" => $data['message']]);
+            if ($sikiActive) {
+                $response_post_bnsp = Http::withHeaders($siki->getHeaders())->timeout(60)->connectTimeout(60)->post($api_url, $status70);
+                $data = $response_post_bnsp->json();
+                if ($response_post_bnsp->successful()) {
+                    $responseData = $response_post_bnsp->json();
+                    if ($responseData['status'] == "success") {
+                        Log::info('sukses!');
+                    } else if ($responseData['status'] == "errors") {
+                        array_push($error_id_izin,  ["id_izin" => $id_izin, "msg" => $data['message']]);
+                    } else {
+                        array_push($error_id_izin,  ["id_izin" => $id_izin, "msg" => $data['message']]);
+                    }
                 } else {
-                    array_push($error_id_izin,  ["id_izin" => $id_izin, "msg" => $data['message']]);
+                    if ($response_post_bnsp->json()['message'] == 'tidak dapat mengirim kode status 70, kode status saat ini 70') {
+                        array_push($error_id_izin,  ["id_izin" => $id_izin, "msg" => $data['message']]);
+                    } else if ($response_post_bnsp->json()['message'] == 'tidak dapat mengirim kode status 70, kode status saat ini 91') {
+                        array_push($error_id_izin,  ["id_izin" => $id_izin, "msg" => $data['message']]);
+                    } else {
+                        array_push($error_id_izin,  ["id_izin" => $id_izin, "msg" => $data['message']]);
+                    }
                 }
-            } else {
-                if ($response_post_bnsp->json()['message'] == 'tidak dapat mengirim kode status 70, kode status saat ini 70') {
-                    array_push($error_id_izin,  ["id_izin" => $id_izin, "msg" => $data['message']]);
-                } else if ($response_post_bnsp->json()['message'] == 'tidak dapat mengirim kode status 70, kode status saat ini 91') {
-                    array_push($error_id_izin,  ["id_izin" => $id_izin, "msg" => $data['message']]);
-                } else {
-                    array_push($error_id_izin,  ["id_izin" => $id_izin, "msg" => $data['message']]);
-                }
-            }
 
-            sleep(10);
+                sleep(10);
+            }
 
             // $response_post_bnsp = Http::withHeaders($headers)->timeout(60)->connectTimeout(60)->post($api_url, $status91);
             // $data = $response_post_bnsp->json();

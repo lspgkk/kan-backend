@@ -136,8 +136,8 @@
             @endif
             <tr>
                 <td colspan="2">Nama Asesi</td>
-                <td colspan="2" style="text-transform: uppercase;">
-                    {{ $dokumenHeader['nama_asesi'] }}
+                <td colspan="2">
+                    {{ strtoupper($dokumenHeader['nama_asesi']) }}
                 </td>
             </tr>
             <tr>

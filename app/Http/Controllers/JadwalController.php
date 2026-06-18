@@ -203,7 +203,7 @@ class JadwalController extends Controller
                 "tanggal_selesai" => ['required'],
                 "sesi" => ['required'],
                 "link_meeting" => ['nullable', 'url'],
-                "file_verifikasi_tuk" => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+                "pengajuan_tuk_ref" => ['nullable', 'string'],
                 "jenis_kelas" => ['required'],
                 "jenis_anggaran" => ['required'],
                 "komtek1" => ['required'],
@@ -332,12 +332,15 @@ class JadwalController extends Controller
                 $sikiSuffix = $suffixMap[$personalType] ?? '/';
                 $sikiUrl = 'https://siki.pu.go.id/siki-api/v1/permohonan-skk' . $sikiSuffix . $id_izin;
                 try {
-                    $sikiResponse = \Illuminate\Support\Facades\Http::withHeaders([
-                        'Content-Type' => 'application/json',
-                        'token' => env('SIKI_TOKEN'),
-                    ])->timeout(15)->get($sikiUrl);
-                    if (!$sikiResponse->successful()) {
-                        \Illuminate\Support\Facades\Log::warning("SIKI pre-check failed for {$id_izin} (type: {$personalType})");
+                    $siki = app(\App\Services\SikiService::class);
+                    if ($siki->isActive()) {
+                        $sikiResponse = \Illuminate\Support\Facades\Http::withHeaders($siki->getHeaders())
+                            ->timeout(15)->get($sikiUrl);
+                        if (!$sikiResponse->successful()) {
+                            \Illuminate\Support\Facades\Log::warning("SIKI pre-check failed for {$id_izin} (type: {$personalType})");
+                        }
+                    } else {
+                        \Illuminate\Support\Facades\Log::info("SIKI pre-check skipped (is_active=false)", ['id_izin' => $id_izin]);
                     }
                 } catch (\Exception $e) {
                     \Illuminate\Support\Facades\Log::warning("SIKI pre-check unreachable for {$id_izin}: {$e->getMessage()}");
@@ -581,21 +584,23 @@ class JadwalController extends Controller
          *  📄 GENERATE INITIAL DOCUMENTS (DRAFT MODE)
          *  Uses local jadwal ID (jadwal_id = local PK for drafts)
          *  =============================== */
+        $documentErrors = [];
         $createdJadwal = Jadwal::where('request_hash', $requestHash)->first();
         if ($createdJadwal) {
-            $this->generateInitialDocuments($createdJadwal->jadwal_id);
+            $documentErrors = $this->generateInitialDocuments($createdJadwal->jadwal_id);
+            if (!empty($documentErrors)) {
+                Log::warning('Some initial documents failed to generate', [
+                    'jadwal_id' => $createdJadwal->jadwal_id,
+                    'errors' => $documentErrors,
+                ]);
+            }
         }
 
         /** ===============================
-         *  📁 UPLOAD FILE VERIFIKASI TUK
+         *  📝 SIMPAN REF NUMBER VERIFIKASI TUK
          *  =============================== */
-        if ($request->hasFile('file_verifikasi_tuk') && $createdJadwal) {
-            $file = $request->file('file_verifikasi_tuk');
-            $filename = "verifikasi_tuk/{$createdJadwal->jadwal_id}." . $file->getClientOriginalExtension();
-            Storage::disk('str_moon')->put($filename, file_get_contents($file->getRealPath()));
-            $fileUrl = "https://moon.lspgatensi.id/files/new_gatensi/{$filename}";
-
-            $createdJadwal->update(['file_verifikasi_tuk' => $fileUrl]);
+        if (!empty($validated['pengajuan_tuk_ref']) && $createdJadwal) {
+            $createdJadwal->update(['file_verifikasi_tuk' => $validated['pengajuan_tuk_ref']]);
         }
 
         /** ===============================
@@ -607,6 +612,7 @@ class JadwalController extends Controller
             'jadwal_id' => $jadwalId,
             'spt_sent' => true,
             'participant_errors' => $errors,
+            'document_errors' => $documentErrors ?? [],
         ], 201);
     }
 
@@ -1156,7 +1162,7 @@ class JadwalController extends Controller
                 'https://konstruksi.bnsp.go.id/api/v1/jadwal/asesor/surat-tugas',
                 [
                     'jadwal_id'        => $jadwalId,
-                    'asesor_id'        => $asesor1->IDAsesor,
+                    'asesor_id'        => $asesor1->id,
                     'url_surat_tugas'  => $fileUrl,
                 ]
             );
@@ -1173,7 +1179,7 @@ class JadwalController extends Controller
             ['jadwal_id' => $jadwalId],
             [
                 'spt_no'    => $noSpt,
-                'asesor_id' => $asesor1->IDAsesor,
+                'asesor_id' => $asesor1->id,
                 'link'      => $fileUrl,
                 'send'      => $withTtd ? 1 : 0,
             ]
@@ -2157,6 +2163,39 @@ class JadwalController extends Controller
         ]);
     }
 
+    public function listPengajuanTuk(Request $request)
+    {
+        $query = \App\Models\PengajuanTuk::query()
+            ->where('status', 'diverifikasi')
+            ->select('id', 'ref_number', 'tuk_type', 'data_tuk', 'status');
+
+        // Filter by user's TUK if adm_tuk
+        $user = Auth::user();
+        if ($user && (int) $user->role_id === 3 && $user->tuk_id) {
+            $tukNama = \App\Models\MyTuk::where('id', $user->tuk_id)->value('nama_tuk');
+            if ($tukNama) {
+                $query->where('data_tuk->nama', $tukNama);
+            }
+        }
+
+        $list = $query->orderBy('ref_number', 'desc')->get()->map(function ($item) {
+            $dataTuk = $item->data_tuk;
+            return [
+                'id' => $item->id,
+                'ref_number' => $item->ref_number,
+                'tuk_type' => $item->tuk_type,
+                'status' => $item->status,
+                'nama_tuk' => $dataTuk['nama'] ?? ($dataTuk['nama_tuk'] ?? '-'),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Success',
+            'data' => $list,
+        ]);
+    }
+
     public function listAsesiCreateJadwal(Request $request)
     {
         $validated = $request->validate([
@@ -2181,6 +2220,49 @@ class JadwalController extends Controller
             'success' => true,
             'message' => 'Success',
             'list_asesi' => $listAsesi,
+        ]);
+    }
+
+    public function pengajuanTukList(Request $request)
+    {
+        $query = \App\Models\PengajuanTuk::with(['ketuaTuk:id,name', 'verifikator:id,name', 'validator:id,name'])
+            ->whereIn('status', ['selesai'])
+            ->select([
+                'id',
+                'ref_number',
+                'tuk_type',
+                'status',
+                'data_tuk',
+                'ketua_tuk_id',
+                'verifikator_id',
+                'validator_id',
+                'created_at',
+            ]);
+
+        // Filter by user role if not superadmin
+        $user = $request->user();
+        if ($user && !in_array($user->role_id, [1])) {
+            if ($user->role_id == 11) {
+                // Ketua TUK only sees their assigned TUKs
+                $query->where('ketua_tuk_id', $user->id);
+            }
+        }
+
+        // Optional search by ref_number or TUK name
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('ref_number', 'like', "%{$search}%")
+                  ->orWhere('data_tuk->namaTuk', 'like', "%{$search}%");
+            });
+        }
+
+        $pengajuanTukList = $query->orderBy('created_at', 'desc')->get();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pengajuan TUK list retrieved successfully',
+            'data' => $pengajuanTukList,
         ]);
     }
 
@@ -2378,8 +2460,9 @@ class JadwalController extends Controller
      * Generate initial documents for jadwal without QR codes
      * Creates: SkPelaksanaanUji, SPTAsesor, SPTKomtek, BaKomtek
      */
-    public function generateInitialDocuments(int $jadwalId): void
+    public function generateInitialDocuments(int $jadwalId): array
     {
+        $errors = [];
         $generators = [
             'sk_pelaksanaan_uji' => fn () => $this->generateSkPelaksanaanUjiWithoutTtd($jadwalId),
             'spt_asesor'         => fn () => $this->generateSptAsesorWithoutTtd($jadwalId),
@@ -2391,12 +2474,16 @@ class JadwalController extends Controller
             try {
                 $gen();
             } catch (\Throwable $e) {
-                Log::error("Gagal generate {$name} (initial)", [
+                $errorMsg = "Gagal generate {$name}: " . $e->getMessage();
+                Log::error($errorMsg, [
                     'jadwal_id' => $jadwalId,
-                    'error'     => $e->getMessage(),
+                    'trace'     => $e->getTraceAsString(),
                 ]);
+                $errors[] = $name;
             }
         }
+
+        return $errors;
     }
 
     /**
@@ -2471,6 +2558,14 @@ class JadwalController extends Controller
      */
     private function generateSptAsesorWithoutTtd(int $jadwalId): array
     {
+        // Get jadwal data with relationships
+        $jadwal = Jadwal::where('jadwal_id', $jadwalId)->with(['tuk', 'asesor', 'asesor2'])->firstOrFail();
+
+        // Validate required data
+        if (!$jadwal->asesor_id) {
+            throw new \Exception('Asesor ID is required for SPT generation');
+        }
+
         // Preserve existing SPT number if already assigned (e.g. approved before postToBnsp)
         $existingSpt = SPTAsesor::where('jadwal_id', $jadwalId)->first();
         if ($existingSpt && $existingSpt->spt_no && str_contains($existingSpt->spt_no, 'LSP GKK')) {
@@ -2489,15 +2584,22 @@ class JadwalController extends Controller
             $noSpt = implode('/', $parts);
         }
 
-        // Get jadwal data
-        $jadwal = Jadwal::where('jadwal_id', $jadwalId)->firstOrFail();
-        $asesor1 = AsesorBnsp::where('id', $jadwal->asesor_id)->first();
-        $asesor2 = $jadwal->asesor2_id ? AsesorBnsp::where('id', $jadwal->asesor2_id)->first() : null;
+        // Get asesor data with null check
+        $asesor1 = $jadwal->asesor;
+        if (!$asesor1) {
+            throw new \Exception("Asesor 1 not found with ID: {$jadwal->asesor_id}");
+        }
+
+        $asesor2 = $jadwal->asesor2_id ? $jadwal->asesor2 : null;
 
         $asesiJadwals = AsesiJadwal::where('jadwal_id', $jadwalId)->with(['personal'])->get();
         $peserta = $asesiJadwals->pluck('personal.nama')->toArray();
 
         $tuk = $jadwal->tuk;
+        if (!$tuk) {
+            throw new \Exception("TUK not found with ID: {$jadwal->tuk_id}");
+        }
+
         $namaSkemaList = [];
         foreach ($asesiJadwals as $asesi) {
             $jabatanKerjaId = KlasifikasiKualifikasi::where('id_izin', $asesi->id_izin)->value('jabatan_kerja');
@@ -2536,7 +2638,7 @@ class JadwalController extends Controller
             ['jadwal_id' => $jadwalId],
             [
                 'spt_no' => $noSpt,
-                'asesor_id' => $asesor1->IDAsesor ?? null,
+                'asesor_id' => $jadwal->asesor_id,
                 'link' => $fileUrl,
                 'send' => 0,
             ]

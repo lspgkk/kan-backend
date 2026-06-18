@@ -194,10 +194,12 @@ class PengajuanTukController extends Controller
 
         // Role-based filtering (superadmin sees all)
         if (!in_array($user->role_id, [1])) {
-            if ($user->role_id == 5) {
+            if ($user->role_id == 12) {
                 $query->where('verifikator_id', $user->id);
             } elseif ($user->role_id == 10) {
                 $query->where('validator_id', $user->id);
+            } elseif ($user->role_id == 11) {
+                $query->where('ketua_tuk_id', $user->id);
             }
         }
 
@@ -258,6 +260,7 @@ class PengajuanTukController extends Controller
             'metode_verifikasi' => 'required|in:Daring,Luring',
             'verifikator_id' => 'required|exists:users,id',
             'validator_id' => in_array($tukType, ['sewaktu', 'ajj']) ? 'nullable|exists:users,id' : 'required|exists:users,id',
+            'ketua_tuk_id' => 'required|exists:users,id',
             'skema' => 'nullable|array',
             'skema.*.id' => 'nullable|string',
             'skema.*.nama' => 'nullable|string',
@@ -278,6 +281,7 @@ class PengajuanTukController extends Controller
         $pengajuan->approved_at_admin = $now;
         $pengajuan->verifikator_id = $request->verifikator_id;
         $pengajuan->validator_id = $request->validator_id;
+        $pengajuan->ketua_tuk_id = $request->ketua_tuk_id;
 
         // Stash extra data for PDF generation
         $dataTuk = $pengajuan->data_tuk ?? [];
@@ -408,7 +412,7 @@ class PengajuanTukController extends Controller
         ]);
     }
 
-    // ─── Step 3: Ketua TUK Confirm ─────────────────────────────────
+    // ─── Step 4: Ketua TUK Confirm ─────────────────────────────────
 
     public function konfirmasiTuk(Request $request, $id)
     {
@@ -417,7 +421,7 @@ class PengajuanTukController extends Controller
             return response()->json(['message' => 'Hanya Ketua TUK yang dapat konfirmasi'], 403);
         }
 
-        $pengajuan = PengajuanTuk::where('id', $id)->where('status', 'disetujui_direktur')->firstOrFail();
+        $pengajuan = PengajuanTuk::where('id', $id)->where('status', 'diverifikasi')->firstOrFail();
 
         if ($pengajuan->tuk_type === 'ajj') {
             return response()->json(['message' => 'AJJ tidak memerlukan konfirmasi TUK'], 422);
@@ -441,23 +445,23 @@ class PengajuanTukController extends Controller
         ]);
     }
 
-    // ─── Step 4: Verifikator Submit Checklist ───────────────────────
+    // ─── Step 3: Verifikator Submit Checklist ───────────────────────
 
     public function verifikasi(Request $request, $id)
     {
         $user = $request->user();
-        if (!in_array($user->role_id, [5, 1])) {
-            return response()->json(['message' => 'Hanya Verifikator (Asesor) yang dapat verifikasi'], 403);
+        if (!in_array($user->role_id, [12, 1])) {
+            return response()->json(['message' => 'Hanya Verifikator yang dapat verifikasi'], 403);
         }
 
         $pengajuan = PengajuanTuk::where('id', $id)->firstOrFail();
         $isAjj = $pengajuan->tuk_type === 'ajj';
-        $expectedStatus = $isAjj ? 'disetujui_direktur' : 'dikonfirmasi_tuk';
+        $expectedStatus = 'disetujui_direktur'; // Both AJJ and sewaktu come from direktur approval
 
         if ($pengajuan->status !== $expectedStatus) {
             return response()->json(['message' => "Status harus {$expectedStatus}"], 422);
         }
-        if ($user->role_id != 1 && $pengajuan->verifikator_id !== $user->id) {
+        if ($user->role_id != 1 && $pengajuan->verifikator_id != $user->id) {
             return response()->json(['message' => 'Bukan Verifikator Anda'], 403);
         }
 
@@ -597,7 +601,7 @@ class PengajuanTukController extends Controller
         }
 
         $pengajuan = PengajuanTuk::where('id', $id)
-            ->whereIn('status', ['divalidasi', 'diverifikasi'])
+            ->whereIn('status', ['divalidasi', 'dikonfirmasi_tuk'])
             ->firstOrFail();
 
         // Separate barcode for SK page — date matches $tanggalKeputusan

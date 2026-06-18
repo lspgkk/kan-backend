@@ -141,31 +141,31 @@ td, th{
 <tr>
 <td class="gray">Nama Asesor 1</td>
 <td>:</td>
-<td>{{ isset($dokumenHeader['asesor_1']) && is_string($dokumenHeader['asesor_1']) ? $dokumenHeader['asesor_1'] : '-' }}</td>
+<td>{{ isset($dokumenHeader['asesor_1']) && is_string($dokumenHeader['asesor_1']) ? strtoupper($dokumenHeader['asesor_1']) : '-' }}</td>
 </tr>
 <tr>
 <td class="gray">Nama Asesor 2</td>
 <td>:</td>
-<td>{{ isset($dokumenHeader['asesor_2']) && is_string($dokumenHeader['asesor_2']) ? $dokumenHeader['asesor_2'] : '-' }}</td>
+<td>{{ isset($dokumenHeader['asesor_2']) && is_string($dokumenHeader['asesor_2']) ? strtoupper($dokumenHeader['asesor_2']) : '-' }}</td>
 </tr>
 @else
 <tr>
 <td class="gray">Nama Asesor</td>
 <td>:</td>
-<td>{{ isset($dokumenHeader['asesor_1']) && is_string($dokumenHeader['asesor_1']) ? $dokumenHeader['asesor_1'] : '-' }}</td>
+<td>{{ isset($dokumenHeader['asesor_1']) && is_string($dokumenHeader['asesor_1']) ? strtoupper($dokumenHeader['asesor_1']) : '-' }}</td>
 </tr>
 @endif
 
 <tr>
 <td class="gray">Nama Asesi</td>
 <td>:</td>
-<td>{{ isset($dokumenHeader['nama_asesi']) && is_string($dokumenHeader['nama_asesi']) ? $dokumenHeader['nama_asesi'] : '-' }}</td>
+<td>{{ isset($dokumenHeader['nama_asesi']) && is_string($dokumenHeader['nama_asesi']) ? strtoupper($dokumenHeader['nama_asesi']) : '-' }}</td>
 </tr>
 
 <tr>
 <td class="gray">Tanggal</td>
 <td>:</td>
-<td>{{ isset($dokumenHeader['tanggal_uji']) && is_string($dokumenHeader['tanggal_uji']) ? $dokumenHeader['tanggal_uji'] : '-' }}</td>
+<td>{{ isset($dokumenHeader['tanggal_uji']) && is_string($dokumenHeader['tanggal_uji']) ? \Carbon\Carbon::parse($dokumenHeader['tanggal_uji'])->locale('id')->translatedFormat('d F Y') : '-' }}</td>
 </tr>
 </table>
 </div>
@@ -274,7 +274,7 @@ td, th{
 <tr>
 <td width="30%">Nama Asesi</td>
 <td width="2%">:</td>
-<td>{{ isset($dokumenHeader['nama_asesi']) && is_string($dokumenHeader['nama_asesi']) ? $dokumenHeader['nama_asesi'] : '-' }}</td>
+<td>{{ isset($dokumenHeader['nama_asesi']) && is_string($dokumenHeader['nama_asesi']) ? strtoupper($dokumenHeader['nama_asesi']) : '-' }}</td>
 </tr>
 
 <tr>
@@ -284,7 +284,7 @@ td, th{
     @if(isset($barcodes['asesi']['url']) && !empty($barcodes['asesi']['url']))
         <img src="{{ $barcodes['asesi']['url'] }}" class="barcode-img" alt="Barcode Asesi">
     @else
-        {{ isset($dokumenHeader['tanggal_uji']) && is_string($dokumenHeader['tanggal_uji']) ? $dokumenHeader['tanggal_uji'] : '-' }}
+        {{ isset($dokumenHeader['tanggal_uji']) && is_string($dokumenHeader['tanggal_uji']) ? \Carbon\Carbon::parse($dokumenHeader['tanggal_uji'])->locale('id')->translatedFormat('d F Y') : '-' }}
     @endif
 </td>
 </tr>
@@ -293,7 +293,7 @@ td, th{
 <tr>
 <td>Nama Asesor</td>
 <td>:</td>
-<td>{{ isset($dokumenHeader['asesor_1']) && is_string($dokumenHeader['asesor_1']) ? $dokumenHeader['asesor_1'] : '-' }}</td>
+<td>{{ isset($dokumenHeader['asesor_1']) && is_string($dokumenHeader['asesor_1']) ? strtoupper($dokumenHeader['asesor_1']) : '-' }}</td>
 </tr>
 
 <tr>
@@ -309,7 +309,7 @@ td, th{
     @if(isset($barcodes['asesor1']['url']) && !empty($barcodes['asesor1']['url']))
         <img src="{{ $barcodes['asesor1']['url'] }}" class="barcode-img" alt="Barcode Asesor 1">
     @else
-        {{ isset($dokumenHeader['tanggal_uji']) && is_string($dokumenHeader['tanggal_uji']) ? $dokumenHeader['tanggal_uji'] : '-' }}
+        {{ isset($dokumenHeader['tanggal_uji']) && is_string($dokumenHeader['tanggal_uji']) ? \Carbon\Carbon::parse($dokumenHeader['tanggal_uji'])->locale('id')->translatedFormat('d F Y') : '-' }}
     @endif
 </td>
 </tr>
@@ -319,7 +319,7 @@ td, th{
 <tr>
 <td>Nama Asesor</td>
 <td>:</td>
-<td>{{ isset($dokumenHeader['asesor_2']) && is_string($dokumenHeader['asesor_2']) ? $dokumenHeader['asesor_2'] : '-' }}</td>
+<td>{{ isset($dokumenHeader['asesor_2']) && is_string($dokumenHeader['asesor_2']) ? strtoupper($dokumenHeader['asesor_2']) : '-' }}</td>
 </tr>
 
 <tr>
@@ -335,7 +335,7 @@ td, th{
     @if(isset($barcodes['asesor2']['url']) && !empty($barcodes['asesor2']['url']))
         <img src="{{ $barcodes['asesor2']['url'] }}" class="barcode-img" alt="Barcode Asesor 2">
     @else
-        {{ isset($dokumenHeader['tanggal_uji']) && is_string($dokumenHeader['tanggal_uji']) ? $dokumenHeader['tanggal_uji'] : '-' }}
+        {{ isset($dokumenHeader['tanggal_uji']) && is_string($dokumenHeader['tanggal_uji']) ? \Carbon\Carbon::parse($dokumenHeader['tanggal_uji'])->locale('id')->translatedFormat('d F Y') : '-' }}
     @endif
 </td>
 </tr>

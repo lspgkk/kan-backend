@@ -452,7 +452,7 @@
                     @if($barcodes['asesor1']['url'] ?? null)
                     <img src="{{ $barcodes['asesor1']['url'] }}" style="height: 50px; width: 50px; object-fit: contain;" /><br />
                     <span style="font-size: 11px;">
-                        {{ $barcodes['asesor1']['tanggal'] ? \Carbon\Carbon::parse($barcodes['asesor1']['tanggal'])->translatedFormat('d F Y') : '' }}
+                        {{ $barcodes['asesor1']['tanggal'] ? \Carbon\Carbon::parse($barcodes['asesor1']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}
                     </span>
                     @endif
                 </td>
@@ -481,7 +481,7 @@
                     @if($barcodes['asesor2']['url'] ?? null)
                     <img src="{{ $barcodes['asesor2']['url'] }}" style="height: 50px; width: 50px; object-fit: contain;" /><br />
                     <span style="font-size: 11px;">
-                        {{ $barcodes['asesor2']['tanggal'] ? \Carbon\Carbon::parse($barcodes['asesor2']['tanggal'])->translatedFormat('d F Y') : '' }}
+                        {{ $barcodes['asesor2']['tanggal'] ? \Carbon\Carbon::parse($barcodes['asesor2']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}
                     </span>
                     @endif
                 </td>
@@ -511,7 +511,7 @@
                     @if($barcodes['asesor1']['url'] ?? null)
                     <img src="{{ $barcodes['asesor1']['url'] }}" style="height: 50px; width: 50px; object-fit: contain;" /><br />
                     <span style="font-size: 11px;">
-                        {{ $barcodes['asesor1']['tanggal'] ? \Carbon\Carbon::parse($barcodes['asesor1']['tanggal'])->translatedFormat('d F Y') : '' }}
+                        {{ $barcodes['asesor1']['tanggal'] ? \Carbon\Carbon::parse($barcodes['asesor1']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}
                     </span>
                     @endif
                 </td>

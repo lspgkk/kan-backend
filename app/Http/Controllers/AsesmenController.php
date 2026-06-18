@@ -2617,19 +2617,74 @@ class AsesmenController extends Controller
             $id
         );
 
-        $dataDokumen = $this->buildAk05Data($id, true);
-        if (!$dataDokumen) {
-            abort(404, 'Data not found');
+        // Find jadwal_id from this id_izin
+        $jadwalId = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
+        if (!$jadwalId) {
+            abort(404, 'Jadwal not found for this id_izin');
         }
+
+        // Get all asesi in the jadwal
+        $asesiList = AsesiJadwal::where('jadwal_id', $jadwalId)
+            ->join('personals', 'personals.id_izin', '=', 'asesi_jadwals.id_izin')
+            ->select(['asesi_jadwals.id_izin', 'personals.nama'])
+            ->get();
+
+        if ($asesiList->isEmpty()) {
+            abort(404, 'No asesi found for this jadwal');
+        }
+
+        // Build data for each asesi
+        $asesiData = [];
+        $combinedAspek = [];
+        $combinedPenolakan = [];
+        $combinedSaran = [];
+        $combinedCatatan = [];
+
+        foreach ($asesiList as $asesi) {
+            $answer = Ak5Answer::where('id_izin', $asesi->id_izin)
+                ->first(['keterangan', 'aspek', 'pencatatan_penolakan', 'saran', 'catatan']);
+            $kompeten = $this->resolveKomtekDecision($asesi->id_izin);
+
+            $asesiData[] = [
+                'nama' => $asesi->nama,
+                'kompeten' => $kompeten === 'K',
+                'keterangan' => $answer?->keterangan ?? '',
+            ];
+
+            if (!empty($answer?->aspek)) {
+                $combinedAspek[] = $asesi->nama . ': ' . $answer->aspek;
+            }
+            if (!empty($answer?->pencatatan_penolakan)) {
+                $combinedPenolakan[] = $asesi->nama . ': ' . $answer->pencatatan_penolakan;
+            }
+            if (!empty($answer?->saran)) {
+                $combinedSaran[] = $asesi->nama . ': ' . $answer->saran;
+            }
+            if (!empty($answer?->catatan)) {
+                $combinedCatatan[] = $asesi->nama . ': ' . $answer->catatan;
+            }
+        }
+
+        // Shared asesor barcodes per jadwal (not per-asesi)
+        $asesorBarcodes = $this->getLatestAsesorBarcodes($jadwalId);
 
         $dokumenHeader = $this->buildDokumenHeader($id);
         if (!$dokumenHeader) {
             abort(404, 'Dokumen header not found');
         }
 
-        $viewData = array_merge($dataDokumen, [
-            'dokumenHeader' => $dokumenHeader
-        ]);
+        $viewData = [
+            'dokumenHeader' => $dokumenHeader,
+            'asesiList' => $asesiData,
+            'barcodes' => $asesorBarcodes,
+            'answers' => [
+                'aspek' => implode("\n\n", $combinedAspek),
+                'pencatatan_penolakan' => implode("\n\n", $combinedPenolakan),
+                'saran' => implode("\n\n", $combinedSaran),
+                'catatan' => implode("\n\n", $combinedCatatan),
+            ],
+            'kompeten' => !empty($asesiData) ? $asesiData[0]['kompeten'] : false,
+        ];
 
         /* =========================
         * GENERATE PDF
@@ -2641,8 +2696,8 @@ class AsesmenController extends Controller
         $disk = 'str_moon';
         $directory = 'dok_asesmen/ak05';
 
-        // unique + traceable filename
-        $filename = 'FR-AK-05-' . $id . '.pdf';
+        // One file per jadwal
+        $filename = 'FR-AK-05-JADWAL-' . $jadwalId . '.pdf';
         $path = $directory . '/' . $filename;
 
         // save PDF bytes to FTP
@@ -2656,13 +2711,15 @@ class AsesmenController extends Controller
         $fullUrl = $publicBaseUrl . $path;
 
         /* =========================
-        * UPDATE DATABASE
+        * UPDATE DATABASE — semua asesi di jadwal pakai URL yang sama
         * ========================= */
 
-        BuktiAsesmen::updateOrCreate(
-            ['id_izin' => $id],
-            ['url_ak05' => $fullUrl]
-        );
+        foreach ($asesiList as $asesi) {
+            BuktiAsesmen::updateOrCreate(
+                ['id_izin' => $asesi->id_izin],
+                ['url_ak05' => $fullUrl]
+            );
+        }
 
         return response()->json([
             'message' => 'Success',
@@ -2966,6 +3023,114 @@ class AsesmenController extends Controller
                 'foto_kegiatan' => $dokumen->url_docs_asesmen,
             ]
         ]);
+    }
+
+    public function downloadDokumenAsesi($id)
+    {
+        $fields = [
+            'url_apl_01',
+            'url_apl_02',
+            'url_mapa01',
+            'url_mapa02',
+            'url_ak07',
+            'url_ak04',
+            'url_ak01',
+            'url_ia_01',
+            'url_ia_02',
+            'url_ia_03',
+            'url_ia_04a',
+            'url_ia_04b',
+            'url_ia_05',
+            'url_ia_08',
+            'url_ia_09',
+            'url_ia_10',
+            'url_ak02',
+            'url_ak03',
+            'url_ak05',
+            'url_ak06',
+            'url_paparan',
+            'url_docs_asesmen',
+        ];
+
+        $dokumen = BuktiAsesmen::select($fields)
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$dokumen) {
+            abort(404, 'Dokumen asesmen not found');
+        }
+
+        // Collect all non-null URLs
+        $files = [];
+        foreach ($fields as $field) {
+            $url = $dokumen->$field;
+            if ($url) {
+                $filename = basename(parse_url($url, PHP_URL_PATH));
+                $files[] = ['url' => $url, 'name' => $filename ?: $field . '.pdf'];
+            }
+        }
+
+        if (empty($files)) {
+            abort(404, 'No documents available for download');
+        }
+
+        // Create temp zip
+        $zipPath = tempnam(sys_get_temp_dir(), 'dokumen_') . '.zip';
+        $zip = new \ZipArchive();
+
+        if ($zip->open($zipPath, \ZipArchive::CREATE) !== true) {
+            abort(500, 'Could not create zip file');
+        }
+
+        $downloaded = 0;
+        foreach ($files as $file) {
+            try {
+                $context = stream_context_create([
+                    'http' => [
+                        'timeout' => 30,
+                        'follow_location' => true,
+                        'user_agent' => 'Gatensi/1.0',
+                    ],
+                    'ssl' => [
+                        'verify_peer' => false,
+                        'verify_peer_name' => false,
+                    ],
+                ]);
+
+                $content = @file_get_contents($file['url'], false, $context);
+
+                if ($content !== false) {
+                    // Avoid duplicate filenames
+                    $entryName = $file['name'];
+                    $counter = 1;
+                    while ($zip->statName($entryName) !== false) {
+                        $pathInfo = pathinfo($file['name']);
+                        $entryName = $pathInfo['filename'] . '_' . $counter . '.' . ($pathInfo['extension'] ?? 'pdf');
+                        $counter++;
+                    }
+
+                    $zip->addFromString($entryName, $content);
+                    $downloaded++;
+                }
+            } catch (\Throwable $e) {
+                // Skip failed downloads silently
+                continue;
+            }
+        }
+
+        $zip->close();
+
+        if ($downloaded === 0) {
+            @unlink($zipPath);
+            abort(500, 'Failed to download any documents');
+        }
+
+        $namaAsesi = Personal::where('id_izin', $id)->value('nama');
+        $namaFile = 'DOKUMEN_ASESMEN_' . strtoupper(str_replace(' ', '_', ($namaAsesi ?? $id))) . '.zip';
+
+        return response()
+            ->download($zipPath, $namaFile)
+            ->deleteFileAfterSend(true);
     }
 
     public function absensi($id)

@@ -12,7 +12,7 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
-        if ($request->boolean('all')) {
+        if ($request->boolean('all')) { 
             $query = User::with('role')->where('is_deleted', false)
                 ->whereDoesntHave('role', function ($q) {
                     $q->where('name', 'Asesi');
@@ -100,6 +100,8 @@ class UserController extends Controller
             'email'    => 'required|email|unique:users,email',
             'phone'    => 'nullable|string|max:20',
             'role_id'  => 'required|exists:roles,id',
+            'tuk_id'   => 'nullable|exists:mytuk,id',
+            'noreg'    => 'nullable|string|max:255',
             'password' => 'required|string|min:6|confirmed',
             'avatar'   => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'address'  => 'nullable|string',
@@ -112,6 +114,8 @@ class UserController extends Controller
                 'email'    => $validated['email'],
                 'phone'    => $validated['phone'] ?? null,
                 'role_id'  => $validated['role_id'],
+                'tuk_id'   => $validated['tuk_id'] ?? null,
+                'noreg'    => in_array($validated['role_id'], [5, 12]) ? ($validated['noreg'] ?? null) : null,
                 'password' => $validated['password'],
                 'address'  => $validated['address'] ?? null,
             ];
@@ -135,5 +139,68 @@ class UserController extends Controller
             }
             return response()->json(['message' => $e->getMessage()], 500);
         }
+    }
+
+    public function show($id)
+    {
+        $user = User::with('role', 'tuk')->where('is_deleted', false)->findOrFail($id);
+
+        return response()->json([
+            'message' => 'User retrieved successfully',
+            'data'    => $user,
+        ]);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $user = User::where('is_deleted', false)->findOrFail($id);
+
+        $validated = $request->validate([
+            'name'     => 'nullable|string|max:255',
+            'email'    => 'nullable|email|unique:users,email,' . $user->id,
+            'phone'    => 'nullable|string|max:20',
+            'role_id'  => 'nullable|exists:roles,id',
+            'tuk_id'   => 'nullable|exists:mytuk,id',
+            'noreg'    => 'nullable|string|max:255',
+            'password' => 'nullable|string|min:6|confirmed',
+            'avatar'   => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            'address'  => 'nullable|string',
+        ]);
+
+        $roleId = $validated['role_id'] ?? $user->role_id;
+        $data = array_filter([
+            'name'    => $validated['name'] ?? null,
+            'email'   => $validated['email'] ?? null,
+            'phone'   => $validated['phone'] ?? null,
+            'role_id' => $validated['role_id'] ?? null,
+            'tuk_id'  => $validated['tuk_id'] ?? null,
+            'noreg'   => in_array($roleId, [5, 12]) ? ($validated['noreg'] ?? null) : null,
+            'address' => $validated['address'] ?? null,
+        ], fn ($v) => !is_null($v));
+
+        if (!empty($validated['password'])) {
+            $data['password'] = $validated['password'];
+        }
+
+        if ($request->hasFile('avatar')) {
+            $data['avatar'] = $request->file('avatar')->store('avatars', 'public');
+        }
+
+        $user->update($data);
+
+        return response()->json([
+            'message' => 'User updated successfully',
+            'data'    => $user->fresh()->load('role'),
+        ]);
+    }
+
+    public function destroy($id)
+    {
+        $user = User::findOrFail($id);
+        $user->update(['is_deleted' => true, 'deleted_at' => now()]);
+
+        return response()->json([
+            'message' => 'User deleted successfully',
+        ]);
     }
 }

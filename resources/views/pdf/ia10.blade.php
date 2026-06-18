@@ -87,6 +87,21 @@ td, th {
     font-size: 10px;
     margin-top: 10px;
 }
+
+.checkbox {
+    width: 12px;
+    height: 12px;
+    border: 1px solid #000;
+    display: inline-block;
+    text-align: center;
+    line-height: 11px;
+    font-size: 15px;
+    font-family: "DejaVu Sans", sans-serif;
+}
+
+.checked::after {
+    content: "✔";
+}
 </style>
 </head>
 <body>
@@ -113,10 +128,10 @@ td, th {
     </tr>
 
     <tr><td>TUK</td><td>:</td><td colspan="2">{{ $dokumenHeader['tuk'] ?? '' }}</td></tr>
-    <tr><td>Nama Asesor 1</td><td>:</td><td colspan="2">{{ $dokumenHeader['asesor_1'] ?? '' }}</td></tr>
-    <tr><td>Nama Asesor 2</td><td>:</td><td colspan="2">{{ $dokumenHeader['asesor_2'] ?? '' }}</td></tr>
-    <tr><td>Nama Asesi</td><td>:</td><td colspan="2">{{ $dokumenHeader['nama_asesi'] ?? '' }}</td></tr>
-    <tr><td>Tanggal</td><td>:</td><td colspan="2">{{ $dokumenHeader['tanggal_uji'] ?? '' }}</td></tr>
+    <tr><td>Nama Asesor 1</td><td>:</td><td colspan="2">{{ strtoupper($dokumenHeader['asesor_1'] ?? '') }}</td></tr>
+    <tr><td>Nama Asesor 2</td><td>:</td><td colspan="2">{{ strtoupper($dokumenHeader['asesor_2'] ?? '') }}</td></tr>
+    <tr><td>Nama Asesi</td><td>:</td><td colspan="2">{{ strtoupper($dokumenHeader['nama_asesi'] ?? '') }}</td></tr>
+    <tr><td>Tanggal</td><td>:</td><td colspan="2">{{ isset($dokumenHeader['tanggal_uji']) ? \Carbon\Carbon::parse($dokumenHeader['tanggal_uji'])->locale('id')->translatedFormat('d F Y') : '' }}</td></tr>
   </table>
 
   <div class="small">*Coret yang tidak perlu</div>
@@ -160,8 +175,8 @@ td, th {
     @foreach($referensi_form[2] as $item)
     <tr>
       <td>- {{ $item->nama ?? '' }}</td>
-      <td class="center">@if(isset($answers[$item->id]) && $answers[$item->id] === true)✓@endif</td>
-      <td class="center">@if(isset($answers[$item->id]) && $answers[$item->id] === false)✓@endif</td>
+      <td class="center">@if(isset($answers[$item->id]) && $answers[$item->id] === true)<span class="checkbox checked"></span>@endif</td>
+      <td class="center">@if(isset($answers[$item->id]) && $answers[$item->id] === false)<span class="checkbox checked"></span>@endif</td>
     </tr>
     @endforeach
   </table>
@@ -189,14 +204,14 @@ td, th {
   <table style="margin-top:10px;">
     <tr>
       <td>
-        Tanda tangan Asesor 1: <span style="float:right;">Tanggal:</span>
+        Tanda tangan Asesor 1: <span style="float:right;">Tanggal: {{ isset($barcodes['asesor1']['tanggal']) ? \Carbon\Carbon::parse($barcodes['asesor1']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}</span>
         <div class="space"><img src="{{ $barcodes['asesor1']['url'] ?? '' }}" style="height:50px; width:50px; object-fit:contain;" /></div>
       </td>
     </tr>
 
     <tr>
       <td>
-        Tanda tangan Asesor 2: <span style="float:right;">Tanggal:</span>
+        Tanda tangan Asesor 2: <span style="float:right;">Tanggal: {{ isset($barcodes['asesor2']['tanggal']) ? \Carbon\Carbon::parse($barcodes['asesor2']['tanggal'])->locale('id')->translatedFormat('d F Y') : '' }}</span>
         <div class="space"><img src="{{ $barcodes['asesor2']['url'] ?? '' }}" style="height:50px; width:50px; object-fit:contain;" /></div>
       </td>
     </tr>

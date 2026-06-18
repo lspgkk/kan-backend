@@ -134,21 +134,21 @@
     @if(isset($dokumenHeader['asesor_2']))
         <tr>
             <td colspan=2>Nama Asesor 1</td>
-            <td>{{ $dokumenHeader['asesor_1'] }}</td>
+            <td>{{ strtoupper($dokumenHeader['asesor_1']) }}</td>
         </tr>
         <tr>
             <td colspan=2>Nama Asesor 2</td>
-            <td>{{ $dokumenHeader['asesor_2'] }}</td>
+            <td>{{ strtoupper($dokumenHeader['asesor_2']) }}</td>
         </tr>
     @else
     <tr>
         <td colspan=2>Nama Asesor</td>
-        <td>{{ $dokumenHeader['asesor_1'] }}</td>
+        <td>{{ strtoupper($dokumenHeader['asesor_1']) }}</td>
     </tr>
     @endif
     <tr>
         <td colspan=2>Nama Asesi</td>
-        <td>{{ $dokumenHeader['nama_asesi'] }}</td>
+        <td>{{ strtoupper($dokumenHeader['nama_asesi']) }}</td>
     </tr>
     <tr>
         <td colspan=2>Tanggal</td>
@@ -285,7 +285,7 @@
     </tr>
     <tr>
         <td>Nama</td>
-        <td>{{ $dokumenHeader['asesor_1'] ?? '-' }}</td>
+        <td>{{ strtoupper($dokumenHeader['asesor_1'] ?? '-') }}</td>
     </tr>
     <tr>
         <td>No Reg</td>
@@ -307,7 +307,7 @@
     </tr>
     <tr>
         <td>Nama</td>
-        <td>{{ $dokumenHeader['asesor_2'] ?? '-' }}</td>
+        <td>{{ strtoupper($dokumenHeader['asesor_2'] ?? '-') }}</td>
     </tr>
     <tr>
         <td>No Reg</td>
@@ -330,7 +330,7 @@
     </tr>
     <tr>
         <td>Nama</td>
-        <td>{{ $dokumenHeader['asesor_1'] ?? '-' }}</td>
+        <td>{{ strtoupper($dokumenHeader['asesor_1'] ?? '-') }}</td>
     </tr>
     <tr>
         <td>No Reg</td>
