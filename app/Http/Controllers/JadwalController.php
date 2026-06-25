@@ -16,9 +16,11 @@ use App\Models\KomtekRecommendation;
 use App\Models\MyTuk;
 use App\Models\MyTukBnsp;
 use App\Models\Pendidikan;
+use App\Models\PengajuanTuk;
 use App\Models\Personal;
 use App\Models\SPTAsesor;
 use App\Models\SPTKomtek;
+use App\Services\QontakService;
 use App\Models\SkKomtek;
 use App\Models\SkPelaksanaanUji;
 use App\Models\User;
@@ -31,6 +33,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class JadwalController extends Controller
@@ -321,6 +324,7 @@ class JadwalController extends Controller
          *  6️⃣ ADD PESERTA (COLLECT ERRORS)
          *  =============================== */
         $errors = [];
+        $asesiForNotif = []; // Collect asesi data for WhatsApp notification
 
         foreach ($validated['all_id_izin'] as $id_izin) {
             try {
@@ -566,6 +570,17 @@ class JadwalController extends Controller
                             "role_id" => 8, // Asesi role
                         ]);
                     }
+
+                    // Collect asesi data for WhatsApp notification after jadwal is created
+                    if ($personalsData->telepon) {
+                        $asesiForNotif[] = [
+                            'id_izin'  => $id_izin,
+                            'nama'     => $personalsData->nama,
+                            'telepon'  => $personalsData->telepon,
+                            'account'  => $account,
+                            'password' => $password,
+                        ];
+                    }
                 } catch (\Throwable $e) {
                 $errors[] = [
                     'id_izin' => $id_izin,
@@ -597,10 +612,26 @@ class JadwalController extends Controller
         }
 
         /** ===============================
-         *  📝 SIMPAN REF NUMBER VERIFIKASI TUK
+         *  📝 SIMPAN URL HASIL VERIFIKASI TUK DARI PENGUJIAN TUK
          *  =============================== */
         if (!empty($validated['pengajuan_tuk_ref']) && $createdJadwal) {
-            $createdJadwal->update(['file_verifikasi_tuk' => $validated['pengajuan_tuk_ref']]);
+            $pengajuanTuk = PengajuanTuk::where('ref_number', $validated['pengajuan_tuk_ref'])->first();
+
+            if ($pengajuanTuk && $pengajuanTuk->doc_hasil_verifikasi) {
+                $fileUrl = "https://moon.lspgatensi.id/files/new_gatensi/{$pengajuanTuk->doc_hasil_verifikasi}";
+                $createdJadwal->update(['file_verifikasi_tuk' => $fileUrl]);
+            } else {
+                Log::warning('PengajuanTuk not found or doc_hasil_verifikasi empty', [
+                    'ref_number' => $validated['pengajuan_tuk_ref'],
+                ]);
+            }
+        }
+
+        /** ===============================
+         *  💬 SEND WHATSAPP NOTIFICATION TO ASESI
+         *  =============================== */
+        if (!empty($asesiForNotif) && $createdJadwal) {
+            $this->sendWhatsAppToAsesi($asesiForNotif, $createdJadwal);
         }
 
         /** ===============================
@@ -781,7 +812,7 @@ class JadwalController extends Controller
 
         // Update all other related tables so records created during pra-asesmen/asesmen
         // (before postToBnsp) don't become orphaned after jadwal_id changes
-        $relatedTables = ['ba_komteks', 'spt_komteks', 'spt_asesors', 'absen_komteks', 'sk_komteks', 'sk_pelaksanaan_ujis', 'verifikasi_tuk'];
+        $relatedTables = ['ba_komteks', 's_p_t_komteks', 's_p_t_asesors', 'absen_komteks', 'sk_komteks', 'sk_pelaksanaan_ujis', 'verifikasi_tuk'];
         foreach ($relatedTables as $table) {
             DB::table($table)->where('jadwal_id', $localIdBefore)->update(['jadwal_id' => $realJadwalId]);
         }
@@ -796,7 +827,7 @@ class JadwalController extends Controller
         foreach ($idIzinList as $id_izin) {
             try {
                 $personalsData = Personal::where('id_izin', $id_izin)
-                    ->select('nik', 'nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kabupaten', 'propinsi', 'telepon', 'email', 'type')
+                    ->select('nik', 'nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kabupaten', 'propinsi', 'telepon', 'email', 'type', 'account', 'password_plain')
                     ->first();
 
                 if (!$personalsData) {
@@ -951,6 +982,8 @@ class JadwalController extends Controller
                     'jadwal_id'  => $realJadwalId,
                     'status'     => $statusCode,
                 ]);
+
+				// WhatsApp notification sent saat store (draft), not here
             } catch (\Throwable $e) {
                 $participantErrors[] = [
                     'id_izin' => $id_izin,
@@ -1002,6 +1035,94 @@ class JadwalController extends Controller
             'participant_errors'          => $participantErrors,
             'spt_asesor_sent_to_bnsp'     => $sptAsesorWasSent && $reApprovedSptAsesor,
         ]);
+    }
+
+    /**
+     * Send WhatsApp notification to asesi after BNSP sync using template
+     * ID 1242eff1-3967-4478-9f0a-80ee272c13dd.
+     *
+     * Template parameters:
+     *   {{1}} nama_asesi  {{2}} tanggal_uji  {{3}} tuk
+     *   {{4}} skema       {{5}} link_ujian   {{6}} akun
+     *   {{7}} password
+     */
+    private function sendWhatsAppToAsesi(array $asesiList, Jadwal $jadwal): void
+    {
+        // Load relations
+        if (!$jadwal->relationLoaded('asesor')) {
+            $jadwal->load('asesor', 'asesor2', 'tuk', 'asesiJadwals.skema');
+        }
+
+        $tukName = $jadwal->tuk?->Nama ?? $jadwal->tuk?->nama_tuk ?? '-';
+        $tanggalUji = \Carbon\Carbon::parse($jadwal->tanggal_uji)->locale('id')->translatedFormat('d F Y');
+        $linkUjian = 'https://sisuj.vercel.app';
+
+        // Build lookup for skema per id_izin
+        $skemaMap = [];
+        foreach ($jadwal->asesiJadwals as $aj) {
+            $skemaMap[$aj->id_izin] = $aj->skema?->nama ?? $aj->skema?->skema ?? '-';
+        }
+
+        $qontak = new QontakService();
+
+        foreach ($asesiList as $asesi) {
+            try {
+                $phone = $asesi['telepon'] ?? null;
+                if (empty($phone)) {
+                    Log::warning('WA notif skipped: no phone number', [
+                        'id_izin' => $asesi['id_izin'],
+                        'nama'    => $asesi['nama'],
+                    ]);
+                    continue;
+                }
+
+                // Format phone: must start with 62
+                $phone = preg_replace('/[^0-9]/', '', $phone);
+                if (str_starts_with($phone, '0')) {
+                    $phone = '62' . substr($phone, 1);
+                } elseif (!str_starts_with($phone, '62')) {
+                    $phone = '62' . $phone;
+                }
+
+                if (strlen($phone) < 10) {
+                    Log::warning('WA notif skipped: invalid phone number', [
+                        'id_izin' => $asesi['id_izin'],
+                        'phone'   => $phone,
+                    ]);
+                    continue;
+                }
+
+                $params = [
+                    'nama_asesi'  => $asesi['nama'],
+                    'tanggal_uji' => $tanggalUji,
+                    'tuk'         => $tukName,
+                    'skema'       => $skemaMap[$asesi['id_izin']] ?? '-',
+                    'link_ujian'  => $linkUjian,
+                    'akun'        => $asesi['account'] ?? '-',
+                    'password'    => $asesi['password'] ?? '-',
+                ];
+
+                $templateIdNotif = '7fb61271-24b3-44d7-9a81-7fda00b30031';
+                $result = $qontak->sendMessage($phone, $asesi['nama'], $params, $templateIdNotif);
+
+                if ($result) {
+                    Log::info('WA notif sent to asesi', [
+                        'id_izin' => $asesi['id_izin'],
+                        'nama'    => $asesi['nama'],
+                    ]);
+                } else {
+                    Log::warning('WA notif failed to send', [
+                        'id_izin' => $asesi['id_izin'],
+                        'nama'    => $asesi['nama'],
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::error('WA notif exception', [
+                    'id_izin' => $asesi['id_izin'],
+                    'error'   => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     private function generateAndSendSptAsesor(
@@ -2264,6 +2385,57 @@ class JadwalController extends Controller
             'message' => 'Pengajuan TUK list retrieved successfully',
             'data' => $pengajuanTukList,
         ]);
+    }
+
+    /**
+     * Upload dokumen verifikasi TUK langsung (tanpa melalui pengajuan).
+     * Menyimpan file ke FTP str_moon dan membuat record PengajuanTuk
+     * dengan status "selesai" agar muncul di dropdown Ref. Verifikasi TUK.
+     */
+    public function uploadDokumenVerifikasi(Request $request)
+    {
+        $validated = $request->validate([
+            'file'     => ['required', 'file', 'mimes:pdf', 'max:10240'], // max 10 MB
+            'nama_tuk' => ['required', 'string', 'max:255'],
+            'tuk_type' => ['required', 'string', 'in:sewaktu,mandiri'],
+        ]);
+
+        /** @var \Illuminate\Http\UploadedFile $file */
+        $file = $validated['file'];
+
+        // Store on FTP str_moon → https://moon.lspgatensi.id/files/new_gatensi/...
+        $filePath = $file->store('verifikasi-tuk-upload', 'str_moon');
+        if (!$filePath) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyimpan file',
+            ], 500);
+        }
+
+        // Generate unique ref number
+        $refNumber = 'TUK-' . strtoupper(Str::random(8)) . '-' . strtoupper(Str::random(4));
+
+        // Create PengajuanTuk record with status "selesai" (appears in dropdown)
+        $record = PengajuanTuk::create([
+            'ref_number'          => $refNumber,
+            'tuk_type'            => $validated['tuk_type'],
+            'status'              => 'selesai',
+            'data_tuk'            => ['namaTuk' => $validated['nama_tuk']],
+            'doc_hasil_verifikasi' => $filePath,
+            'submitted_by'        => $request->user()?->id,
+        ]);
+
+        $moonBase = 'https://moon.lspgatensi.id/files/new_gatensi/';
+
+        return response()->json([
+            'success'   => true,
+            'message'   => 'Dokumen verifikasi TUK berhasil diupload',
+            'data'      => [
+                'id'         => $record->id,
+                'ref_number' => $record->ref_number,
+                'file_url'   => $moonBase . $filePath,
+            ],
+        ], 201);
     }
 
     /**

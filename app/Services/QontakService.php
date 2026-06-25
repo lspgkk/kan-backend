@@ -55,33 +55,45 @@ class QontakService
     /**
      * Send WhatsApp template message via Qontak.
      *
-     * @param string $toNumber  Recipient phone number (e.g. 6281234567890)
-     * @param string $toName    Recipient name
-     * @param array  $params    Body parameters: ['nama_asesi', 'tanggal_uji', 'tuk', 'skema', 'link']
-     * @return array|null       Response data or null on failure
+     * Body parameters are built dynamically from the $params array.
+     * Each key becomes a sequential parameter entry:
+     *   ['key' => '1', 'value_text' => '...', 'value' => 'nama_parameter']
+     *
+     * @param string      $toNumber   Recipient phone number (e.g. 6281234567890)
+     * @param string      $toName     Recipient name
+     * @param array       $params     Associative array of parameter name → value.
+     *                                Example: ['nama_asesi' => 'Budi', 'tanggal_uji' => '2026-06-21', ...]
+     * @param string|null $templateId Override template ID (uses config default if null)
+     * @return array|null             Response data or null on failure
      */
-    public function sendMessage(string $toNumber, string $toName, array $params): ?array
+    public function sendMessage(string $toNumber, string $toName, array $params, ?string $templateId = null): ?array
     {
         if (!$this->accessToken) {
             $this->refreshToken();
         }
 
+        // Build body parameters dynamically
+        $bodyParams = [];
+        $idx = 1;
+        foreach ($params as $paramName => $paramValue) {
+            $bodyParams[] = [
+                'key' => (string) $idx,
+                'value_text' => (string) $paramValue,
+                'value' => $paramName,
+            ];
+            $idx++;
+        }
+
         $body = [
             'to_name' => $toName,
             'to_number' => $toNumber,
-            'message_template_id' => $this->templateId,
+            'message_template_id' => $templateId ?? $this->templateId,
             'channel_integration_id' => $this->channelIntegrationId,
             'language' => [
                 'code' => 'id',
             ],
             'parameters' => [
-                'body' => [
-                    ['key' => '1', 'value_text' => $params['nama_asesi'], 'value' => 'nama_asesi'],
-                    ['key' => '2', 'value_text' => $params['tanggal_uji'], 'value' => 'tanggal_uji'],
-                    ['key' => '3', 'value_text' => $params['tuk'], 'value' => 'tuk'],
-                    ['key' => '4', 'value_text' => $params['skema'], 'value' => 'skema'],
-                    ['key' => '5', 'value_text' => $params['link'], 'value' => 'link'],
-                ],
+                'body' => $bodyParams,
             ],
         ];
 

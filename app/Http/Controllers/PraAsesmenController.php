@@ -344,7 +344,7 @@ class PraAsesmenController extends Controller
 
     public function getApl01($id)
     {
-        $personal = Personal::select(['nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kodepos', 'telepon', 'email'])->where('id_izin', $id)->first();
+        $personal = Personal::select(['nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kodepos', 'telepon', 'email', 'pas_foto', 'ktp'])->where('id_izin', $id)->first();
         $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])->where('id_izin', $id)->first();
         if (!$klasifikasi) {
             return response()->json([
@@ -358,6 +358,9 @@ class PraAsesmenController extends Controller
         $kualifikasi = JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)->value('jabatan_kerja');
         $unitKompetensi = UnitKompetensi::select(['kode', 'nama'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->get();
         $jenjang = Pendidikan::where('id_izin', $id)->orderBy('created_at', 'desc')->value('jenjang');
+
+        // Get latest pendidikan data for ijazah URL
+        $pendidikanTerakhir = Pendidikan::where('id_izin', $id)->orderBy('created_at', 'desc')->first();
 
         // Map jenjang to education level keywords
         $educationMapping = [
@@ -417,7 +420,7 @@ class PraAsesmenController extends Controller
             }
         }
 
-        $persyaratan = $persyaratanRecords->map(function ($item) use ($matchedEducationLevels) {
+        $persyaratan = $persyaratanRecords->map(function ($item) use ($matchedEducationLevels, $pendidikanTerakhir) {
                 $checked = false;
                 foreach ($matchedEducationLevels as $level) {
                     if (stripos($item->bukti, $level) !== false) {
@@ -425,10 +428,18 @@ class PraAsesmenController extends Controller
                         break;
                     }
                 }
+
+                // Add ijazah URL if checked and bukti contains 'ijazah'
+                $ijazahUrl = null;
+                if ($checked && $pendidikanTerakhir && stripos($item->bukti, 'ijazah') !== false) {
+                    $ijazahUrl = $pendidikanTerakhir->scan_ijazah_legalisir;
+                }
+
                 return [
                     'no' => $item->no,
                     'bukti' => $item->bukti,
-                    'checked' => $checked
+                    'checked' => $checked,
+                    'ijazah_url' => $ijazahUrl
                 ];
             });
         $administratif = ImpBuktiAdministrasi::select(['no', 'bukti'])
@@ -475,10 +486,22 @@ class PraAsesmenController extends Controller
 
             // Merge in desired order
             foreach (array_merge($foto, $ktp, $other) as $text) {
+                // Add foto_url for "pas foto" and ktp_url for "ktp"
+                $fotoUrl = null;
+                $ktpUrl = null;
+
+                if ($personal && stripos($text, 'pas foto') !== false) {
+                    $fotoUrl = $personal->pas_foto;
+                } elseif ($personal && stripos($text, 'ktp') !== false) {
+                    $ktpUrl = $personal->ktp;
+                }
+
                 $formattedAdministratif->push([
                     'no'    => (string) $no++,
                     'bukti' => $text,
-                    'checked' => true
+                    'checked' => true,
+                    'foto_url' => $fotoUrl,
+                    'ktp_url' => $ktpUrl
                 ]);
             }
         }
@@ -597,7 +620,7 @@ class PraAsesmenController extends Controller
 
         $personal = Personal::select([
             'nama', 'nik', 'tempat_lahir', 'tanggal_lahir',
-            'jenis_kelamin', 'alamat', 'kodepos', 'telepon', 'email'
+            'jenis_kelamin', 'alamat', 'kodepos', 'telepon', 'email', 'pas_foto', 'ktp'
         ])->where('id_izin', $id)->firstOrFail();
 
         $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
@@ -624,6 +647,11 @@ class PraAsesmenController extends Controller
         $jenjang = Pendidikan::where('id_izin', $id)
             ->latest('created_at')
             ->value('jenjang');
+
+        // Get latest pendidikan data for ijazah URL
+        $pendidikanTerakhir = Pendidikan::where('id_izin', $id)
+            ->latest('created_at')
+            ->first();
 
         /* =========================
         * BUKTI
@@ -689,7 +717,7 @@ class PraAsesmenController extends Controller
             }
         }
 
-        $persyaratan = $persyaratanRecords->map(function ($item) use ($matchedEducationLevels) {
+        $persyaratan = $persyaratanRecords->map(function ($item) use ($matchedEducationLevels, $pendidikanTerakhir) {
                 $checked = false;
                 foreach ($matchedEducationLevels as $level) {
                     if (stripos($item->bukti, $level) !== false) {
@@ -697,10 +725,18 @@ class PraAsesmenController extends Controller
                         break;
                     }
                 }
+
+                // Add ijazah URL if checked and bukti contains 'ijazah'
+                $ijazahUrl = null;
+                if ($checked && $pendidikanTerakhir && stripos($item->bukti, 'ijazah') !== false) {
+                    $ijazahUrl = $pendidikanTerakhir->scan_ijazah_legalisir;
+                }
+
                 return [
                     'no' => $item->no,
                     'bukti' => $item->bukti,
-                    'checked' => $checked
+                    'checked' => $checked,
+                    'ijazah_url' => $ijazahUrl
                 ];
             });
 
@@ -747,10 +783,22 @@ class PraAsesmenController extends Controller
             }
 
             foreach (array_merge($foto, $ktp, $other) as $text) {
+                // Add foto_url for "pas foto" and ktp_url for "ktp"
+                $fotoUrl = null;
+                $ktpUrl = null;
+
+                if ($personal && stripos($text, 'pas foto') !== false) {
+                    $fotoUrl = $personal->pas_foto;
+                } elseif ($personal && stripos($text, 'ktp') !== false) {
+                    $ktpUrl = $personal->ktp;
+                }
+
                 $formattedAdministratif->push([
                     'no'      => $no++,
                     'bukti'   => $text,
-                    'checked' => true
+                    'checked' => true,
+                    'foto_url' => $fotoUrl,
+                    'ktp_url' => $ktpUrl
                 ]);
             }
         }
@@ -897,43 +945,46 @@ class PraAsesmenController extends Controller
             'is_dilanjutkan' => $submission?->is_dilanjutkan,
 
             'units' => $units->map(function ($unit) use ($answers, $baseUrl, $barcodes) {
+                $subunits = $unit->subunits->filter(function ($subunit) {
+                    return $subunit->kuks->isNotEmpty();
+                })->map(function ($subunit) use (
+                    $answers,
+                    $baseUrl,
+                    $barcodes
+                ) {
+                    $answer = $answers->get($subunit->id);
+
+                    return [
+                        'id' => (string) $subunit->id,
+                        'no_elemen' => $subunit->kode,
+                        'judul_elemen' => $subunit->nama,
+                        'kompeten' => (bool) ($answer->kompeten ?? false),
+
+                        'files' => $answer
+                            ? $answer->files->map(fn ($file) => [
+                                'id'   => $file->id,
+                                'name' => $file->original_name,
+                                'path' => $file->path && (str_starts_with($file->path, 'http://') || str_starts_with($file->path, 'https://'))
+                                    ? $file->path
+                                    : $baseUrl . ltrim($file->path, '/'),
+                                'filetype' => $file->filetype,
+                            ])->values()
+                            : [],
+
+                        'kuk_list' => $subunit->kuks->map(fn ($kuk) => [
+                            'no_kuk' => $kuk->kode,
+                            'judul_kuk' => $kuk->nama,
+                        ])->values(),
+                    ];
+                })->values();
+
                 return [
                     'id' => (string) $unit->id,
                     'kode' => $unit->kode,
                     'judul_kompetensi' => $unit->nama,
-
-                    'subunits' => $unit->subunits->map(function ($subunit) use (
-                        $answers,
-                        $baseUrl,
-                        $barcodes
-                    ) {
-                        $answer = $answers->get($subunit->id);
-
-                        return [
-                            'id' => (string) $subunit->id,
-                            'no_elemen' => $subunit->kode,
-                            'judul_elemen' => $subunit->nama,
-                            'kompeten' => (bool) ($answer->kompeten ?? false),
-
-                            'files' => $answer
-                                ? $answer->files->map(fn ($file) => [
-                                    'id'   => $file->id,
-                                    'name' => $file->original_name,
-                                    'path' => $file->path && (str_starts_with($file->path, 'http://') || str_starts_with($file->path, 'https://'))
-                                        ? $file->path
-                                        : $baseUrl . ltrim($file->path, '/'),
-                                    'filetype' => $file->filetype,
-                                ])->values()
-                                : [],
-
-                            'kuk_list' => $subunit->kuks->map(fn ($kuk) => [
-                                'no_kuk' => $kuk->kode,
-                                'judul_kuk' => $kuk->nama,
-                            ])->values(),
-                        ];
-                    })->values(),
+                    'subunits' => $subunits,
                 ];
-            })->values(),
+            })->filter(fn ($unit) => $unit['subunits']->isNotEmpty())->values(),
             'barcodes' => $barcodes,
         ];
     }
@@ -1776,16 +1827,64 @@ class PraAsesmenController extends Controller
 
     public function ttdMapa02(Request $request, $id)
     {
-        $data = $this->generateTtdBarcode(
+        $barcode = $this->generateTtdBarcode(
             $request,
             'MAPA02',
             'ttd_mapa02',
             $id
         );
 
+        $data = $this->buildMapa02Data($id, true);
+        if (!$data) {
+            abort(404, 'Data not found');
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($id);
+        if (!$dokumenHeader) {
+            abort(404, 'Dokumen header not found');
+        }
+
+        $viewData = array_merge($data, [
+            'dokumenHeader' => $dokumenHeader
+        ]);
+
+        /* =========================
+        * GENERATE PDF
+        * ========================= */
+
+        $pdf = Pdf::loadView('pdf.mapa02', $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/mapa02';
+
+        // unique + traceable filename
+        $filename = 'FR-MAPA-02-' . $id . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        // save PDF bytes to FTP
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        /* =========================
+        * BUILD PUBLIC URL
+        * ========================= */
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        /* =========================
+        * UPDATE DATABASE
+        * ========================= */
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_mapa02' => $fullUrl]
+        );
+
         return response()->json([
             'message' => 'Success',
-            'data'    => $data,
+            'data'    => $barcode,
+            'url'     => $fullUrl,
             'broadcasted' => true,
         ]);
     }
@@ -2288,7 +2387,7 @@ class PraAsesmenController extends Controller
             $metode  = strtolower($klasifikasi->metode_uji ?? '');
 
             if ($jenjang >= 1 && $jenjang <= 3) {
-                $autoTrueIds = [60, 227]; // Daftar Pertanyaan Tertulis, Hasil Observasi Langsung
+                $autoTrueIds = [62, 227]; // Daftar Pertanyaan Tertulis, Hasil Observasi Langsung
             } elseif ($jenjang >= 4 && $jenjang <= 9) {
                 if ($metode === 'portofolio') {
                     $autoTrueIds = [64, 226]; // Daftar Pertanyaan Wawancara, Hasil Verifikasi Portfolio

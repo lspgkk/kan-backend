@@ -252,7 +252,7 @@ class MidtransService
                 'Authorization' => 'Basic ' . base64_encode($this->serverKey . ':'),
             ])->timeout(30)
               ->connectTimeout(30)
-              ->get($this->getApiUrl() . '/' . $orderId . '/status');
+              ->get($this->getBaseApiUrl() . '/' . $orderId . '/status');
 
             if ($response->successful()) {
                 $responseData = $response->json();
@@ -349,9 +349,9 @@ class MidtransService
      * Create Snap transaction (for popup modal)
      * This is the preferred method for Snap integration
      */
-    public function createSnapTransaction($invoice, $paymentMethod = null)
+    public function createSnapTransaction($invoice, $paymentMethod = null, $orderId = null)
     {
-        $orderId = $this->generateOrderId($invoice->invoice_number);
+        $orderId = $orderId ?: $this->generateOrderId($invoice->invoice_number);
         $baseAmount = (int) $invoice->total_biaya;
 
         // Validate amount
@@ -391,6 +391,13 @@ class MidtransService
             ],
             // Enable specific payment methods
             'enabled_payments' => $this->getEnabledPaymentMethods(),
+
+            // Explicit expiry — Midtrans default is ~15 min, be explicit so it's clear
+            'expiry' => [
+                'start_time' => date('Y-m-d H:i:s O'),
+                'unit' => 'minute',
+                'duration' => 15,
+            ],
         ];
 
         try {
@@ -531,15 +538,32 @@ class MidtransService
     }
 
     /**
-     * Generate order ID
+     * Generate order ID with format: GKK_YYYY_MM_{seq}_{kode unik}
+     *
+     * Parses invoice number (AR-INV/LSP-GKK/2026/06-0047) to extract
+     * year, month, and sequential number, then appends a unique counter.
+     *
+     * Counter starts at 01 for the first payment attempt and increments
+     * each time the order ID is re-generated (e.g. after expiry).
+     *
      * Midtrans only allows alphanumeric characters, dash, underscore, and dot
      */
-    public function generateOrderId($invoiceNumber)
+    public function generateOrderId($invoiceNumber, $counter = 1)
     {
-        // Remove forward slashes and other special characters from invoice number
-        $cleanInvoiceNumber = str_replace(['/', ' ', '.'], '-', $invoiceNumber);
+        // Parse invoice number: AR-INV/LSP-GKK/2026/06-0047
+        $parts = explode('/', $invoiceNumber);
+        $lastSegment = end($parts);
+        $segParts = explode('-', $lastSegment);
 
-        return $this->prefix . '-' . $cleanInvoiceNumber . '-' . time();
+        $month = $segParts[0] ?? date('m');
+        $seq   = $segParts[1] ?? '0000';
+
+        // Get year from the second-to-last part
+        $year = count($parts) >= 2 ? $parts[count($parts) - 2] : date('Y');
+
+        $uniqueCode = str_pad($counter, 2, '0', STR_PAD_LEFT);
+
+        return "GKK_{$year}_{$month}_{$seq}_{$uniqueCode}";
     }
 
     /**
@@ -551,13 +575,21 @@ class MidtransService
     }
 
     /**
+     * Get Core API base URL (without /charge suffix)
+     */
+    public function getBaseApiUrl()
+    {
+        return $this->environment === 'production'
+            ? 'https://api.midtrans.com/v2'
+            : 'https://api.sandbox.midtrans.com/v2';
+    }
+
+    /**
      * Get API URL based on environment
      */
     public function getApiUrl()
     {
-        $baseUrl = $this->environment === 'production'
-            ? 'https://api.midtrans.com/v2'
-            : 'https://api.sandbox.midtrans.com/v2';
+        $baseUrl = $this->getBaseApiUrl();
 
         return $baseUrl . '/charge';
     }

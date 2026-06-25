@@ -76,6 +76,12 @@ td, th {
 .checked::after {
     content: "✔";
 }
+
+a {
+    color: #003d73;
+    text-decoration: underline;
+    word-break: break-all;
+}
 </style>
 </head>
 
@@ -149,16 +155,26 @@ td, th {
     </table>
 
     <!-- Bukti -->
-    @if(isset($soal) && isset($soal[1]))
+    @if(isset($files) && $files->isNotEmpty())
+    @php
+        $baseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+    @endphp
     <table>
         <tr class="header-red">
             <td width="5%">No.</td>
             <td>Bukti – Bukti Kompetensi</td>
         </tr>
-        @foreach($soal[1] as $item)
+        @foreach($files as $file)
+        @php
+            // Handle both full URL and relative path
+            $fileUrl = $file->path;
+            if ($fileUrl && !str_starts_with($fileUrl, 'http://') && !str_starts_with($fileUrl, 'https://')) {
+                $fileUrl = $baseUrl . ltrim($fileUrl, '/');
+            }
+        @endphp
         <tr>
-            <td class="center">{{ $item->no ?? '' }}</td>
-            <td>{{ $item->soal ?? '' }}</td>
+            <td class="center">{{ $loop->iteration }}</td>
+            <td>@if($fileUrl)<a href="{{ $fileUrl }}" target="_blank">{{ $file->original_name }}</a>@else{{ $file->original_name }}@endif</td>
         </tr>
         @endforeach
     </table>
@@ -176,7 +192,7 @@ td, th {
         </tr>
         @foreach($soal[2] as $item)
         <tr>
-            <td class="center">{{ $loop->index }}.</td>
+            <td class="center">{{ $loop->iteration }}.</td>
             <td>{{ $item->soal ?? '' }}</td>
             <td>{{ $answers[$item->id]['kesimpulan'] ?? '' }}</td>
             <td class="center">@if(isset($answers[$item->id]['is_kompeten']) && $answers[$item->id]['is_kompeten'] === true)<span class="checkbox checked"></span>@endif</td>

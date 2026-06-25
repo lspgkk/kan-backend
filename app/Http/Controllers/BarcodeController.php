@@ -68,10 +68,15 @@ class BarcodeController extends Controller
             return response()->json(['message' => 'User dengan role_id 7 tidak ditemukan'], 404);
         }
 
-        $list_jabker = JabatanConfigA::where(function ($q) {
-            $q->whereNull('manajer_img')
-              ->orWhere('manajer_img', 'NOT LIKE', '%https://barcode.lspgatensi.id%');
-        })->get();
+        $list_jabker = JabatanConfigA::all()->filter(function ($jabker) use ($manajer) {
+            // Re-generate jika Barcode record tidak ada atau url_ttd-nya tidak valid
+            $barcodeExists = Barcode::where('id_user', $manajer->id)
+                ->where('id_izin', 'PENYUSUN_' . $jabker->id_jabatan)
+                ->where('jenis_dokumen', 'MANAJER')
+                ->where('url_ttd', 'LIKE', '%https://barcode.lspgatensi.id%')
+                ->exists();
+            return !$barcodeExists;
+        });
 
         foreach ($list_jabker as $jabker) {
             $uuid = (string) Str::uuid();

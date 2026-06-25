@@ -173,6 +173,7 @@
                 <th>Lainnya</th>
             </tr>
             @foreach($data_unit_kompetensi as $unit)
+                @continue(empty($unit['kode']) && empty($unit['nama']))
             <tr>
                 <td>
                     {{ $unit['kode'] }}<br />

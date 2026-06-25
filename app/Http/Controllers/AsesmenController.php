@@ -1835,12 +1835,37 @@ class AsesmenController extends Controller
             'rekomendasi_kuk' => $data['recommendation']->rekomendasi_kuk,
         ] : null;
 
+        // 🔁 Map soal_id ke setiap file berdasarkan filetype (untuk frontend submit)
+        $filetypeSoalMap = [];
+        $filetypeLabels = [
+            'referensi_kerja' => 'referensi kerja',
+            'laporan_pekerjaan' => 'laporan pekerjaan',
+            'dokumentasi_pekerjaan' => 'dokumentasi pekerjaan',
+        ];
+        if (isset($data['soal'][1])) {
+            foreach ($data['soal'][1] as $soalItem) {
+                $soalText = trim(strtolower($soalItem->soal ?? ''));
+                foreach ($filetypeLabels as $ft => $label) {
+                    if ($soalText === $label) {
+                        $filetypeSoalMap[$ft] = $soalItem->id;
+                        break;
+                    }
+                }
+            }
+        }
+        $filesWithSoalId = collect($data['files'])->map(function ($file) use ($filetypeSoalMap) {
+            $fileArray = $file instanceof \Illuminate\Database\Eloquent\Model ? $file->toArray() : (array) $file;
+            $fileArray['soal_id'] = $filetypeSoalMap[$file->filetype] ?? null;
+            return $fileArray;
+        })->values();
+
         return response()->json([
             'message' => 'Success',
             'data' => array_merge($data, [
                 'apl2_answers' => $apl2AnswersFormatted,
                 'unit_answers' => $unitAnswersFormatted,
                 'recommendation' => $recommendationFormatted,
+                'files' => $filesWithSoalId,
             ]),
         ]);
     }
@@ -1924,10 +1949,35 @@ class AsesmenController extends Controller
             ];
         }
 
+        // 🔁 Map soal_id ke setiap file berdasarkan filetype (untuk frontend submit)
+        $filetypeSoalMap = [];
+        $filetypeLabels = [
+            'referensi_kerja' => 'referensi kerja',
+            'laporan_pekerjaan' => 'laporan pekerjaan',
+            'dokumentasi_pekerjaan' => 'dokumentasi pekerjaan',
+        ];
+        if (isset($data['soal'][1])) {
+            foreach ($data['soal'][1] as $soalItem) {
+                $soalText = trim(strtolower($soalItem->soal ?? ''));
+                foreach ($filetypeLabels as $ft => $label) {
+                    if ($soalText === $label) {
+                        $filetypeSoalMap[$ft] = $soalItem->id;
+                        break;
+                    }
+                }
+            }
+        }
+        $filesWithSoalId = collect($data['files'])->map(function ($file) use ($filetypeSoalMap) {
+            $fileArray = $file instanceof \Illuminate\Database\Eloquent\Model ? $file->toArray() : (array) $file;
+            $fileArray['soal_id'] = $filetypeSoalMap[$file->filetype] ?? null;
+            return $fileArray;
+        })->values();
+
         return response()->json([
             'message' => 'Success',
             'data' => array_merge($data, [
                 'answers' => $answersFormatted,
+                'files' => $filesWithSoalId,
             ]),
         ]);
     }
@@ -2029,7 +2079,7 @@ class AsesmenController extends Controller
         bool $forPdf = false
     ): ?array
     {
-        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja', 'jenjang', 'metode_uji')
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja', 'jenjang')
             ->where('id_izin', $id)
             ->first();
 
@@ -2038,7 +2088,10 @@ class AsesmenController extends Controller
         }
 
         $jenjang = (int) $klasifikasi->jenjang;
-        $metode  = strtolower($klasifikasi->metode_uji ?? '');
+
+        // ✅ Ambil metode dari APL02 Submission (sesuai pilihan user saat submit)
+        $apl2Submission = \App\Models\Apl2Submission::where('id_izin', $id)->value('metode');
+        $metode = strtolower($apl2Submission ?? '');
 
         $autoTrueFields = [];
 
@@ -2091,7 +2144,9 @@ class AsesmenController extends Controller
                 }
 
                 return $result;
-            });
+            })
+            ->filter(fn ($unit) => !is_null($unit['kode']) || !is_null($unit['nama']))
+            ->values();
 
         $feedback = Ak2Feedback::where('id_izin', $id)->first();
 
@@ -2623,102 +2678,112 @@ class AsesmenController extends Controller
             abort(404, 'Jadwal not found for this id_izin');
         }
 
-        // Get all asesi in the jadwal
-        $asesiList = AsesiJadwal::where('jadwal_id', $jadwalId)
+        // Get all asesi in the jadwal with their jabatan_kerja
+        $asesiList = AsesiJadwal::where('asesi_jadwals.jadwal_id', $jadwalId)
             ->join('personals', 'personals.id_izin', '=', 'asesi_jadwals.id_izin')
-            ->select(['asesi_jadwals.id_izin', 'personals.nama'])
+            ->join('klasifikasi_kualifikasis', 'klasifikasi_kualifikasis.id_izin', '=', 'asesi_jadwals.id_izin')
+            ->select([
+                'asesi_jadwals.id_izin',
+                'personals.nama',
+                'klasifikasi_kualifikasis.jabatan_kerja',
+            ])
             ->get();
 
         if ($asesiList->isEmpty()) {
             abort(404, 'No asesi found for this jadwal');
         }
 
-        // Build data for each asesi
-        $asesiData = [];
-        $combinedAspek = [];
-        $combinedPenolakan = [];
-        $combinedSaran = [];
-        $combinedCatatan = [];
-
-        foreach ($asesiList as $asesi) {
-            $answer = Ak5Answer::where('id_izin', $asesi->id_izin)
-                ->first(['keterangan', 'aspek', 'pencatatan_penolakan', 'saran', 'catatan']);
-            $kompeten = $this->resolveKomtekDecision($asesi->id_izin);
-
-            $asesiData[] = [
-                'nama' => $asesi->nama,
-                'kompeten' => $kompeten === 'K',
-                'keterangan' => $answer?->keterangan ?? '',
-            ];
-
-            if (!empty($answer?->aspek)) {
-                $combinedAspek[] = $asesi->nama . ': ' . $answer->aspek;
-            }
-            if (!empty($answer?->pencatatan_penolakan)) {
-                $combinedPenolakan[] = $asesi->nama . ': ' . $answer->pencatatan_penolakan;
-            }
-            if (!empty($answer?->saran)) {
-                $combinedSaran[] = $asesi->nama . ': ' . $answer->saran;
-            }
-            if (!empty($answer?->catatan)) {
-                $combinedCatatan[] = $asesi->nama . ': ' . $answer->catatan;
-            }
-        }
-
-        // Shared asesor barcodes per jadwal (not per-asesi)
-        $asesorBarcodes = $this->getLatestAsesorBarcodes($jadwalId);
+        // Group asesi by jabatan_kerja
+        $groups = $asesiList->groupBy('jabatan_kerja');
 
         $dokumenHeader = $this->buildDokumenHeader($id);
         if (!$dokumenHeader) {
             abort(404, 'Dokumen header not found');
         }
 
-        $viewData = [
-            'dokumenHeader' => $dokumenHeader,
-            'asesiList' => $asesiData,
-            'barcodes' => $asesorBarcodes,
-            'answers' => [
-                'aspek' => implode("\n\n", $combinedAspek),
-                'pencatatan_penolakan' => implode("\n\n", $combinedPenolakan),
-                'saran' => implode("\n\n", $combinedSaran),
-                'catatan' => implode("\n\n", $combinedCatatan),
-            ],
-            'kompeten' => !empty($asesiData) ? $asesiData[0]['kompeten'] : false,
-        ];
-
-        /* =========================
-        * GENERATE PDF
-        * ========================= */
-
-        $pdf = Pdf::loadView('pdf.ak05', $viewData)
-            ->setPaper('A4', 'portrait');
+        // Shared asesor barcodes per jadwal (not per-asesi)
+        $asesorBarcodes = $this->getLatestAsesorBarcodes($jadwalId);
 
         $disk = 'str_moon';
         $directory = 'dok_asesmen/ak05';
-
-        // One file per jadwal
-        $filename = 'FR-AK-05-JADWAL-' . $jadwalId . '.pdf';
-        $path = $directory . '/' . $filename;
-
-        // save PDF bytes to FTP
-        Storage::disk($disk)->put($path, $pdf->output());
-
-        /* =========================
-        * BUILD PUBLIC URL
-        * ========================= */
-
         $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
-        $fullUrl = $publicBaseUrl . $path;
 
-        /* =========================
-        * UPDATE DATABASE — semua asesi di jadwal pakai URL yang sama
-        * ========================= */
+        foreach ($groups as $jabatanKerjaId => $groupAsesi) {
+            // Build data for this group
+            $asesiData = [];
+            $combinedAspek = [];
+            $combinedPenolakan = [];
+            $combinedSaran = [];
+            $combinedCatatan = [];
 
-        foreach ($asesiList as $asesi) {
-            BuktiAsesmen::updateOrCreate(
-                ['id_izin' => $asesi->id_izin],
-                ['url_ak05' => $fullUrl]
-            );
+            foreach ($groupAsesi as $asesi) {
+                $answer = Ak5Answer::where('id_izin', $asesi->id_izin)
+                    ->first(['keterangan', 'aspek', 'pencatatan_penolakan', 'saran', 'catatan']);
+                $kompeten = $this->resolveKomtekDecision($asesi->id_izin);
+
+                $asesiData[] = [
+                    'nama' => $asesi->nama,
+                    'kompeten' => $kompeten === 'K',
+                    'keterangan' => $answer?->keterangan ?? '',
+                ];
+
+                if (!empty($answer?->aspek)) {
+                    $combinedAspek[] = $asesi->nama . ': ' . $answer->aspek;
+                }
+                if (!empty($answer?->pencatatan_penolakan)) {
+                    $combinedPenolakan[] = $asesi->nama . ': ' . $answer->pencatatan_penolakan;
+                }
+                if (!empty($answer?->saran)) {
+                    $combinedSaran[] = $asesi->nama . ': ' . $answer->saran;
+                }
+                if (!empty($answer?->catatan)) {
+                    $combinedCatatan[] = $asesi->nama . ': ' . $answer->catatan;
+                }
+            }
+
+            $viewData = [
+                'dokumenHeader' => $dokumenHeader,
+                'asesiList' => $asesiData,
+                'barcodes' => $asesorBarcodes,
+                'answers' => [
+                    'aspek' => implode("\n\n", $combinedAspek),
+                    'pencatatan_penolakan' => implode("\n\n", $combinedPenolakan),
+                    'saran' => implode("\n\n", $combinedSaran),
+                    'catatan' => implode("\n\n", $combinedCatatan),
+                ],
+                'kompeten' => !empty($asesiData) ? $asesiData[0]['kompeten'] : false,
+            ];
+
+            /* =========================
+            * GENERATE PDF
+            * ========================= */
+
+            $pdf = Pdf::loadView('pdf.ak05', $viewData)
+                ->setPaper('A4', 'portrait');
+
+            // One file per group (jadwal + jabatan_kerja)
+            $filename = 'FR-AK-05-JADWAL-' . $jadwalId . '-JABKER-' . $jabatanKerjaId . '.pdf';
+            $path = $directory . '/' . $filename;
+
+            // save PDF bytes to FTP
+            Storage::disk($disk)->put($path, $pdf->output());
+
+            /* =========================
+            * BUILD PUBLIC URL
+            * ========================= */
+
+            $fullUrl = $publicBaseUrl . $path;
+
+            /* =========================
+            * UPDATE DATABASE — setiap asesi di grup pakai URL group-nya
+            * ========================= */
+
+            foreach ($groupAsesi as $asesi) {
+                BuktiAsesmen::updateOrCreate(
+                    ['id_izin' => $asesi->id_izin],
+                    ['url_ak05' => $fullUrl]
+                );
+            }
         }
 
         return response()->json([

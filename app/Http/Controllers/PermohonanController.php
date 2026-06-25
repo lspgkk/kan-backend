@@ -31,9 +31,79 @@ class PermohonanController extends Controller
         $this->syncService = $syncService;
     }
 
+    /**
+     * Look up a province name by its code, trying multiple format strategies.
+     */
+    private function resolveProvinceName(?string $code): ?string
+    {
+        if (empty($code)) return null;
+
+        // Strategy 1: exact match on id_provinsi_dagri
+        $province = Province::where('id_provinsi_dagri', $code)->first();
+        if ($province) return $province->nama;
+
+        // Strategy 2: match after removing leading zeros (e.g. "32" vs "032")
+        $cleaned = ltrim($code, '0');
+        if ($cleaned !== $code) {
+            $province = Province::where('id_provinsi_dagri', $cleaned)->first();
+            if ($province) return $province->nama;
+        }
+
+        // Strategy 3: try matching on id_provinsi (BPS format)
+        $province = Province::where('id_provinsi', $code)->first();
+        if ($province) return $province->nama;
+
+        // Strategy 4: try matching after removing dots/non-numeric
+        $digits = preg_replace('/[^0-9]/', '', $code);
+        if ($digits !== $code) {
+            $province = Province::where('id_provinsi_dagri', $digits)
+                            ->orWhere('id_provinsi', $digits)
+                            ->first();
+            if ($province) return $province->nama;
+        }
+
+        return null;
+    }
+
+    /**
+     * Look up a city/kabupaten name by its code, trying multiple format strategies.
+     */
+    private function resolveCityName(?string $code): ?string
+    {
+        if (empty($code)) return null;
+
+        // Strategy 1: exact match on kode_kabupaten_dagri
+        $city = City::where('kode_kabupaten_dagri', $code)->first();
+        if ($city) return $city->nama_kabupaten_dagri;
+
+        // Strategy 2: match on kode_kabupaten_bps
+        $city = City::where('kode_kabupaten_bps', $code)->first();
+        if ($city) return $city->nama_kabupaten_bps;
+
+        // Strategy 3: try after removing dots (e.g. "32.73" -> "3273")
+        $stripped = str_replace('.', '', $code);
+        if ($stripped !== $code) {
+            $city = City::where('kode_kabupaten_dagri', $stripped)
+                     ->orWhere('kode_kabupaten_bps', $stripped)
+                     ->first();
+            if ($city) return $city->nama_kabupaten_dagri ?? $city->nama_kabupaten_bps;
+        }
+
+        // Strategy 4: try after removing all non-numeric chars
+        $digits = preg_replace('/[^0-9]/', '', $code);
+        if ($digits !== $code && $digits !== $stripped) {
+            $city = City::where('kode_kabupaten_dagri', $digits)
+                     ->orWhere('kode_kabupaten_bps', $digits)
+                     ->first();
+            if ($city) return $city->nama_kabupaten_dagri ?? $city->nama_kabupaten_bps;
+        }
+
+        return null;
+    }
+
     public function detailPermohonan(string $id)
     {
-        $personals = Personal::forUserTuk()->with(['province', 'city'])->where('id_izin', $id)->get();
+        $personals = Personal::forUserTuk()->where('id_izin', $id)->get();
 
         if ($personals->isEmpty()) {
             return response()->json([
@@ -65,19 +135,19 @@ class PermohonanController extends Controller
          * Related data
          * ===============================
          */
-        $pendidikans = Pendidikan::with(['province', 'city'])->where('id_izin', $id)->get();
+        $pendidikans = Pendidikan::where('id_izin', $id)->get();
         $proyeks = Proyek::where('id_izin', $id)->get();
         $pelatihans = Pelatihan::where('id_izin', $id)->get();
 
         /**
          * ===============================
          * Transform personals to include province and city names
+         * Uses robust resolver with fallback strategies
          * ===============================
          */
         $personals->transform(function ($item) {
-            $item->propinsi_nama = $item->province ? $item->province->nama : null;
-            $item->kabupaten_nama = $item->city ? $item->city->nama_kabupaten_dagri : null;
-            unset($item->province, $item->city);
+            $item->propinsi_nama = $this->resolveProvinceName($item->propinsi);
+            $item->kabupaten_nama = $this->resolveCityName($item->kabupaten);
             return $item;
         });
 
@@ -87,10 +157,9 @@ class PermohonanController extends Controller
          * ===============================
          */
         $pendidikans->transform(function ($item) {
-            $item->propinsi_nama = $item->province ? $item->province->nama : null;
-            $item->kabupaten_nama = $item->city ? $item->city->nama_kabupaten_dagri : null;
+            $item->propinsi_nama = $this->resolveProvinceName($item->propinsi);
+            $item->kabupaten_nama = $this->resolveCityName($item->kabupaten);
             $item->jenjang_nama = Jenjang::where('id_siki', $item->jenjang)->value('nama');
-            unset($item->province, $item->city);
             return $item;
         });
         $sertifikatsukets = SertifikatSuket::where('id_izin', $id)->get();

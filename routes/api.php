@@ -122,7 +122,9 @@ Route::prefix('internal')->middleware(['static-api-key', 'throttle:300,1'])->gro
     Route::get('/smart-sync/{table}', [\App\Http\Controllers\InternalDocumentDataController::class, 'syncSmartTable']);
 });
 
-Route::middleware(['auth:api', 'singlesession'])->group(function () {
+// Route::middleware(['auth:api', 'singlesession'])->group(function () {
+
+Route::middleware(['auth:api'])->group(function () {
 
     // --- WebSocket Test Endpoint ---
     Route::post('/test-broadcast', [PraAsesmenController::class, 'testBroadcast']);
@@ -234,6 +236,7 @@ Route::middleware(['auth:api', 'singlesession'])->group(function () {
         Route::post('/approve-sk-pelaksanaan-uji/{jadwal_id}', [DirekturController::class, 'approveSkPelaksanaanUji']);
         Route::post('/approve-spt-asesor/{jadwal_id}', [DirekturController::class, 'approveSptAsesor']);
         Route::post('/approve-spt-komtek/{jadwal_id}', [DirekturController::class, 'approveSptKomtek']);
+        Route::post('/approve-sk-penetapan/{jadwal_id}', [DirekturController::class, 'approveSkPenetapan']);
     });
 
     Route::prefix('jenjang')->group(function () {
@@ -277,6 +280,7 @@ Route::middleware(['auth:api', 'singlesession'])->group(function () {
         Route::get('/list-asesi-create', [JadwalController::class, 'listAsesiCreateJadwal']);
         Route::get('/pengajuan-tuk-list', [JadwalController::class, 'pengajuanTukList']);
         Route::post('/create-jadwal', [JadwalController::class, 'store']);
+        Route::post('/upload-dokumen-verifikasi', [JadwalController::class, 'uploadDokumenVerifikasi']);
         Route::post('/{id}/post-ke-bnsp', [JadwalController::class, 'postToBnsp']);
         Route::get('/{id}', [JadwalController::class, 'show']);
         Route::put('/{jadwal_id}', [JadwalController::class, 'updateJadwal']);

@@ -68,6 +68,12 @@ td, th{
 .checked::after {
     content: "✔";
 }
+
+a {
+    color: #003d73;
+    text-decoration: underline;
+    word-break: break-all;
+}
 </style>
 </head>
 <body>
@@ -107,6 +113,25 @@ td, th{
 </table>
 
 @if(isset($soal) && isset($soal[1]))
+@php
+    // Build mapping: filetype → soal item (from $soal[1]) for answer lookups
+    $filetypeSoalMap = [];
+    $filetypeLabels = [
+        'referensi_kerja' => 'referensi kerja',
+        'laporan_pekerjaan' => 'laporan pekerjaan',
+        'dokumentasi_pekerjaan' => 'dokumentasi pekerjaan',
+    ];
+    foreach ($soal[1] as $item) {
+        $soalText = trim(strtolower($item->soal ?? ''));
+        foreach ($filetypeLabels as $ft => $label) {
+            if ($soalText === $label) {
+                $filetypeSoalMap[$ft] = $item;
+                break;
+            }
+        }
+    }
+    $baseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+@endphp
 <table class="section">
 <tr class="red center">
 <td rowspan="3" style="text-align: center;">Dokumen Portofolio</td>
@@ -124,17 +149,25 @@ td, th{
 <td>Ya</td><td>Tidak</td>
 <td>Ya</td><td>Tidak</td>
 </tr>
-@foreach($soal[1] as $item)
+@foreach($files as $file)
+@php
+    $soalItem = $filetypeSoalMap[$file->filetype] ?? null;
+    // Handle both full URL and relative path
+    $fileUrl = $file->path;
+    if ($fileUrl && !str_starts_with($fileUrl, 'http://') && !str_starts_with($fileUrl, 'https://')) {
+        $fileUrl = $baseUrl . ltrim($fileUrl, '/');
+    }
+@endphp
 <tr>
-<td>{{ $item->no ?? '' }}. {{ $item->soal ?? '' }}</td>
-<td class="center">@if(isset($answers[$item->id]['valid']) && $answers[$item->id]['valid'] === true)<span class="checkbox checked"></span>@endif</td>
-<td class="center">@if(isset($answers[$item->id]['valid']) && $answers[$item->id]['valid'] === false)<span class="checkbox checked"></span>@endif</td>
-<td class="center">@if(isset($answers[$item->id]['asli']) && $answers[$item->id]['asli'] === true)<span class="checkbox checked"></span>@endif</td>
-<td class="center">@if(isset($answers[$item->id]['asli']) && $answers[$item->id]['asli'] === false)<span class="checkbox checked"></span>@endif</td>
-<td class="center">@if(isset($answers[$item->id]['terkini']) && $answers[$item->id]['terkini'] === true)<span class="checkbox checked"></span>@endif</td>
-<td class="center">@if(isset($answers[$item->id]['terkini']) && $answers[$item->id]['terkini'] === false)<span class="checkbox checked"></span>@endif</td>
-<td class="center">@if(isset($answers[$item->id]['memadai']) && $answers[$item->id]['memadai'] === true)<span class="checkbox checked"></span>@endif</td>
-<td class="center">@if(isset($answers[$item->id]['memadai']) && $answers[$item->id]['memadai'] === false)<span class="checkbox checked"></span>@endif</td>
+<td>@if($fileUrl)<a href="{{ $fileUrl }}" target="_blank" style="color:#003d73;text-decoration:underline;">{{ $file->original_name }}</a>@else{{ $file->original_name }}@endif</td>
+<td class="center">@if($soalItem && isset($answers[$soalItem->id]['valid']) && $answers[$soalItem->id]['valid'] === true)<span class="checkbox checked"></span>@endif</td>
+<td class="center">@if($soalItem && isset($answers[$soalItem->id]['valid']) && $answers[$soalItem->id]['valid'] === false)<span class="checkbox checked"></span>@endif</td>
+<td class="center">@if($soalItem && isset($answers[$soalItem->id]['asli']) && $answers[$soalItem->id]['asli'] === true)<span class="checkbox checked"></span>@endif</td>
+<td class="center">@if($soalItem && isset($answers[$soalItem->id]['asli']) && $answers[$soalItem->id]['asli'] === false)<span class="checkbox checked"></span>@endif</td>
+<td class="center">@if($soalItem && isset($answers[$soalItem->id]['terkini']) && $answers[$soalItem->id]['terkini'] === true)<span class="checkbox checked"></span>@endif</td>
+<td class="center">@if($soalItem && isset($answers[$soalItem->id]['terkini']) && $answers[$soalItem->id]['terkini'] === false)<span class="checkbox checked"></span>@endif</td>
+<td class="center">@if($soalItem && isset($answers[$soalItem->id]['memadai']) && $answers[$soalItem->id]['memadai'] === true)<span class="checkbox checked"></span>@endif</td>
+<td class="center">@if($soalItem && isset($answers[$soalItem->id]['memadai']) && $answers[$soalItem->id]['memadai'] === false)<span class="checkbox checked"></span>@endif</td>
 </tr>
 @endforeach
 </table>

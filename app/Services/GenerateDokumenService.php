@@ -35,8 +35,14 @@ class GenerateDokumenService
     /** @var bool Fall back to Laravel Storage facade if native FTP fails */
     private bool $ftpUseNative = true;
 
-    /** @var array<string, array> In-memory cache of existing barcodes keyed by "userId:jenisDokumen" */
+    /** @var array<string, string> In-memory cache of existing barcodes keyed by "userId:jenisDokumen" */
     private array $barcodeCache = [];
+
+    // NOTE: AK05 group PDFs are NOT cached in-memory because each asesi in the group
+    // may only have its answers pre-populated when its own processIdIzin runs.
+    // Removing the cache ensures the group PDF always contains the most complete
+    // data available at generation time. The FTP file is overwritten each time
+    // but the URL is the same for all group members.
 
     // Controllers whose private build*Data methods we call via reflection
     private \App\Http\Controllers\PraAsesmenController $praAsesmenController;
@@ -756,27 +762,58 @@ class GenerateDokumenService
         array $barcodes
     ): ?string {
         try {
-            // Call the existing controller's private build*Data method via reflection
-            $docData = $this->callBuildMethod($method, $idIzin);
-            if ($docData === null && $method === 'Apl01') {
-                // APL01 is inline in ttdApl01, use our own builder
-                $docData = $this->buildApl01Data($idIzin, $header);
-            }
-            if ($docData === null) {
-                logger()->warning("[GEN] {$idIzin} generateDocument {$code}: docData NULL — controller & inline both returned null");
-                return null;
+            // ── AK05 GROUP RESOLUTION ──
+            // Group asesi by jabatan_kerja within the same jadwal: each group gets
+            // one combined PDF. No in-memory caching — each asesi in the group
+            // regenerates the same file so answers from all members are included.
+            $ak05GroupKey = null;
+            $ak05GroupMembers = null;
+
+            if ($method === 'Ak05') {
+                $asesiJadwal = \App\Models\AsesiJadwal::where('id_izin', $idIzin)->first();
+                if ($asesiJadwal) {
+                    $klasifikasi = \App\Models\KlasifikasiKualifikasi::where('id_izin', $idIzin)->first();
+                    if ($klasifikasi) {
+                        $ak05GroupKey = $asesiJadwal->jadwal_id . '-' . $klasifikasi->jabatan_kerja;
+
+                        // Fetch all group members (same jadwal + same jabatan_kerja)
+                        $ak05GroupMembers = \App\Models\AsesiJadwal::where('asesi_jadwals.jadwal_id', $asesiJadwal->jadwal_id)
+                            ->join('personals', 'personals.id_izin', '=', 'asesi_jadwals.id_izin')
+                            ->join('klasifikasi_kualifikasis', 'klasifikasi_kualifikasis.id_izin', '=', 'asesi_jadwals.id_izin')
+                            ->where('klasifikasi_kualifikasis.jabatan_kerja', $klasifikasi->jabatan_kerja)
+                            ->select(['asesi_jadwals.id_izin', 'personals.nama'])
+                            ->get();
+                    }
+                }
             }
 
-            // ── SANITIZE: Ensure all required view keys exist ──
-            $docData = $this->sanitizeViewData($method, $docData, $header);
+            // ── BUILD VIEW DATA ──
+            if ($method === 'Ak05' && $ak05GroupMembers) {
+                // For AK05 groups: build combined view data for all group members
+                $docData = $this->buildAk05GroupViewData($header, $ak05GroupMembers, $barcodes);
+                if ($docData === null) {
+                    logger()->warning("[GEN] {$idIzin} generateDocument {$code}: ak05GroupViewData NULL");
+                    return null;
+                }
+            } else {
+                // Normal flow: call controller's build*Data method via reflection
+                $docData = $this->callBuildMethod($method, $idIzin);
+                if ($docData === null && $method === 'Apl01') {
+                    $docData = $this->buildApl01Data($idIzin, $header);
+                }
+                if ($docData === null) {
+                    logger()->warning("[GEN] {$idIzin} generateDocument {$code}: docData NULL — controller & inline both returned null");
+                    return null;
+                }
+                $docData = $this->sanitizeViewData($method, $docData, $header);
+            }
 
             // AK01: waktu is always "07:30 - Selesai" per business rules
             if ($method === 'Ak01') {
                 $header['waktu'] = '07:30 - Selesai';
             }
 
-            // The build*Data methods may already include barcodes. Merge but let
-            // our generated barcodes take precedence, and add 'admin' alias for APL01.
+            // Merge barcodes — for AK05 group the barcodes are already embedded in viewData
             $mergedBarcodes = array_merge(
                 $docData['barcodes'] ?? [],
                 $barcodes,
@@ -787,7 +824,7 @@ class GenerateDokumenService
                 'barcodes' => $mergedBarcodes,
             ]);
 
-            // ── LOG: Sample LLM fields that should be in the PDF data ──
+            // ── LOG: Sample LLM fields ──
             $llmFieldKeys = ['keterangan', 'aspek', 'saran', 'catatan', 'komentar', 'rekomendasi1', 'rekomendasi2', 'catatan_asesor1', 'catatan_asesor2', 'answers', 'tanggapan', 'umpan_balik', 'alasan'];
             $llmInData = [];
             foreach ($llmFieldKeys as $k) {
@@ -796,36 +833,50 @@ class GenerateDokumenService
                     $llmInData[$k] = is_string($val) ? substr($val, 0, 80) . '...' : (is_object($val) ? 'object(' . get_class($val) . ')' : json_encode($val));
                 }
             }
-            // Also check inside 'answers' key (controller's Ak5Answer returns it as object)
             if (isset($viewData['answers']) && is_object($viewData['answers'])) {
                 $ans = $viewData['answers'];
                 foreach (['keterangan', 'aspek', 'saran', 'catatan'] as $k) {
-                    if (isset($ans->$k)) {
-                        $llmInData['answers->' . $k] = substr($ans->$k, 0, 80) . '...';
-                    }
+                    if (isset($ans->$k)) { $llmInData['answers->' . $k] = substr($ans->$k, 0, 80) . '...'; }
                 }
             }
             logger()->debug("[LLM] PDF data untuk {$code} {$idIzin}: " . json_encode($llmInData));
 
-            // ── PDF CACHE: Skip DomPDF+FTP if content hash matches and FTP file exists ──
-            $path = "dok_asesmen/{$dir}/FR-{$code}-{$idIzin}.pdf";
+            // ── PDF PATH & CACHE KEY ──
+            if ($method === 'Ak05' && $ak05GroupKey) {
+                $path = "dok_asesmen/{$dir}/FR-{$code}-JADWAL-{$ak05GroupKey}.pdf";
+                $cachedPdfKey = "pdf:cache:Ak05:group:{$ak05GroupKey}";
+                $cachedUrlKey = "pdf:url:Ak05:group:{$ak05GroupKey}";
+            } else {
+                $path = "dok_asesmen/{$dir}/FR-{$code}-{$idIzin}.pdf";
+                $cachedPdfKey = "pdf:cache:{$idIzin}:{$method}";
+                $cachedUrlKey = "pdf:url:{$idIzin}:{$method}";
+            }
             $contentHash = $this->computePdfCacheKey($idIzin, $method, $blade, $header, $barcodes);
 
-            $cachedPdfKey = "pdf:cache:{$idIzin}:{$method}";
             $cachedHash = \Illuminate\Support\Facades\Cache::get($cachedPdfKey);
-            $cachedUrl = \Illuminate\Support\Facades\Cache::get("pdf:url:{$idIzin}:{$method}");
+            $cachedUrl = \Illuminate\Support\Facades\Cache::get($cachedUrlKey);
 
             if ($cachedHash === $contentHash && $cachedUrl) {
-                // Check if the FTP file still exists (quick size check via HTTP HEAD to moon URL)
                 try {
                     $moonUrl = self::MOON_BASE . $path;
                     $headResponse = \Illuminate\Support\Facades\Http::timeout(5)->head($moonUrl);
                     if ($headResponse->successful()) {
                         logger()->debug("[PDF-CACHE] {$code} {$idIzin} HIT — skipping DomPDF+FTP, reusing existing PDF");
-                        BuktiAsesmen::updateOrCreate(
-                            ['id_izin' => $idIzin],
-                            [$urlColumn => $cachedUrl]
-                        );
+
+                        // For AK05 groups, update ALL group members
+                        if ($method === 'Ak05' && $ak05GroupMembers) {
+                            foreach ($ak05GroupMembers as $member) {
+                                BuktiAsesmen::updateOrCreate(
+                                    ['id_izin' => $member->id_izin],
+                                    [$urlColumn => $cachedUrl]
+                                );
+                            }
+                        } else {
+                            BuktiAsesmen::updateOrCreate(
+                                ['id_izin' => $idIzin],
+                                [$urlColumn => $cachedUrl]
+                            );
+                        }
                         return $cachedUrl;
                     }
                 } catch (\Throwable $e) {
@@ -837,13 +888,9 @@ class GenerateDokumenService
             $pdf = Pdf::loadView("pdf.{$blade}", $viewData)->setPaper('A4', 'portrait');
             $pdfContent = $pdf->output();
 
-            // Free DomPDF memory immediately
             unset($pdf, $viewData, $mergedBarcodes, $docData);
-
-            // ── Force garbage collection after every PDF ──
             gc_collect_cycles();
 
-            // Upload via persistent FTP connection (with native retry + Storage fallback)
             $pdfUploaded = $this->uploadPdf($path, $pdfContent, $code);
             unset($pdfContent);
             gc_collect_cycles();
@@ -852,18 +899,27 @@ class GenerateDokumenService
 
             $fullUrl = self::MOON_BASE . $path;
 
-            // Cache the content hash and URL so subsequent runs skip DomPDF+FTP
             \Illuminate\Support\Facades\Cache::put($cachedPdfKey, $contentHash, 86400);
-            \Illuminate\Support\Facades\Cache::put("pdf:url:{$idIzin}:{$method}", $fullUrl, 86400);
+            \Illuminate\Support\Facades\Cache::put($cachedUrlKey, $fullUrl, 86400);
 
-            BuktiAsesmen::updateOrCreate(
-                ['id_izin' => $idIzin],
-                [$urlColumn => $fullUrl]
-            );
+            // For AK05 groups, update ALL group members (regenerates same file — most complete data wins)
+            if ($method === 'Ak05' && $ak05GroupMembers) {
+                foreach ($ak05GroupMembers as $member) {
+                    BuktiAsesmen::updateOrCreate(
+                        ['id_izin' => $member->id_izin],
+                        [$urlColumn => $fullUrl]
+                    );
+                }
+                logger()->debug("[GEN] AK05 group {$ak05GroupKey} generated — saved to " . count($ak05GroupMembers) . " asesi");
+            } else {
+                BuktiAsesmen::updateOrCreate(
+                    ['id_izin' => $idIzin],
+                    [$urlColumn => $fullUrl]
+                );
+            }
 
             return $fullUrl;
         } catch (\Throwable $e) {
-            // Log error so caller can see what went wrong
             logger()->error("Gagal generate {$code} untuk {$idIzin}: " . $e->getMessage());
             return null;
         }
@@ -875,7 +931,7 @@ class GenerateDokumenService
 
     private function buildApl01Data(string $idIzin, array $header): array
     {
-        $personal = Personal::select(['nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kodepos', 'telepon', 'email'])
+        $personal = Personal::select(['nama', 'nik', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kodepos', 'telepon', 'email', 'pas_foto', 'ktp'])
             ->where('id_izin', $idIzin)->first();
         $klasifikasi = KlasifikasiKualifikasi::where('id_izin', $idIzin)->first();
         $jabatanKerja = JabatanKerja::where('id_jabatan_kerja', $klasifikasi?->jabatan_kerja)->first();
@@ -920,6 +976,10 @@ class GenerateDokumenService
         $jenjangPendidikan = \App\Models\Pendidikan::where('id_izin', $idIzin)
             ->latest('created_at')->value('jenjang');
 
+        // Get latest pendidikan data for ijazah URL
+        $pendidikanTerakhir = \App\Models\Pendidikan::where('id_izin', $idIzin)
+            ->latest('created_at')->first();
+
         $educationMapping = [
             'SD' => ['1', '2'], 'SMP' => ['2'], 'SMA' => ['3'],
             'D1' => ['4', '16'], 'D2' => ['5'], 'D3' => ['6'],
@@ -957,12 +1017,23 @@ class GenerateDokumenService
             }
         }
 
-        $persyaratan = $persyaratanRecords->map(function ($item) use ($matchedLevels) {
+        $persyaratan = $persyaratanRecords->map(function ($item) use ($matchedLevels, $pendidikanTerakhir) {
             $checked = false;
             foreach ($matchedLevels as $l) {
                 if (stripos($item->bukti, $l) !== false) { $checked = true; break; }
             }
-            return ['no' => $item->no, 'bukti' => $item->bukti, 'checked' => $checked];
+
+            $ijazahUrl = null;
+            if ($checked && $pendidikanTerakhir && stripos($item->bukti, 'ijazah') !== false) {
+                $ijazahUrl = $pendidikanTerakhir->scan_ijazah_legalisir;
+            }
+
+            return [
+                'no' => $item->no,
+                'bukti' => $item->bukti,
+                'checked' => $checked,
+                'ijazah_url' => $ijazahUrl
+            ];
         })->values();
 
         // ── Administratif: all checked ──
@@ -976,7 +1047,24 @@ class GenerateDokumenService
             $clean = preg_replace('/^(Syarat Administrasi|Bukti Keanggotaan)\s*:\s*/i', '', $item->bukti);
             foreach (array_map('trim', explode(',', $clean)) as $text) {
                 if ($text === '' || strtolower($text) === 'dan lain-lain.') continue;
-                $formatted->push(['no' => (string) $no++, 'bukti' => $text, 'checked' => true]);
+
+                // Add foto_url for "pas foto" and ktp_url for "ktp"
+                $fotoUrl = null;
+                $ktpUrl = null;
+
+                if ($personal && stripos($text, 'pas foto') !== false) {
+                    $fotoUrl = $personal->pas_foto;
+                } elseif ($personal && stripos($text, 'ktp') !== false) {
+                    $ktpUrl = $personal->ktp;
+                }
+
+                $formatted->push([
+                    'no' => (string) $no++,
+                    'bukti' => $text,
+                    'checked' => true,
+                    'foto_url' => $fotoUrl,
+                    'ktp_url' => $ktpUrl
+                ]);
             }
         }
 
@@ -1390,6 +1478,72 @@ class GenerateDokumenService
                 'catatan' => $ak5Answer?->catatan ?? $this->llmService->getFallback('ak05_catatan'),
             ],
             'kompeten' => true,
+        ];
+    }
+
+    /**
+     * Build combined AK05 view data for all asesi in a jabatan_kerja group.
+     *
+     * Groups asesi within the same jadwal that share the same jabatan_kerja,
+     * producing a single PDF with a loop of names, combined answers, and
+     * shared asesor barcodes.
+     */
+    private function buildAk05GroupViewData(array $header, $groupMembers, array $barcodes): ?array
+    {
+        if ($groupMembers->isEmpty()) {
+            return null;
+        }
+
+        $asesiData = [];
+        $combinedAspek = [];
+        $combinedPenolakan = [];
+        $combinedSaran = [];
+        $combinedCatatan = [];
+
+        foreach ($groupMembers as $member) {
+            $answer = \App\Models\Ak5Answer::where('id_izin', $member->id_izin)
+                ->first(['keterangan', 'aspek', 'pencatatan_penolakan', 'saran', 'catatan']);
+
+            // Resolve kompeten status from komtek decision if possible,
+            // otherwise rely on Ak5Answer's stored value or fallback
+            $kompeten = true;
+
+            $asesiData[] = [
+                'nama' => $member->nama,
+                'kompeten' => $kompeten,
+                'keterangan' => $answer?->keterangan ?? $this->llmService->getFallback('ak05_keterangan'),
+            ];
+
+            if (!empty($answer?->aspek)) {
+                $combinedAspek[] = $member->nama . ': ' . $answer->aspek;
+            } else {
+                $combinedAspek[] = $member->nama . ': ' . $this->llmService->getFallback('ak05_aspek');
+            }
+            if (!empty($answer?->pencatatan_penolakan)) {
+                $combinedPenolakan[] = $member->nama . ': ' . $answer->pencatatan_penolakan;
+            }
+            if (!empty($answer?->saran)) {
+                $combinedSaran[] = $member->nama . ': ' . $answer->saran;
+            } else {
+                $combinedSaran[] = $member->nama . ': ' . $this->llmService->getFallback('ak05_saran');
+            }
+            if (!empty($answer?->catatan)) {
+                $combinedCatatan[] = $member->nama . ': ' . $answer->catatan;
+            } else {
+                $combinedCatatan[] = $member->nama . ': ' . $this->llmService->getFallback('ak05_catatan');
+            }
+        }
+
+        return [
+            'asesiList' => $asesiData,
+            'answers' => [
+                'aspek' => implode("\n\n", $combinedAspek),
+                'pencatatan_penolakan' => implode("\n\n", $combinedPenolakan),
+                'saran' => implode("\n\n", $combinedSaran),
+                'catatan' => implode("\n\n", $combinedCatatan),
+            ],
+            'kompeten' => !empty($asesiData) ? $asesiData[0]['kompeten'] : false,
+            'barcodes' => $barcodes,
         ];
     }
 

@@ -159,13 +159,13 @@ td, th{
 <div class="boxi">
 <div class="section-title">PANDUAN BAGI ASESOR</div>
 <div style="padding:10px;">
-<ul>
+<ol>
 <li>Lengkapi nama unit kompetensi, elemen, dan kriteria unjuk kerja sesuai kolom dalam tabel.</li>
 <li>Isi standar industri atau tempat kerja.</li>
 <li>Beri tanda centang (✓) pada kolom "YA" jika asesi kompeten, dan "Tidak" jika sebaliknya.</li>
 <li>Penilaian lanjut diisi bila hasil belum dapat disimpulkan.</li>
 <li>Isi kolom KUK sesuai SKKNI.</li>
-</ul>
+</ol>
 </div>
 </div>
 

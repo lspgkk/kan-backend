@@ -558,7 +558,7 @@
                         // jenjang 1-3
                         $td3 = 'L';
                         $td5 = 'T';
-                        $td7 = 'CL';
+                        $td6 = 'CL';
                         $td8 = 'DPT';
                     } elseif ($jenjang >= 4 && $jenjang <= 9) {
                         if ($metode === 'portofolio') {

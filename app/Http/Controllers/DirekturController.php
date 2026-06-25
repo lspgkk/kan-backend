@@ -6,6 +6,7 @@ use App\Models\AsesiJadwal;
 use App\Models\AsesorBnsp;
 use App\Models\BaKomtek;
 use App\Models\Barcode;
+use App\Models\SkPenetapan;
 use App\Models\JabatanKerja;
 use App\Models\Jadwal;
 use App\Models\KlasifikasiKualifikasi;
@@ -37,6 +38,8 @@ class DirekturController extends Controller
         $spt_komtek = SPTKomtek::where('jadwal_id', $id)->value('link');
         $spt_asesor = SPTAsesor::where('jadwal_id', $id)->value('link');
         $sk_pelaksanaan_uji = SkPelaksanaanUji::where('jadwal_id', $id)->value('link');
+        $skPenetapanModel = SkPenetapan::where('jadwal_id', $id)->first();
+        $sk_penetapan = $skPenetapanModel?->link;
 
         return response()->json([
             'message' => 'Success',
@@ -46,11 +49,18 @@ class DirekturController extends Controller
                 'spt_komtek' => $spt_komtek,
                 'sk_komtek' => env('APP_URL') . '/files/sk_komtek.pdf',
                 'ba_komtek' => $ba_komtek,
+                'sk_penetapan' => $sk_penetapan,
                 'approval_status' => [
                     'sk_komtek' => $jadwal ? (bool) $jadwal->sk_komtek_direktur_approved : false,
                     'sk_pelaksanaan_uji' => $jadwal ? (bool) $jadwal->sk_pelaksanaan_uji_direktur_approved : false,
                     'spt_asesor' => $jadwal ? (bool) $jadwal->spt_asesor_direktur_approved : false,
                     'spt_komtek' => $jadwal ? (bool) $jadwal->spt_komtek_direktur_approved : false,
+                    'sk_penetapan' => [
+                        'asesi_status' => $jadwal ? AsesiJadwal::where('jadwal_id', $jadwal->jadwal_id)
+                            ->pluck('rekomen_direktur', 'id_izin')
+                            ->map(fn($v) => !is_null($v))
+                            ->toArray() : [],
+                    ],
                     'ba_komtek' => [
                         'komtek1' => (bool) ($baKomtekModel->has_ttd_komtek1 ?? false),
                         'komtek2' => (bool) ($baKomtekModel->has_ttd_komtek2 ?? false),
@@ -220,6 +230,104 @@ class DirekturController extends Controller
         ]);
 
         return response()->json(['message' => 'BA Komtek berhasil disetujui']);
+    }
+
+    public function approveSkPenetapan(Request $request, $jadwal_id)
+    {
+        if ($error = $this->verifyDirektur($jadwal_id)) {
+            return $error;
+        }
+
+        $idIzin = $request->input('id_izin');
+        $kompeten = $request->input('kompeten'); // 'K' or 'BK'
+
+        // Save direktur's recommendation for this asesi
+        if ($idIzin) {
+            $asesiJadwal = AsesiJadwal::where('jadwal_id', $jadwal_id)
+                ->where('id_izin', $idIzin)
+                ->first();
+
+            if (!$asesiJadwal) {
+                return response()->json(['message' => 'Asesi tidak ditemukan dalam jadwal ini'], 404);
+            }
+
+            $asesiJadwal->update([
+                'rekomen_direktur' => $kompeten === 'K',
+            ]);
+        }
+
+        // Regenerate SK Penetapan PDF with all asesi data
+        $qrData = $this->generateDirekturQr($jadwal_id, 'SK Penetapan');
+
+        $jadwal = Jadwal::where('jadwal_id', $jadwal_id)->firstOrFail();
+
+        $baKomtek = BaKomtek::where('jadwal_id', $jadwal_id)->first();
+        $skDir = SkPelaksanaanUji::where('jadwal_id', $jadwal_id)->first();
+
+        $sk = SkPenetapan::where('jadwal_id', $jadwal_id)->first();
+
+        if ($sk && $sk->no_surat && str_contains($sk->no_surat, 'LSP GKK')) {
+            $nomorSk = $sk->no_surat;
+        } else {
+            $nomorSk = $this->generateNextNumber(
+                SkPenetapan::class, 'no_surat', '0/LSP GKK B.003-B/I/2024'
+            );
+        }
+
+        // Build peserta list — use direktur's decision if set, fallback to komtek
+        $asesiList = AsesiJadwal::where('jadwal_id', $jadwal_id)->get();
+        $peserta = [];
+        foreach ($asesiList as $asesi) {
+            $nama = Personal::where('id_izin', $asesi->id_izin)->value('nama');
+            $jabatanKerjaId = KlasifikasiKualifikasi::where('id_izin', $asesi->id_izin)->value('jabatan_kerja');
+            $namaSkema = JabatanKerja::where('id_jabatan_kerja', $jabatanKerjaId)->value('jabatan_kerja');
+
+            if (!is_null($asesi->rekomen_direktur)) {
+                $kompetenVal = $asesi->rekomen_direktur ? 'K' : 'BK';
+            } else {
+                $kompetenVal = $this->resolveKomtekDecision($asesi->id_izin);
+            }
+
+            $peserta[] = [
+                'nama'     => $nama,
+                'skema'    => $namaSkema,
+                'kompeten' => $kompetenVal,
+            ];
+        }
+
+        $direkturName = User::where('role_id', 6)->where('is_deleted', false)->value('name')
+            ?? 'Radinal Efendy, S.T.';
+
+        $viewData = [
+            'nomor'            => $nomorSk,
+            'tanggal'          => now()->isoFormat('D MMMM Y'),
+            'tanggal_uji'      => Carbon::parse($jadwal->tanggal_uji)->isoFormat('D MMMM Y'),
+            'no_ba_komtek'     => $baKomtek?->no_surat ?? '-',
+            'no_sk_direktur'   => $skDir?->no_surat ?? '-',
+            'tanggal_ba_komtek' => $baKomtek?->started_at
+                ? Carbon::parse($baKomtek->started_at)->isoFormat('D MMMM Y')
+                : Carbon::parse($jadwal->tanggal_uji)->isoFormat('D MMMM Y'),
+            'peserta'          => $peserta,
+            'qr'               => $qrData['html'],
+            'direktur_name'    => $direkturName,
+        ];
+
+        $pdf = Pdf::loadView('template-surat.skpenetapan', $viewData);
+        $path = "sk_penetapan/{$jadwal_id}.pdf";
+        Storage::disk('str_moon')->put($path, $pdf->output());
+        $pdfUrl = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        SkPenetapan::updateOrCreate(
+            ['jadwal_id' => $jadwal_id],
+            [
+                'no_surat'         => $nomorSk,
+                'link'             => $pdfUrl,
+                'has_ttd_direktur' => 1,
+                'inputby_id'       => auth()->id(),
+            ]
+        );
+
+        return response()->json(['message' => 'Rekomendasi disimpan & SK Penetapan diperbarui']);
     }
 
     public function approveSkPelaksanaanUji($jadwal_id)

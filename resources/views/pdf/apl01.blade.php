@@ -321,7 +321,13 @@
     @foreach ($bukti_persyaratan as $b)
     <tr>
         <td valign=top>{{ $b['no'] }}</td>
-        <td>{{ $b['bukti'] }}</td>
+        <td>
+            @if ($b['checked'] && isset($b['ijazah_url']) && $b['ijazah_url'])
+                <a href="{{ $b['ijazah_url'] }}" style="color: #0066cc; text-decoration: underline;">{{ $b['bukti'] }}</a>
+            @else
+                {{ $b['bukti'] }}
+            @endif
+        </td>
         <td align=center>
             @if ($b['checked'])
                 <span class="checkbox checked"></span>
@@ -358,7 +364,19 @@
     @foreach ($bukti_administratif as $b)
     <tr>
         <td valign=top>{{ $b['no'] }}</td>
-        <td>{{ $b['bukti'] }}</td>
+        <td>
+            @if ($b['checked'])
+                @if(isset($b['foto_url']) && $b['foto_url'] && stripos($b['bukti'], 'pas foto') !== false)
+                    <a href="{{ $b['foto_url'] }}" target="_blank" style="color: #0066cc; text-decoration: underline;">{{ $b['bukti'] }}</a>
+                @elseif(isset($b['ktp_url']) && $b['ktp_url'] && stripos($b['bukti'], 'ktp') !== false)
+                    <a href="{{ $b['ktp_url'] }}" target="_blank" style="color: #0066cc; text-decoration: underline;">{{ $b['bukti'] }}</a>
+                @else
+                    {{ $b['bukti'] }}
+                @endif
+            @else
+                {{ $b['bukti'] }}
+            @endif
+        </td>
         <td align=center>
             @if ($b['checked'])
                 <span class="checkbox checked"></span>

@@ -60,24 +60,14 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // 4️⃣ Check if user already has an active session
+        // 4️⃣ [DISABLED] Check if user already has an active session
+        // Temporarily disabled to allow multi-device login
         $user = auth()->user();
-
-        if ($user->token_version > 0 && $user->token_expires_at && now()->lt($user->token_expires_at)) {
-            // Rollback the authentication — user is already logged in elsewhere
-            auth()->logout();
-
-            Log::info('LOGIN REJECTED (active session exists)', [
-                'user_id' => $user->id,
-                'email' => $user->email,
-                'token_expires_at' => $user->token_expires_at,
-            ]);
-
-            return response()->json([
-                'error' => 'Session Active',
-                'message' => 'Sesi masih aktif. Silakan logout terlebih dahulu sebelum login dari perangkat lain.',
-            ], 409);
-        }
+        // if ($user->token_version > 0 && $user->token_expires_at && now()->lt($user->token_expires_at)) {
+        //     auth()->logout();
+        //     Log::info('LOGIN REJECTED (active session exists)', [...]);
+        //     return response()->json([...], 409);
+        // }
 
         Log::debug('LOGIN: Before increment', [
             'user_id' => $user->id,

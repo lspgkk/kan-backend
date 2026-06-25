@@ -17,11 +17,13 @@ class AsesiJadwal extends Model
         'is_started',
         'is_fg',
         'is_konstruksi',
-        'started_at'
+        'started_at',
+        'rekomen_direktur'
     ];
-    
+
     protected $casts = [
         'is_started' => 'boolean',
+        'rekomen_direktur' => 'boolean',
     ];
 
     public function personal()

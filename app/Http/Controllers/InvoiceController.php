@@ -103,6 +103,7 @@ class InvoiceController extends Controller
                 'jenjang'       => $klasifikasi->jenjang,
                 'tuk'           => $tuk->nama_tuk ?? '-',
                 'type'          => ucwords($asesi->type),
+                'metode_uji'    => $klasifikasi->metode_uji ?? $asesi->metode_uji ?? '-',
                 'harga_bayar'   => ($harga->tahap1 ?? 0) + ($harga->tahap2 ?? 0),
             ];
         });
@@ -182,6 +183,7 @@ class InvoiceController extends Controller
                 'jabatan_kerja' => $jabker->jabatan_kerja ?? '-',
                 'jenjang'       => $klasifikasi->jenjang,
                 'tuk'           => $tuk->nama_tuk ?? '-',
+                'metode_uji'    => $klasifikasi->metode_uji ?? $asesi->metode_uji ?? '-',
                 'harga_bayar'   => ($harga->tahap1 ?? 0) + ($harga->tahap2 ?? 0),
             ];
         });
@@ -261,6 +263,7 @@ class InvoiceController extends Controller
                 'jabatan_kerja' => $jabker->jabatan_kerja ?? '-',
                 'jenjang'       => $klasifikasi->jenjang,
                 'tuk'           => $tuk->nama_tuk ?? '-',
+                'metode_uji'    => $klasifikasi->metode_uji ?? $asesi->metode_uji ?? '-',
                 'harga_bayar'   => ($harga->tahap1 ?? 0) + ($harga->tahap2 ?? 0),
             ];
         });
@@ -464,12 +467,40 @@ class InvoiceController extends Controller
         $validatedData = $request->validate([
             "id_izin_kompeten"    => ['required', 'array'],
             "jenis_permohonan"    => ['required'],
-            "metode"              => ['required'],
             "metode_pembayaran"   => ['required', 'in:manual,midtrans'],
             "nama_tuk"            => ['required'],
             "rekening"            => ['required_if:metode_pembayaran,manual'],
             "tanggal_uji"         => ['required'],
         ]);
+
+        // NEW: Validate that all selected id izins have the same metode_uji
+        $metodeUjis = Personal::whereIn('id_izin', $validatedData['id_izin_kompeten'])
+            ->select('metode_uji')
+            ->distinct()
+            ->pluck('metode_uji')
+            ->filter()
+            ->values();
+
+        if ($metodeUjis->count() > 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invoice tidak dapat dibuat untuk ID Izin dengan metode uji yang berbeda. Metode uji yang ditemukan: ' . $metodeUjis->implode(', '),
+            ], 400);
+        }
+
+        // Get the common metode uji and normalize it
+        $commonMetodeUji = $metodeUjis->first() ?? 'Luring';
+        $metodeMapping = [
+            'Luring' => 'luring',
+            'Daring' => 'daring',
+            'Onsite' => 'onsite',
+            ' onsite' => 'onsite',
+            ' daring' => 'daring',
+            ' luring' => 'luring',
+        ];
+
+        $validatedMetodeUji = ucwords(strtolower(trim($commonMetodeUji)));
+        $validatedMetode = $metodeMapping[$validatedMetodeUji] ?? 'luring';
 
         $maxRetries = 3;
         $attempt = 0;
@@ -546,7 +577,7 @@ class InvoiceController extends Controller
 
                     $harga = DB::table("harga_invoice")
                         ->where("jenjang", $klas_kua->jenjang)
-                        ->where("tipe", $validatedData['metode'])
+                        ->where("tipe", $validatedMetode)
                         ->first();
 
                     if (! $harga) {
@@ -564,7 +595,7 @@ class InvoiceController extends Controller
                     $total_harga += (int)$harga->tahap1 + (int)$harga->tahap2;
 
                     $jenjang_disc = DB::table("jenjang_discounts")
-                        ->where("metode", ucwords($validatedData['metode']))
+                        ->where("metode", ucwords($validatedMetode))
                         ->where("jenjang", (int)$klas_kua->jenjang)
                         ->first();
 
@@ -629,7 +660,7 @@ class InvoiceController extends Controller
                 $templateName = ($personalType === 'reguler') ? 'invoice_reguler' : 'invoice_sistem';
                 $invoice_sps = IOFactory::load(resource_path("views/template-invoice/{$templateName}.xlsx"));
                 $worksheet = $invoice_sps->getActiveSheet();
-                $cell_to_copy = ["B", "C", "D", "E", "F", "G", "H"];
+                $cell_to_copy = ["B", "C", "D", "E", "F", "G", "H", "I"];
 
                 // Duplicate that shit
                 $formatRows = 22;
@@ -637,9 +668,10 @@ class InvoiceController extends Controller
                 for ($i = 0; $i < count($data_asesi_beserta_harga); $i++) {
                     $worksheet->setCellValue('B' . (string)$formatRows + $i, $i + 1);
                     $worksheet->setCellValue('C' . (string)$formatRows + $i, $data_asesi_beserta_harga[$i]['nama']);
-                    $worksheet->setCellValue('E' . (string)$formatRows + $i, $data_asesi_beserta_harga[$i]['jabatan_kerja']);
-                    $worksheet->setCellValue('F' . (string)$formatRows + $i, $data_asesi_beserta_harga[$i]['jenjang']);
-                    $worksheet->setCellValue('G' . (string)$formatRows + $i, (int)$data_asesi_beserta_harga[$i]['harga'] + (int)$data_asesi_beserta_harga[$i]['harga_2']);
+                    $worksheet->setCellValue('D' . (string)$formatRows + $i, $data_asesi_beserta_harga[$i]['id_izin']);
+                    $worksheet->setCellValue('F' . (string)$formatRows + $i, $data_asesi_beserta_harga[$i]['jabatan_kerja']);
+                    $worksheet->setCellValue('G' . (string)$formatRows + $i, $data_asesi_beserta_harga[$i]['jenjang']);
+                    $worksheet->setCellValue('H' . (string)$formatRows + $i, (int)$data_asesi_beserta_harga[$i]['harga'] + (int)$data_asesi_beserta_harga[$i]['harga_2']);
 
                     // Insert the new row
                     if ($i != count($data_asesi_beserta_harga) - 1) {
@@ -659,7 +691,7 @@ class InvoiceController extends Controller
 
                 // Tuk
                 $worksheet->setCellValue("E15", $data_asesi_beserta_harga[0]['nama_tuk']);
-                $worksheet->setCellValue("E17", ucwords($validatedData['metode']));
+                $worksheet->setCellValue("E17", ucwords($validatedMetode));
 
                 // Tanggal invoice
                 $worksheet->setCellValue("G11", \Carbon\Carbon::now()->setTimezone('Asia/Jakarta')->isoFormat('DD MMMM Y'));
@@ -673,29 +705,32 @@ class InvoiceController extends Controller
 
 
                 // Total
-                $worksheet->setCellValue('G' . str($formatRows + count($data_asesi_beserta_harga) + 2), '=SUM(G22:' . 'G' . str((count($data_asesi_beserta_harga) - 1) + $formatRows) . ')');
-                $worksheet->setCellValue('G' . str($formatRows + count($data_asesi_beserta_harga) + 3), $total_diskon);
+                $worksheet->setCellValue('H' . str($formatRows + count($data_asesi_beserta_harga) + 2), '=SUM(H22:' . 'H' . str((count($data_asesi_beserta_harga) - 1) + $formatRows) . ')');
+                $worksheet->setCellValue('H' . str($formatRows + count($data_asesi_beserta_harga) + 3), $total_diskon);
 
-                $total_in_word = $worksheet->getCell('E' . str($formatRows + count($data_asesi_beserta_harga) + 2))->getCalculatedValue();
-                $worksheet->getCell('E' . str($formatRows + count($data_asesi_beserta_harga) + 2))->setValue($total_in_word);
+                $total_in_word = $worksheet->getCell('F' . str($formatRows + count($data_asesi_beserta_harga) + 2))->getCalculatedValue();
+                $worksheet->getCell('F' . str($formatRows + count($data_asesi_beserta_harga) + 2))->setValue($total_in_word);
 
 
                 // Set payment method info in Excel
                 $shift = count($data_asesi_beserta_harga) - 1;
                 if ($validatedData['metode_pembayaran'] === 'midtrans') {
-                    $worksheet->setCellValue('C' . (26 + $shift), 'Midtrans Payment Gateway');
-                    $worksheet->setCellValue('C' . (27 + $shift), 'Status: Menunggu Pembayaran');
-                    $worksheet->setCellValue('C' . (28 + $shift), 'Klik tautan pembayaran yang telah');
-                    $worksheet->setCellValue('C' . (29 + $shift), 'dikirimkan untuk menyelesaikan pembayaran.');
+                    $payRow = 26 + $shift;
+                    $worksheet->setCellValue('D' . $payRow, 'Pembayaran melalui Midtrans');
+                    $bayarRow = $payRow + 1;
+                    $worksheet->setCellValue('D' . $bayarRow, 'Bayar Disini');
+                    // Add clickable hyperlink to "Bayar Disini" cell
+                    $worksheet->getCell('D' . $bayarRow)->getHyperlink()
+                        ->setUrl('https://devgatensi.site/invoice/lapkonfinvoice');
                 }
 
-                // Set electronic statement for reguler template
-                if ($personalType === 'reguler') {
+                // Set electronic statement (all personal types)
+                {
                     $n = count($data_asesi_beserta_harga);
                     // Original row 31 → 31 + n - 1 = 30 + n
                     $elecRow = $formatRows + $n + 8; // 22 + n + 8 = 30 + n
-                    $jabatan = optional(Auth::user()->role)->name ?? Auth::user()->role ?? 'Staff';
-                    $worksheet->setCellValue('C' . $elecRow, 'Invoice ini diterbitkan secara elektronik oleh ' . $jabatan . ' "' . Auth::user()->name . '"');
+                    $jabatan = optional(Auth::user()->role)->name ?? Auth::user()->role ?? 'Admin';
+                    $worksheet->setCellValue('D' . $elecRow, 'Invoice ini diterbitkan secara elektronik oleh ' . $jabatan . ' "' . Auth::user()->name . '"');
                 }
 
 
@@ -722,7 +757,7 @@ class InvoiceController extends Controller
                         'total_harga' => $total_harga,
                         'total_diskon' => $total_diskon,
                         'tanggal_uji' => $validatedData['tanggal_uji'],
-                        'metode' => $validatedData['metode'],
+                        'metode' => $validatedMetode,
                         'kategori_tuk' => $tuk_disc->kategori,
                         'total_word' => $total_in_word,
                         'issued_by' => Auth::user()->name,
@@ -745,13 +780,13 @@ class InvoiceController extends Controller
                 Invoice::create([
                     'invoice_number' => $latest_invno,
                     'nama'           => $data_instansi->nama,
-                    'inv_type'       => $validatedData['metode'] === 'luring' ? 2 : 1,
+                    'inv_type'       => $validatedMetode === 'luring' ? 2 : 1,
                     'bulan'          => (int) date('m'),
                     'tahun'          => (int) date('Y'),
                     'nomor'          => $num,
                     'jatuh_tempo'    => 7,
                     'nama_tuk'       => $data_instansi->nama,
-                    'class_uji'      => ucwords($validatedData['metode']),
+                    'class_uji'      => ucwords($validatedMetode),
                     'kode_rekening'  => $validatedData['rekening'] ?? null,
                     'keterangan'     => $validatedData['jenis_permohonan'],
                     'total_biaya'    => $total_harga - $total_diskon,
@@ -769,7 +804,7 @@ class InvoiceController extends Controller
                         'id_izin'    => $asesi['id_izin'],
                         'biaya'      => $asesi['harga'] + $asesi['harga_2'],
                         'ditagihkan' => $asesi['harga'] + $asesi['harga_2'] - $asesi['diskon'],
-                        'metode_pembayaran' => $validatedData['metode'], // Use exam method, not payment method
+                        'metode_pembayaran' => $validatedMetode, // Use exam method, not payment method
                         'tahap_invoice'    => 'Langsung',
                         'jenis_permohonan' => 1, // Jenis baru, nanti ganti aja id nya
                         'deposit' => $asesi['harga'],
@@ -821,11 +856,11 @@ class InvoiceController extends Controller
 
                 // Use Snap (popup with multiple payment options) by default
                 try {
-                    // Create Snap transaction for popup
-                    $snapTransaction = $midtransService->createSnapTransaction($invoice);
+                    // Generate order_id FIRST so it's the same for Midtrans API and DB
+                    $orderId = $midtransService->generateOrderId($invoice->invoice_number, 1);
 
-                    // Generate order_id for database (same as what we sent to Midtrans)
-                    $orderId = $midtransService->generateOrderId($invoice->invoice_number);
+                    // Create Snap transaction, passing the same order_id
+                    $snapTransaction = $midtransService->createSnapTransaction($invoice, null, $orderId);
 
                     // Calculate the total amount with admin fee (using default BCA VA fee for storage)
                     $baseAmount = (int) $invoice->total_biaya;
@@ -833,20 +868,36 @@ class InvoiceController extends Controller
                     $totalAmount = $baseAmount + $midtransFee;
 
                     // Save Snap transaction details
-                    \App\Models\MidtransTransaction::create([
-                        'order_id' => $orderId,
-                        'invoice_number' => $latest_invno,
-                        'transaction_id' => null,
-                        'status' => 'pending',
-                        'payment_type' => 'snap',
-                        'gross_amount' => $totalAmount, // Store total including fees
-                        'payment_details' => array_merge($snapTransaction, [
-                            'base_amount' => $baseAmount,
-                            'midtrans_fee' => $midtransFee,
-                            'total_amount' => $totalAmount,
-                        ]),
-                        'callback_response' => null,
-                    ]);
+                    try {
+                        $midtransTransaction = \App\Models\MidtransTransaction::create([
+                            'order_id' => $orderId,
+                            'invoice_number' => $latest_invno,
+                            'transaction_id' => null,
+                            'status' => 'pending',
+                            'payment_type' => 'snap',
+                            'gross_amount' => $totalAmount,
+                            'payment_details' => array_merge($snapTransaction, [
+                                'base_amount' => $baseAmount,
+                                'midtrans_fee' => $midtransFee,
+                                'total_amount' => $totalAmount,
+                            ]),
+                            'callback_response' => null,
+                        ]);
+
+                        Log::info('Midtrans transaction created successfully', [
+                            'order_id' => $orderId,
+                            'invoice_number' => $latest_invno,
+                            'transaction_id' => $midtransTransaction->id,
+                            'gross_amount' => $totalAmount,
+                        ]);
+                    } catch (\Exception $dbError) {
+                        Log::error('Failed to save Midtrans transaction to database', [
+                            'error' => $dbError->getMessage(),
+                            'order_id' => $orderId,
+                            'invoice_number' => $latest_invno,
+                        ]);
+                        throw new \Exception('Failed to save Midtrans transaction: ' . $dbError->getMessage());
+                    }
 
                     // Update invoice with Snap details
                     $invoice->update([
@@ -1146,7 +1197,9 @@ class InvoiceController extends Controller
     }
 
     /**
-     * Create Midtrans payment for existing unpaid invoice
+     * Create new Midtrans payment for unpaid/failed invoice.
+     * Reuses existing pending transaction if still valid at Midtrans.
+     * If expired/failed, voids the old transaction and creates a fresh one.
      */
     public function createMidtransPayment(Request $request)
     {
@@ -1164,85 +1217,122 @@ class InvoiceController extends Controller
             if ($invoice->payment_status === 'paid') {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Invoice is already paid'
+                    'message' => 'Invoice already paid'
                 ], 400);
             }
 
-            if ($invoice->midtrans_order_id) {
-                // Check existing Midtrans transaction
-                $existingTransaction = \App\Models\MidtransTransaction::where('order_id', $invoice->midtrans_order_id)->first();
-
-                if ($existingTransaction && $existingTransaction->isPending()) {
-                    $midtransService = new \App\Services\MidtransService();
-
-                    $responseData = [
-                        'success' => true,
-                        'message' => 'Midtrans transaction already exists',
-                        'data' => [
-                            'order_id' => $existingTransaction->order_id,
-                            'amount' => $existingTransaction->gross_amount,
-                            'is_sandbox' => $midtransService->isSandbox(),
-                        ]
-                    ];
-
-                    // If it's a Snap transaction, return the redirect_url
-                    if (isset($existingTransaction->payment_details['redirect_url'])) {
-                        $responseData['data']['redirect_url'] = $existingTransaction->payment_details['redirect_url'];
-                        $responseData['data']['payment_url'] = $existingTransaction->payment_details['redirect_url'];
-                    }
-
-                    return response()->json($responseData);
-                }
-            }
-
-            // Use Snap for better UX (popup with multiple payment options)
             $midtransService = new \App\Services\MidtransService();
 
-            // Create Snap transaction
-            $snapTransaction = $midtransService->createSnapTransaction($invoice);
+            // Check if there's an existing pending transaction that can be reused
+            if ($invoice->midtrans_order_id) {
+                $existing = \App\Models\MidtransTransaction::where('order_id', $invoice->midtrans_order_id)
+                    ->whereIn('status', ['pending', null])
+                    ->first();
 
-            // Generate order_id for database (same as what we sent to Midtrans)
-            $orderId = $midtransService->generateOrderId($invoice->invoice_number);
+                if ($existing) {
+                    try {
+                        // Verify actual status with Midtrans API
+                        $midtransStatus = $midtransService->checkStatus($existing->order_id);
+                        $actualStatus = $midtransStatus['transaction_status'] ?? null;
 
-            // Calculate the total amount with admin fee (using default BCA VA fee for storage)
+                        if ($actualStatus === 'pending') {
+                            // ✅ Transaction is still valid at Midtrans — reuse it
+                            $paymentDetails = $existing->payment_details;
+                            $baseAmount = (int) $invoice->total_biaya;
+                            $midtransFee = (int) $midtransService->calculateMidtransFee($baseAmount, 'bca_va');
+                            $totalAmount = $baseAmount + $midtransFee;
+
+                            Log::info('Reusing existing Midtrans transaction', [
+                                'order_id' => $existing->order_id,
+                                'invoice_number' => $invoiceNumber,
+                            ]);
+
+                            return response()->json([
+                                'success' => true,
+                                'message' => 'Pembayaran sudah tersedia, silakan lanjutkan pembayaran',
+                                'data' => [
+                                    'order_id' => $existing->order_id,
+                                    'base_amount' => $baseAmount,
+                                    'midtrans_fee' => $midtransFee,
+                                    'total_amount' => $totalAmount,
+                                    'fee_description' => $midtransService->getFeeDescription('bca_va'),
+                                    'snap_token' => $paymentDetails['token'] ?? null,
+                                    'redirect_url' => $paymentDetails['redirect_url'] ?? null,
+                                    'payment_url' => $paymentDetails['redirect_url'] ?? null,
+                                    'client_key' => $midtransService->getClientKey(),
+                                    'is_sandbox' => $midtransService->isSandbox(),
+                                    'reused' => true,
+                                ]
+                            ]);
+                        }
+
+                        // Status at Midtrans is no longer pending — void locally
+                        Log::info('Existing Midtrans transaction is no longer pending at Midtrans, creating new one', [
+                            'old_order_id' => $existing->order_id,
+                            'local_status' => $existing->status,
+                            'midtrans_status' => $actualStatus,
+                            'invoice_number' => $invoiceNumber,
+                        ]);
+                        $existing->update(['status' => 'expire']);
+
+                    } catch (\Exception $e) {
+                        // Midtrans API error (e.g., order not found / expired and deleted)
+                        // Treat as expired and create new
+                        Log::warning('Midtrans status check failed for existing transaction, creating new one', [
+                            'old_order_id' => $existing->order_id,
+                            'error' => $e->getMessage(),
+                            'invoice_number' => $invoiceNumber,
+                        ]);
+                        $existing->update(['status' => 'expire']);
+                    }
+                }
+
+                // Clear old reference — will be replaced with new order_id below
+                $invoice->update(['midtrans_order_id' => null]);
+            }
+
+            // --- Create fresh Midtrans transaction ---
+            // Count existing transactions for this invoice to determine order attempt number
+            $attemptCount = \App\Models\MidtransTransaction::where('invoice_number', $invoiceNumber)->count();
+            $orderId = $midtransService->generateOrderId($invoice->invoice_number, $attemptCount + 1);
+
+            $snapTransaction = $midtransService->createSnapTransaction($invoice, null, $orderId);
+
             $baseAmount = (int) $invoice->total_biaya;
             $midtransFee = (int) $midtransService->calculateMidtransFee($baseAmount, 'bca_va');
             $totalAmount = $baseAmount + $midtransFee;
 
-            // Save Snap transaction details
-            $midtransData = [
+            $midtransRecord = \App\Models\MidtransTransaction::create([
                 'order_id' => $orderId,
                 'invoice_number' => $invoiceNumber,
                 'transaction_id' => null,
                 'status' => 'pending',
                 'payment_type' => 'snap',
-                'gross_amount' => $totalAmount, // Store total including fees
+                'gross_amount' => $totalAmount,
                 'payment_details' => array_merge($snapTransaction, [
                     'base_amount' => $baseAmount,
                     'midtrans_fee' => $midtransFee,
                     'total_amount' => $totalAmount,
                 ]),
                 'callback_response' => null,
-            ];
+            ]);
 
-            \App\Models\MidtransTransaction::create($midtransData);
-
-            // Update invoice with Midtrans details
             $invoice->update([
                 'payment_method' => 'midtrans',
                 'midtrans_order_id' => $orderId,
                 'midtrans_transaction_id' => null,
                 'midtrans_payment_type' => 'snap',
+                'payment_status' => 'unpaid',
             ]);
 
-            $response_data = [
+            return response()->json([
                 'success' => true,
-                'message' => 'Midtrans payment created successfully',
+                'message' => 'Pembayaran Midtrans berhasil dibuat',
                 'data' => [
                     'order_id' => $orderId,
-                    'base_amount' => $baseAmount, // Original invoice amount
-                    'midtrans_fee' => $midtransFee, // Fee paid by customer
-                    'total_amount' => $totalAmount, // Total customer pays
+                    'base_amount' => $baseAmount,
+                    'midtrans_fee' => $midtransFee,
+                    'total_amount' => $totalAmount,
                     'fee_description' => $midtransService->getFeeDescription('bca_va'),
                     'snap_token' => $snapTransaction['token'],
                     'redirect_url' => $snapTransaction['redirect_url'],
@@ -1250,25 +1340,24 @@ class InvoiceController extends Controller
                     'client_key' => $midtransService->getClientKey(),
                     'is_sandbox' => $midtransService->isSandbox(),
                 ]
-            ];
-
-            return response()->json($response_data);
+            ]);
 
         } catch (\Exception $e) {
             Log::error('Failed to create Midtrans payment', [
-                'invoice_number' => $invoiceNumber,
+                'invoice_number' => $invoiceNumber ?? null,
                 'error' => $e->getMessage()
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create Midtrans payment: ' . $e->getMessage()
+                'message' => 'Gagal membuat pembayaran: ' . $e->getMessage()
             ], 500);
         }
     }
 
     /**
      * Check Midtrans payment status
+     * Handles expired orders: if Midtrans returns error (order not found), treat as expired
      */
     public function checkMidtransStatus(Request $request, $invoiceNumber)
     {
@@ -1290,27 +1379,60 @@ class InvoiceController extends Controller
             }
 
             $midtransService = new \App\Services\MidtransService();
-            $status = $midtransService->checkStatus($invoice->midtrans_order_id);
-
             $transaction = \App\Models\MidtransTransaction::where('order_id', $invoice->midtrans_order_id)->first();
 
-            if ($transaction) {
-                $transaction->update([
-                    'status' => $status['transaction_status'] ?? $status['status_code'],
-                    'callback_response' => $status,
+            try {
+                $status = $midtransService->checkStatus($invoice->midtrans_order_id);
+
+                $transactionStatus = $status['transaction_status'] ?? $status['status_code'] ?? null;
+
+                if ($transaction) {
+                    $transaction->update([
+                        'status' => $transactionStatus,
+                        'callback_response' => $status,
+                    ]);
+                }
+
+                // If expired on Midtrans side, update invoice too
+                if (in_array($transactionStatus, ['expire', 'cancel', 'deny'])) {
+                    $invoice->update(['payment_status' => 'failed']);
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'invoice_number' => $invoiceNumber,
+                        'payment_status' => $invoice->fresh()->payment_status,
+                        'transaction_status' => $transactionStatus,
+                        'payment_type' => $status['payment_type'] ?? null,
+                        'gross_amount' => $status['gross_amount'] ?? $invoice->total_biaya,
+                    ]
+                ]);
+
+            } catch (\Exception $apiError) {
+                // Midtrans API error (e.g. order expired & cleaned up, 404)
+                Log::warning('Midtrans status check API error, marking as expired', [
+                    'order_id' => $invoice->midtrans_order_id,
+                    'error' => $apiError->getMessage(),
+                ]);
+
+                if ($transaction && $transaction->isPending()) {
+                    $transaction->update(['status' => 'expire']);
+                    $invoice->update(['payment_status' => 'failed']);
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'invoice_number' => $invoiceNumber,
+                        'payment_status' => $invoice->fresh()->payment_status,
+                        'transaction_status' => 'expire',
+                        'payment_type' => $transaction->payment_type ?? null,
+                        'gross_amount' => $transaction->gross_amount ?? $invoice->total_biaya,
+                        'note' => 'Order telah expired, silakan buat pembayaran baru',
+                    ]
                 ]);
             }
-
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'invoice_number' => $invoiceNumber,
-                    'payment_status' => $invoice->payment_status,
-                    'transaction_status' => $status['transaction_status'] ?? $status['status_code'],
-                    'payment_type' => $status['payment_type'] ?? null,
-                    'gross_amount' => $status['gross_amount'] ?? $invoice->total_biaya,
-                ]
-            ]);
 
         } catch (\Exception $e) {
             Log::error('Failed to check Midtrans status', [
@@ -2071,21 +2193,39 @@ class InvoiceController extends Controller
                         $invoiceSps = IOFactory::load($tempFile);
                         $worksheet = $invoiceSps->getActiveSheet();
 
-                        // Update payment status cells
-                        $worksheet->setCellValue('C26', 'Midtrans Payment Gateway');
-                        $worksheet->setCellValue('C27', 'Status: LUNAS');
-                        $worksheet->setCellValue('C28', '');
-                        $worksheet->setCellValue('C29', '');
+                        // Calculate dynamic row offset for payment info
+                        // In createInvoice, payment text starts at D(26 + count-1) = D(25 + count)
+                        $numAsesi = $invoice->details->count();
+                        $paymentStartRow = 25 + $numAsesi;
 
-                        // If we have midtrans details, show them
-                        if ($midtransDetail && $midtransDetail['payment_type']) {
-                            $worksheet->setCellValue('C26', 'Midtrans Payment Gateway (' . $midtransDetail['payment_type_display'] . ')');
-                            if ($midtransDetail['bank'] && $midtransDetail['va_number']) {
-                                $worksheet->setCellValue('C27', 'Bank ' . strtoupper($midtransDetail['bank']) . ' - VA: ' . $midtransDetail['va_number']);
-                            } else {
-                                $worksheet->setCellValue('C27', 'Status: LUNAS');
-                            }
+                        // Clear old payment info rows
+                        for ($r = $paymentStartRow; $r <= $paymentStartRow + 8; $r++) {
+                            $worksheet->setCellValue('D' . $r, '');
                         }
+
+                        // Write structured payment info
+                        $worksheet->setCellValue('D' . $paymentStartRow, 'Pembayaran melalui Midtrans');
+                        $worksheet->setCellValue('D' . ($paymentStartRow + 1), 'Status: LUNAS');
+
+                        if ($midtransDetail && $midtransDetail['payment_type']) {
+                            $worksheet->setCellValue('D' . ($paymentStartRow + 2), 'Metode: ' . $midtransDetail['payment_type_display']);
+                            if ($midtransDetail['bank']) {
+                                $worksheet->setCellValue('D' . ($paymentStartRow + 3), 'Bank: ' . strtoupper($midtransDetail['bank']));
+                            }
+                            if ($midtransDetail['va_number']) {
+                                $worksheet->setCellValue('D' . ($paymentStartRow + 4), 'VA Number: ' . $midtransDetail['va_number']);
+                            }
+                            if ($midtransDetail['transaction_time']) {
+                                $worksheet->setCellValue('D' . ($paymentStartRow + 5), 'Waktu: ' . $midtransDetail['transaction_time']);
+                            }
+                        } else {
+                            $worksheet->setCellValue('D' . ($paymentStartRow + 2), 'Metode: -');
+                        }
+
+                        // Electronic statement
+                        $elecRow = $paymentStartRow + 7;
+                        $jabatan = optional(User::where('email', $invoice->input_by)->first()?->role)->name ?? 'Admin';
+                        $worksheet->setCellValue('D' . $elecRow, 'Invoice ini diterbitkan secara elektronik oleh ' . $jabatan . ' "' . ($invoice->input_by ?? '-') . '" dan sah tanpa tanda tangan maupun cap perusahaan.');
 
                         $writer = IOFactory::createWriter($invoiceSps, 'Xlsx');
                         ob_start();

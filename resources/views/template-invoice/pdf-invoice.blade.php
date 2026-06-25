@@ -245,8 +245,9 @@
             <thead>
                 <tr>
                     <th style="width: 30px;">NO</th>
-                    <th style="width: 25%;">NAMA</th>
-                    <th style="width: 45%;">JABATAN KERJA</th>
+                    <th style="width: 20%;">NAMA</th>
+                    <th style="width: 15%;">ID IZIN</th>
+                    <th style="width: 40%;">JABATAN KERJA</th>
                     <th style="width: 60px;">JENJANG</th>
                     <th style="width: 90px;">HARGA</th>
                 </tr>
@@ -257,6 +258,7 @@
                     <tr>
                         <td class="text-center">{{ $key + 1 }}</td>
                         <td>{{ $item['nama'] }}</td>
+                        <td>{{ $item['id_izin'] }}</td>
                         <td>{{ $item['jabatan_kerja'] }}</td>
                         <td class="text-center">{{ $item['jenjang'] }}</td>
                         <td class="text-right">Rp {{ number_format($item['harga'] + $item['harga_2'], 0, ',', '.') }}</td>
@@ -304,15 +306,22 @@
                                 @if($midtrans_detail['transaction_time'])
                                     Waktu: {{ $midtrans_detail['transaction_time'] }}<br>
                                 @endif
-                            @else
-                                <span style="color:#003d73;">Status: Menunggu Pembayaran</span><br>
-                                <span style="font-size:9px;">Klik tautan pembayaran yang telah dikirimkan untuk menyelesaikan pembayaran.</span>
                             @endif
                         @else
                             <strong>Transfer ke Rekening</strong><br>
                             BTN Kantor Cabang Jakarta Kuningan<br>
                             00001.01.30.001326.6<br>
                             Atas Nama LSP GATENSI KARYA KONSTRUKSI
+                        @endif
+
+                        <!-- Electronic statement at bottom of left column -->
+                        @if(isset($personal_type) && $personal_type === 'reguler')
+                            <div style="margin-top:20px; font-size:9px; line-height:1.4; font-weight:bold;">
+                                Invoice ini diterbitkan secara elektronik<br>
+                                oleh {{ $user_jabatan ?? 'Staff' }} "{{ $issued_by }}"<br>
+                                dan sah tanpa tanda tangan<br>
+                                maupun cap perusahaan.
+                            </div>
                         @endif
                     </div>
                 </td>
@@ -344,16 +353,7 @@
                             </td>
                         </tr>
 
-                        @if(isset($personal_type) && $personal_type === 'reguler')
-                            <tr style="color: black; font-weight:bold;">
-                                <td colspan="2" style="padding-top:40px; font-size:9px; line-height:1.4;">
-                                    Invoice ini diterbitkan secara elektronik<br>
-                                    oleh {{ $user_jabatan ?? 'Staff' }} "{{ $issued_by }}"<br>
-                                    dan sah tanpa tanda tangan<br>
-                                    maupun cap perusahaan.
-                                </td>
-                            </tr>
-                        @else
+                        @if(isset($personal_type) && $personal_type !== 'reguler')
                             <tr>
                                 <td colspan="2" style="padding-top:25px; font-size:10px; font-weight:bold;">
                                     LSP GATENSI KARYA KONSTRUKSI

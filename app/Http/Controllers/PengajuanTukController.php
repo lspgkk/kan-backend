@@ -260,7 +260,7 @@ class PengajuanTukController extends Controller
             'metode_verifikasi' => 'required|in:Daring,Luring',
             'verifikator_id' => 'required|exists:users,id',
             'validator_id' => in_array($tukType, ['sewaktu', 'ajj']) ? 'nullable|exists:users,id' : 'required|exists:users,id',
-            'ketua_tuk_id' => 'required|exists:users,id',
+            'ketua_tuk_id' => $tukType === 'ajj' ? 'nullable|exists:users,id' : 'required|exists:users,id',
             'skema' => 'nullable|array',
             'skema.*.id' => 'nullable|string',
             'skema.*.nama' => 'nullable|string',
@@ -281,7 +281,9 @@ class PengajuanTukController extends Controller
         $pengajuan->approved_at_admin = $now;
         $pengajuan->verifikator_id = $request->verifikator_id;
         $pengajuan->validator_id = $request->validator_id;
-        $pengajuan->ketua_tuk_id = $request->ketua_tuk_id;
+        if ($tukType !== 'ajj') {
+            $pengajuan->ketua_tuk_id = $request->ketua_tuk_id;
+        }
 
         // Stash extra data for PDF generation
         $dataTuk = $pengajuan->data_tuk ?? [];
@@ -600,9 +602,23 @@ class PengajuanTukController extends Controller
             return response()->json(['message' => 'Hanya Direktur yang dapat TTD SK'], 403);
         }
 
-        $pengajuan = PengajuanTuk::where('id', $id)
-            ->whereIn('status', ['divalidasi', 'dikonfirmasi_tuk'])
-            ->firstOrFail();
+        $pengajuan = PengajuanTuk::where('id', $id)->firstOrFail();
+
+        // AJJ: selesai setelah diverifikasi (tanpa konfirmasi TUK / validasi)
+        // Sewaktu: setelah dikonfirmasi_tuk
+        // Mandiri: setelah divalidasi
+        $allowedStatuses = match ($pengajuan->tuk_type) {
+            'ajj'      => ['diverifikasi'],
+            'sewaktu'  => ['dikonfirmasi_tuk'],
+            'mandiri'  => ['divalidasi'],
+            default    => [],
+        };
+
+        if (!in_array($pengajuan->status, $allowedStatuses)) {
+            return response()->json([
+                'message' => 'Status pengajuan tidak valid untuk TTD SK',
+            ], 422);
+        }
 
         // Separate barcode for SK page — date matches $tanggalKeputusan
         $qrHtml = $this->generateQrBarcode($user->id, $user->role_id, 'TTD SK Direktur TUK', Carbon::now());
