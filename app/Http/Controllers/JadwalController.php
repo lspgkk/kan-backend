@@ -11,6 +11,7 @@ use App\Models\BaKomtek;
 use App\Models\Barcode;
 use App\Models\JabatanKerja;
 use App\Models\Jadwal;
+use App\Models\JenisKelas;
 use App\Models\KlasifikasiKualifikasi;
 use App\Models\KomtekRecommendation;
 use App\Models\MyTuk;
@@ -1038,12 +1039,12 @@ class JadwalController extends Controller
     }
 
     /**
-     * Send WhatsApp notification to asesi after BNSP sync using template
-     * ID 1242eff1-3967-4478-9f0a-80ee272c13dd.
+     * Send WhatsApp notification to asesi after Jadwal created using template
+     * ID 7fb61271-24b3-44d7-9a81-7fda00b30031.
      *
      * Template parameters:
      *   {{1}} nama_asesi  {{2}} tanggal_uji  {{3}} tuk
-     *   {{4}} skema       {{5}} link_ujian   {{6}} akun
+     *   {{4}} skema       {{5}} link_platform + zoom   {{6}} user:akun
      *   {{7}} password
      */
     private function sendWhatsAppToAsesi(array $asesiList, Jadwal $jadwal): void
@@ -1056,6 +1057,10 @@ class JadwalController extends Controller
         $tukName = $jadwal->tuk?->Nama ?? $jadwal->tuk?->nama_tuk ?? '-';
         $tanggalUji = \Carbon\Carbon::parse($jadwal->tanggal_uji)->locale('id')->translatedFormat('d F Y');
         $linkUjian = 'https://sisuj.vercel.app';
+
+        // Cek apakah jenis kelas daring
+        $jenisKelas = $jadwal->jenis_kelas ? JenisKelas::find($jadwal->jenis_kelas) : null;
+        $isDaring = $jenisKelas && strtolower(trim($jenisKelas->nama_kelas)) === 'daring';
 
         // Build lookup for skema per id_izin
         $skemaMap = [];
@@ -1092,14 +1097,25 @@ class JadwalController extends Controller
                     continue;
                 }
 
+                // Bangun parameter {{5}} — link platform dan zoom
+                if ($isDaring) {
+                    $zoomUrl = env('ZOOM_URL');
+                    $linkContent = "Link Platform: {$linkUjian}";
+                    if ($zoomUrl) {
+                        $linkContent .= "\nLink Zoom: {$zoomUrl}";
+                    }
+                } else {
+                    $linkContent = "Link Platform: {$linkUjian}";
+                }
+
                 $params = [
                     'nama_asesi'  => $asesi['nama'],
                     'tanggal_uji' => $tanggalUji,
                     'tuk'         => $tukName,
                     'skema'       => $skemaMap[$asesi['id_izin']] ?? '-',
-                    'link_ujian'  => $linkUjian,
-                    'akun'        => $asesi['account'] ?? '-',
-                    'password'    => $asesi['password'] ?? '-',
+                    'link_ujian'  => $linkContent,
+                    'akun'        => 'User: ' . ($asesi['account'] ?? '-'),
+                    'password'    => 'Password: ' . ($asesi['password'] ?? '-'),
                 ];
 
                 $templateIdNotif = '7fb61271-24b3-44d7-9a81-7fda00b30031';

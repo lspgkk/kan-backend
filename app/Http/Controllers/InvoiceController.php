@@ -92,9 +92,41 @@ class InvoiceController extends Controller
                 $klasifikasi->jabatan_kerja
             )->first();
 
+            // Resolve tipe with full fallback chain: jenis_kelas_id → klasifikasi.metode_uji → personal.metode_uji
+            $tipe = 'luring';
+            if ($asesi->jenis_kelas_id) {
+                $jk = JenisKelas::find($asesi->jenis_kelas_id);
+                if ($jk && strtolower(trim($jk->nama_kelas)) === 'daring') {
+                    $tipe = 'daring';
+                }
+            } else {
+                $fallbackMetode = $klasifikasi->metode_uji ?? $asesi->metode_uji ?? '';
+                if (strtolower(trim($fallbackMetode)) === 'daring') {
+                    $tipe = 'daring';
+                }
+            }
+
             $harga = HargaInvoice::where('jenjang', $klasifikasi->jenjang)
-                ->where('tipe', 'Luring')
+                ->where('tipe', ucwords($tipe))
                 ->first();
+
+            // Fallback to Luring price if dynamic tipe not found
+            if (!$harga && $tipe !== 'luring') {
+                $harga = HargaInvoice::where('jenjang', $klasifikasi->jenjang)
+                    ->where('tipe', 'Luring')
+                    ->first();
+            }
+
+            // 🐛 DEBUG: log what viewInvoiceBaruReguler resolved
+            Log::info('DEBUG viewInvoice metode resolution', [
+                'id_izin'     => $asesi->id_izin,
+                'jenis_kelas_id' => $asesi->jenis_kelas_id,
+                'tipe'        => $tipe,
+                'jenjang'     => $klasifikasi->jenjang,
+                'harga_tahap1' => $harga?->tahap1,
+                'harga_tahap2' => $harga?->tahap2,
+                'harga_bayar' => ($harga->tahap1 ?? 0) + ($harga->tahap2 ?? 0),
+            ]);
 
             return [
                 'nama'          => $asesi->nama,
@@ -103,7 +135,7 @@ class InvoiceController extends Controller
                 'jenjang'       => $klasifikasi->jenjang,
                 'tuk'           => $tuk->nama_tuk ?? '-',
                 'type'          => ucwords($asesi->type),
-                'metode_uji'    => $klasifikasi->metode_uji ?? $asesi->metode_uji ?? '-',
+                'metode_uji'    => $tipe === 'daring' ? 'Daring' : 'Luring',
                 'harga_bayar'   => ($harga->tahap1 ?? 0) + ($harga->tahap2 ?? 0),
             ];
         });
@@ -173,9 +205,30 @@ class InvoiceController extends Controller
                 $klasifikasi->jabatan_kerja
             )->first();
 
+            // Resolve tipe with full fallback chain: jenis_kelas_id → klasifikasi.metode_uji → personal.metode_uji
+            $tipe = 'luring';
+            if ($asesi->jenis_kelas_id) {
+                $jk = JenisKelas::find($asesi->jenis_kelas_id);
+                if ($jk && strtolower(trim($jk->nama_kelas)) === 'daring') {
+                    $tipe = 'daring';
+                }
+            } else {
+                $fallbackMetode = $klasifikasi->metode_uji ?? $asesi->metode_uji ?? '';
+                if (strtolower(trim($fallbackMetode)) === 'daring') {
+                    $tipe = 'daring';
+                }
+            }
+
             $harga = HargaInvoice::where('jenjang', $klasifikasi->jenjang)
-                ->where('tipe', 'Luring')
+                ->where('tipe', ucwords($tipe))
                 ->first();
+
+            // Fallback to Luring price if dynamic tipe not found
+            if (!$harga && $tipe !== 'luring') {
+                $harga = HargaInvoice::where('jenjang', $klasifikasi->jenjang)
+                    ->where('tipe', 'Luring')
+                    ->first();
+            }
 
             return [
                 'nama'          => $asesi->nama,
@@ -183,7 +236,7 @@ class InvoiceController extends Controller
                 'jabatan_kerja' => $jabker->jabatan_kerja ?? '-',
                 'jenjang'       => $klasifikasi->jenjang,
                 'tuk'           => $tuk->nama_tuk ?? '-',
-                'metode_uji'    => $klasifikasi->metode_uji ?? $asesi->metode_uji ?? '-',
+                'metode_uji'    => $tipe === 'daring' ? 'Daring' : 'Luring',
                 'harga_bayar'   => ($harga->tahap1 ?? 0) + ($harga->tahap2 ?? 0),
             ];
         });
@@ -253,9 +306,30 @@ class InvoiceController extends Controller
                 $klasifikasi->jabatan_kerja
             )->first();
 
+            // Resolve tipe with full fallback chain: jenis_kelas_id → klasifikasi.metode_uji → personal.metode_uji
+            $tipe = 'luring';
+            if ($asesi->jenis_kelas_id) {
+                $jk = JenisKelas::find($asesi->jenis_kelas_id);
+                if ($jk && strtolower(trim($jk->nama_kelas)) === 'daring') {
+                    $tipe = 'daring';
+                }
+            } else {
+                $fallbackMetode = $klasifikasi->metode_uji ?? $asesi->metode_uji ?? '';
+                if (strtolower(trim($fallbackMetode)) === 'daring') {
+                    $tipe = 'daring';
+                }
+            }
+
             $harga = HargaInvoice::where('jenjang', $klasifikasi->jenjang)
-                ->where('tipe', 'Luring')
+                ->where('tipe', ucwords($tipe))
                 ->first();
+
+            // Fallback to Luring price if dynamic tipe not found
+            if (!$harga && $tipe !== 'luring') {
+                $harga = HargaInvoice::where('jenjang', $klasifikasi->jenjang)
+                    ->where('tipe', 'Luring')
+                    ->first();
+            }
 
             return [
                 'nama'          => $asesi->nama,
@@ -263,7 +337,7 @@ class InvoiceController extends Controller
                 'jabatan_kerja' => $jabker->jabatan_kerja ?? '-',
                 'jenjang'       => $klasifikasi->jenjang,
                 'tuk'           => $tuk->nama_tuk ?? '-',
-                'metode_uji'    => $klasifikasi->metode_uji ?? $asesi->metode_uji ?? '-',
+                'metode_uji'    => $tipe === 'daring' ? 'Daring' : 'Luring',
                 'harga_bayar'   => ($harga->tahap1 ?? 0) + ($harga->tahap2 ?? 0),
             ];
         });
@@ -473,34 +547,48 @@ class InvoiceController extends Controller
             "tanggal_uji"         => ['required'],
         ]);
 
-        // NEW: Validate that all selected id izins have the same metode_uji
-        $metodeUjis = Personal::whereIn('id_izin', $validatedData['id_izin_kompeten'])
-            ->select('metode_uji')
+        // Validate that all selected id izins have the same jenis_kelas_id
+        $jenisKelasIds = Personal::whereIn('id_izin', $validatedData['id_izin_kompeten'])
+            ->select('jenis_kelas_id')
             ->distinct()
-            ->pluck('metode_uji')
+            ->pluck('jenis_kelas_id')
             ->filter()
             ->values();
 
-        if ($metodeUjis->count() > 1) {
+        if ($jenisKelasIds->count() > 1) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invoice tidak dapat dibuat untuk ID Izin dengan metode uji yang berbeda. Metode uji yang ditemukan: ' . $metodeUjis->implode(', '),
+                'message' => 'Invoice tidak dapat dibuat untuk ID Izin dengan jenis kelas yang berbeda.',
             ], 400);
         }
 
-        // Get the common metode uji and normalize it
-        $commonMetodeUji = $metodeUjis->first() ?? 'Luring';
-        $metodeMapping = [
-            'Luring' => 'luring',
-            'Daring' => 'daring',
-            'Onsite' => 'onsite',
-            ' onsite' => 'onsite',
-            ' daring' => 'daring',
-            ' luring' => 'luring',
-        ];
+        // Get the metode uji from JenisKelas (with full fallback chain)
+        $commonJenisKelasId = $jenisKelasIds->first();
+        $jenisKelas = $commonJenisKelasId ? JenisKelas::find($commonJenisKelasId) : null;
+        $commonNamaKelas = $jenisKelas?->nama_kelas;
+        if (!$commonNamaKelas) {
+            // Fallback ke kolom metode_uji di klasifikasi_kualifikasis atau personals
+            $firstId = $validatedData['id_izin_kompeten'][0] ?? null;
+            if ($firstId) {
+                $firstKlas = KlasifikasiKualifikasi::where('id_izin', $firstId)->first();
+                $firstPersonal = Personal::where('id_izin', $firstId)->first();
+                $commonNamaKelas = $firstKlas?->metode_uji ?? $firstPersonal?->metode_uji ?? 'Luring';
+            } else {
+                $commonNamaKelas = 'Luring';
+            }
+        }
+        $validatedMetode = strtolower(trim($commonNamaKelas)) === 'daring' ? 'daring' : 'luring';
 
-        $validatedMetodeUji = ucwords(strtolower(trim($commonMetodeUji)));
-        $validatedMetode = $metodeMapping[$validatedMetodeUji] ?? 'luring';
+        // 🐛 DEBUG: log what createInvoice resolved
+        Log::info('DEBUG createInvoice metode resolution', [
+            'id_izins'         => $validatedData['id_izin_kompeten'],
+            'jenis_kelas_ids'  => $jenisKelasIds->toArray(),
+            'commonJenisKelasId' => $commonJenisKelasId,
+            'nama_kelas_db'    => $jenisKelas?->nama_kelas,
+            'commonNamaKelas'  => $commonNamaKelas,
+            'validatedMetode'  => $validatedMetode,
+            'jenis_kelas_id_on_personal' => Personal::whereIn('id_izin', $validatedData['id_izin_kompeten'])->pluck('jenis_kelas_id')->toArray(),
+        ]);
 
         $maxRetries = 3;
         $attempt = 0;
@@ -575,10 +663,34 @@ class InvoiceController extends Controller
                         throw new \Exception("Klasifikasi tidak ditemukan: {$id_izin}");
                     }
 
-                    $harga = DB::table("harga_invoice")
-                        ->where("jenjang", $klas_kua->jenjang)
-                        ->where("tipe", $validatedMetode)
+                    $harga = HargaInvoice::where("jenjang", $klas_kua->jenjang)
+                        ->where("tipe", ucwords($validatedMetode))
                         ->first();
+
+                    Log::info('DEBUG CI harga query', [
+                        'id_izin' => $id_izin,
+                        'jenjang' => $klas_kua->jenjang,
+                        'tipe_query' => ucwords($validatedMetode),
+                        'harga_found' => $harga ? true : false,
+                        'tahap1' => $harga?->tahap1,
+                        'tahap2' => $harga?->tahap2,
+                        'total' => $harga ? ((int)$harga->tahap1 + (int)$harga->tahap2) : null,
+                    ]);
+
+                    // Fallback ke luring jika harga daring belum di-set
+                    if (! $harga && $validatedMetode !== 'luring') {
+                        $harga = HargaInvoice::where("jenjang", $klas_kua->jenjang)
+                            ->where("tipe", 'Luring')
+                            ->first();
+
+                        Log::info('DEBUG CI harga fallback', [
+                            'id_izin' => $id_izin,
+                            'jenjang' => $klas_kua->jenjang,
+                            'harga_found' => $harga ? true : false,
+                            'tahap1' => $harga?->tahap1,
+                            'tahap2' => $harga?->tahap2,
+                        ]);
+                    }
 
                     if (! $harga) {
                         throw new \Exception("Harga tidak ditemukan");
@@ -721,7 +833,7 @@ class InvoiceController extends Controller
                     $worksheet->setCellValue('D' . $bayarRow, 'Bayar Disini');
                     // Add clickable hyperlink to "Bayar Disini" cell
                     $worksheet->getCell('D' . $bayarRow)->getHyperlink()
-                        ->setUrl('https://devgatensi.site/invoice/lapkonfinvoice');
+                        ->setUrl('https://certification.lspgatensi.id/invoice/lapkonfinvoice');
                 }
 
                 // Set electronic statement (all personal types)
@@ -1088,10 +1200,16 @@ class InvoiceController extends Controller
                 ], 404);
             }
 
-            $harga = DB::table("harga_invoice")
-                ->where("jenjang", $klas_kua->jenjang)
-                ->where("tipe", $validatedData['metode'])
+            $harga = HargaInvoice::where("jenjang", $klas_kua->jenjang)
+                ->where("tipe", ucwords($validatedData['metode']))
                 ->first();
+
+            // Fallback to luring price if dynamic tipe not found
+            if (!$harga && $validatedData['metode'] !== 'luring') {
+                $harga = HargaInvoice::where("jenjang", $klas_kua->jenjang)
+                    ->where("tipe", 'Luring')
+                    ->first();
+            }
 
             if (!$harga) {
                 return response()->json([
@@ -2355,5 +2473,20 @@ class InvoiceController extends Controller
                 $query->where('nama_tuk', $tuk->nama_tuk);
             }
         }
+    }
+
+    /**
+     * Resolve the metode/tipe label from a Personal record's jenis_kelas_id.
+     * Returns lowercase string: 'daring' or 'luring'.
+     */
+    private function resolveTipeFromPersonal(Personal $personal): string
+    {
+        if ($personal->jenis_kelas_id) {
+            $jenisKelas = JenisKelas::find($personal->jenis_kelas_id);
+            if ($jenisKelas && strtolower(trim($jenisKelas->nama_kelas)) === 'daring') {
+                return 'daring';
+            }
+        }
+        return 'luring';
     }
 }

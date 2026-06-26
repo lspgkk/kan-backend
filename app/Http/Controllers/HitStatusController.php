@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\JabatanKerja;
+use App\Models\JenisKelas;
 use App\Models\KlasifikasiKualifikasi;
 use App\Models\Personal;
 use App\Models\User;
@@ -694,8 +695,21 @@ class HitStatusController extends Controller
         }
 
         // Frontend magic link
-        $frontendUrl = config('app.frontend_url', 'https://devgatensi.site');
+        $frontendUrl = config('app.frontend_url', 'https://certification.lspgatensi.id');
         $link = rtrim($frontendUrl, '/') . '/persiapan-asesmen/' . $uuid;
+
+        // Jika kelasnya daring, sertakan link Zoom
+        $isDaring = false;
+        if ($personal->jenis_kelas_id) {
+            $jenisKelas = JenisKelas::find($personal->jenis_kelas_id);
+            $isDaring = $jenisKelas && strtolower(trim($jenisKelas->nama_kelas)) === 'daring';
+        }
+        if ($isDaring) {
+            $zoomUrl = env('ZOOM_URL');
+            if ($zoomUrl) {
+                $link = "Link Verifikasi Data: {$link}\nLink Zoom: {$zoomUrl}";
+            }
+        }
 
         $qontak = app(QontakService::class);
         $result = $qontak->sendMessage($telepon, $personal->nama, [

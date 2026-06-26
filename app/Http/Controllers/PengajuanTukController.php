@@ -194,12 +194,16 @@ class PengajuanTukController extends Controller
 
         // Role-based filtering (superadmin sees all)
         if (!in_array($user->role_id, [1])) {
-            if ($user->role_id == 12) {
+            if (in_array($user->role_id, [5, 12])) {
                 $query->where('verifikator_id', $user->id);
             } elseif ($user->role_id == 10) {
                 $query->where('validator_id', $user->id);
-            } elseif ($user->role_id == 11) {
-                $query->where('ketua_tuk_id', $user->id);
+            } elseif (in_array($user->role_id, [3, 11])) {
+                // Filter by TUK assignment from master data users
+                $tukName = $user->tuk?->nama_tuk;
+                if ($tukName) {
+                    $query->where('data_tuk->namaTuk', $tukName);
+                }
             }
         }
 
@@ -452,7 +456,7 @@ class PengajuanTukController extends Controller
     public function verifikasi(Request $request, $id)
     {
         $user = $request->user();
-        if (!in_array($user->role_id, [12, 1])) {
+        if (!in_array($user->role_id, [5, 1])) {
             return response()->json(['message' => 'Hanya Verifikator yang dapat verifikasi'], 403);
         }
 
