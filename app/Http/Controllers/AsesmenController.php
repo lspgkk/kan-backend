@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\KanAsesmenController;
 use App\Models\Ak2Answer;
 use App\Models\Ak2Feedback;
 use App\Models\Ak3Answer;
@@ -165,6 +166,7 @@ class AsesmenController extends Controller
     public function getDokumenHeader($id)
     {
         $namaAsesi = Personal::where('id_izin', $id)->value('nama');
+        $jenisKelasId = Personal::where('id_izin', $id)->value('jenis_kelas_id');
         $jadwalId = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
         $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
             ->where('id_izin', $id)
@@ -191,6 +193,7 @@ class AsesmenController extends Controller
                 'tanggal_uji',
                 'tanggal_selesai',
                 'jenis_kelas',
+                'pengajuan_tuk_ref',
             ])->with([
                 'tuk:id,nama',
                 'asesor:id,nama,noreg',
@@ -210,7 +213,7 @@ class AsesmenController extends Controller
             'data' => [
                 'jabatan_kerja' => $jabatanKerja,
                 'nomor_skema' => $jabatanConfig->no_skema,
-                'tuk' => $jadwal?->tuk?->nama,
+                'tuk' => $jadwal?->resolveNamaTuk($jenisKelasId),
                 'id_asesor_1' => $idAsesor1,
                 'id_asesor_2' => $idAsesor2,
                 'nama_asesi' => $namaAsesi,
@@ -241,6 +244,7 @@ class AsesmenController extends Controller
     private function buildDokumenHeader($id): ?array
     {
         $namaAsesi = Personal::where('id_izin', $id)->value('nama');
+        $jenisKelasId = Personal::where('id_izin', $id)->value('jenis_kelas_id');
         $jadwalId  = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
 
         if (!$jadwalId) {
@@ -272,6 +276,7 @@ class AsesmenController extends Controller
                 'tanggal_uji',
                 'tanggal_selesai',
                 'jenis_kelas',
+                'pengajuan_tuk_ref',
             ])
             ->with([
                 'tuk:id,nama',
@@ -298,7 +303,7 @@ class AsesmenController extends Controller
         return [
             'jabatan_kerja'   => $jabatanKerja,
             'nomor_skema'     => $jabatanConfig?->no_skema,
-            'tuk'             => $jadwal->tuk?->nama,
+            'tuk'             => $jadwal->resolveNamaTuk($jenisKelasId),
 
             'id_asesor_1'     => $idAsesor1,
             'id_asesor_2'     => $idAsesor2,
@@ -1371,8 +1376,12 @@ class AsesmenController extends Controller
         ];
     }
 
-    public function getIa04b($id)
+    public function getIa04b(Request $request, $id)
     {
+        if ($request->input('version') === 'kan') {
+            return app(KanAsesmenController::class)->getKanIa04b($id);
+        }
+
         $data = $this->buildIa04bData($id);
 
         if ($data === null) {
@@ -1390,6 +1399,10 @@ class AsesmenController extends Controller
 
     public function submitIa04b(Request $request, $idIzin)
     {
+        if ($request->input('version') === 'kan') {
+            return app(KanAsesmenController::class)->submitKanIa04b($request, $idIzin);
+        }
+
         $request->validate([
             'dokumen_id' => 'required|integer',
             'answers' => 'array',
@@ -1463,6 +1476,10 @@ class AsesmenController extends Controller
 
     public function ttdIa04b(Request $request, $id)
     {
+        if ($request->input('version') === 'kan') {
+            return app(KanAsesmenController::class)->ttdKanIa04b($request, $id);
+        }
+
         $data = $this->generateTtdBarcode(
             $request,
             'IA04B',
@@ -1594,8 +1611,12 @@ class AsesmenController extends Controller
         ];
     }
 
-    public function getIa05($id)
+    public function getIa05(Request $request, $id)
     {
+        if ($request->input('version') === 'kan') {
+            return app(KanAsesmenController::class)->getKanIa05($id);
+        }
+
         $data = $this->buildIa05Data($id);
 
         if ($data === null) {
@@ -1613,6 +1634,10 @@ class AsesmenController extends Controller
 
     public function submitIa05(Request $request, $idIzin)
     {
+        if ($request->input('version') === 'kan') {
+            return app(KanAsesmenController::class)->submitKanIa05($request, $idIzin);
+        }
+
         $validated = $request->validate([
             'dokumen_id' => 'required|integer',
             'answers' => 'required|array',
@@ -1652,6 +1677,10 @@ class AsesmenController extends Controller
 
     public function ttdIa05(Request $request, $id)
     {
+        if ($request->input('version') === 'kan') {
+            return app(KanAsesmenController::class)->ttdKanIa05($request, $id);
+        }
+
         $data = $this->generateTtdBarcode(
             $request,
             'IA05',
@@ -1728,8 +1757,6 @@ class AsesmenController extends Controller
 
         $barcodes = $this->resolveDocumentBarcodes($id, 'IA08', $forPdf);
 
-        $files = Apl2File::where('id_izin', $id)->select(['id', 'original_name', 'path', 'filetype'])->get();
-
         $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->where('kode', 'FR.IA.08')
@@ -1744,10 +1771,38 @@ class AsesmenController extends Controller
             ];
         }
 
-        /** 🔹 Load saved APL2 answers */
-        $apl2Answers = Ia08Answer::where('id_izin', $id)
+        /** 🔹 Load APL2 files for this izin */
+        $baseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $files = Apl2File::where('id_izin', $id)
+            ->select(['id', 'original_name', 'path', 'filetype'])
+            ->get();
+
+        /** 🔹 Load IA08 answers for these files, keyed by apl2_file_id */
+        $apl2Answers = Ia08Answer::with('file')
+            ->where('id_izin', $id)
             ->get()
-            ->keyBy('soal_id');
+            ->keyBy('apl2_file_id');
+
+        /** 🔹 Build files array — each file gets its IA08 answer attached */
+        $filesWithAnswers = $files->map(function ($file) use ($baseUrl, $apl2Answers) {
+            $answer = $apl2Answers->get($file->id);
+            $fileUrl = $file->path;
+            if ($fileUrl && !str_starts_with($fileUrl, 'http://') && !str_starts_with($fileUrl, 'https://')) {
+                $fileUrl = $baseUrl . ltrim($fileUrl, '/');
+            }
+            return [
+                'id' => $file->id,
+                'original_name' => $file->original_name,
+                'path' => $fileUrl,
+                'filetype' => $file->filetype,
+                'answer' => $answer ? [
+                    'valid' => $answer->valid,
+                    'asli' => $answer->asli,
+                    'terkini' => $answer->terkini,
+                    'memadai' => $answer->memadai,
+                ] : null,
+            ];
+        })->values();
 
         /** 🔹 Load saved unit answers */
         $unitAnswers = Ia08UnitAnswer::where('id_izin', $id)
@@ -1793,7 +1848,7 @@ class AsesmenController extends Controller
             ],
             'soal' => $questions,
             'referensi' => $referensi,
-            'files' => $files,
+            'files' => $filesWithAnswers,
             'apl2_answers' => $apl2Answers,
             'unit_answers' => $unitAnswers,
             'recommendation' => $recommendation,
@@ -1811,10 +1866,10 @@ class AsesmenController extends Controller
             ], 404);
         }
 
-        // Format answers for API response
+        // Format apl2_answers keyed by file_id
         $apl2AnswersFormatted = [];
         foreach ($data['apl2_answers'] as $answer) {
-            $apl2AnswersFormatted[$answer->soal_id] = [
+            $apl2AnswersFormatted[(int) $answer->apl2_file_id] = [
                 'valid' => $answer->valid,
                 'asli' => $answer->asli,
                 'terkini' => $answer->terkini,
@@ -1835,37 +1890,12 @@ class AsesmenController extends Controller
             'rekomendasi_kuk' => $data['recommendation']->rekomendasi_kuk,
         ] : null;
 
-        // 🔁 Map soal_id ke setiap file berdasarkan filetype (untuk frontend submit)
-        $filetypeSoalMap = [];
-        $filetypeLabels = [
-            'referensi_kerja' => 'referensi kerja',
-            'laporan_pekerjaan' => 'laporan pekerjaan',
-            'dokumentasi_pekerjaan' => 'dokumentasi pekerjaan',
-        ];
-        if (isset($data['soal'][1])) {
-            foreach ($data['soal'][1] as $soalItem) {
-                $soalText = trim(strtolower($soalItem->soal ?? ''));
-                foreach ($filetypeLabels as $ft => $label) {
-                    if ($soalText === $label) {
-                        $filetypeSoalMap[$ft] = $soalItem->id;
-                        break;
-                    }
-                }
-            }
-        }
-        $filesWithSoalId = collect($data['files'])->map(function ($file) use ($filetypeSoalMap) {
-            $fileArray = $file instanceof \Illuminate\Database\Eloquent\Model ? $file->toArray() : (array) $file;
-            $fileArray['soal_id'] = $filetypeSoalMap[$file->filetype] ?? null;
-            return $fileArray;
-        })->values();
-
         return response()->json([
             'message' => 'Success',
             'data' => array_merge($data, [
                 'apl2_answers' => $apl2AnswersFormatted,
                 'unit_answers' => $unitAnswersFormatted,
                 'recommendation' => $recommendationFormatted,
-                'files' => $filesWithSoalId,
             ]),
         ]);
     }
@@ -1883,10 +1913,7 @@ class AsesmenController extends Controller
             return null;
         }
 
-        /** ✅ Shared barcode resolver */
         $barcodes = $this->resolveDocumentBarcodes($id, 'IA09', $forPdf);
-
-        $files = Apl2File::where('id_izin', $id)->select(['id', 'original_name', 'path', 'filetype'])->get();
 
         $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
@@ -1902,7 +1929,12 @@ class AsesmenController extends Controller
             ];
         }
 
-        /** 🔹 Load saved answers */
+        /** 🔹 Load APL2 files for this izin */
+        $files = Apl2File::where('id_izin', $id)
+            ->select(['id', 'original_name', 'path', 'filetype'])
+            ->get();
+
+        /** 🔹 Load IA09 answers (interview questions, keyed by soal_id) */
         $answers = Ia09Answer::where('id_izin', $id)
             ->get()
             ->keyBy('soal_id');
@@ -1940,7 +1972,7 @@ class AsesmenController extends Controller
             ], 404);
         }
 
-        // Format answers for API response
+        // Format answers keyed by soal_id (interview questions — group 2)
         $answersFormatted = [];
         foreach ($data['answers'] as $answer) {
             $answersFormatted[$answer->soal_id] = [
@@ -1949,35 +1981,26 @@ class AsesmenController extends Controller
             ];
         }
 
-        // 🔁 Map soal_id ke setiap file berdasarkan filetype (untuk frontend submit)
-        $filetypeSoalMap = [];
-        $filetypeLabels = [
-            'referensi_kerja' => 'referensi kerja',
-            'laporan_pekerjaan' => 'laporan pekerjaan',
-            'dokumentasi_pekerjaan' => 'dokumentasi pekerjaan',
-        ];
-        if (isset($data['soal'][1])) {
-            foreach ($data['soal'][1] as $soalItem) {
-                $soalText = trim(strtolower($soalItem->soal ?? ''));
-                foreach ($filetypeLabels as $ft => $label) {
-                    if ($soalText === $label) {
-                        $filetypeSoalMap[$ft] = $soalItem->id;
-                        break;
-                    }
-                }
+        // Format files with proper URLs
+        $baseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $filesFormatted = collect($data['files'])->map(function ($file) use ($baseUrl) {
+            $fileUrl = $file->path;
+            if ($fileUrl && !str_starts_with($fileUrl, 'http://') && !str_starts_with($fileUrl, 'https://')) {
+                $fileUrl = $baseUrl . ltrim($fileUrl, '/');
             }
-        }
-        $filesWithSoalId = collect($data['files'])->map(function ($file) use ($filetypeSoalMap) {
-            $fileArray = $file instanceof \Illuminate\Database\Eloquent\Model ? $file->toArray() : (array) $file;
-            $fileArray['soal_id'] = $filetypeSoalMap[$file->filetype] ?? null;
-            return $fileArray;
+            return [
+                'id' => $file->id,
+                'original_name' => $file->original_name,
+                'path' => $fileUrl,
+                'filetype' => $file->filetype,
+            ];
         })->values();
 
         return response()->json([
             'message' => 'Success',
             'data' => array_merge($data, [
                 'answers' => $answersFormatted,
-                'files' => $filesWithSoalId,
+                'files' => $filesFormatted,
             ]),
         ]);
     }
@@ -2159,8 +2182,12 @@ class AsesmenController extends Controller
         ];
     }
 
-    public function getAk02($id)
+    public function getAk02(Request $request, $id)
     {
+        if ($request->input('version') === 'kan') {
+            return app(KanAsesmenController::class)->getKanAk02($id);
+        }
+
         $data = $this->buildAk02Data($id);
 
         if ($data === null) {
@@ -2178,6 +2205,10 @@ class AsesmenController extends Controller
 
     public function submitAk02(Request $request, $id)
     {
+        if ($request->input('version') === 'kan') {
+            return app(KanAsesmenController::class)->submitKanAk02($request, $id);
+        }
+
         // Validate request
         $validated = $request->validate([
             'answers' => 'required|array|min:1',
@@ -2228,6 +2259,10 @@ class AsesmenController extends Controller
 
     public function ttdAk02(Request $request, $id)
     {
+        if ($request->input('version') === 'kan') {
+            return app(KanAsesmenController::class)->ttdKanAk02($request, $id);
+        }
+
         $data = $this->generateTtdBarcode(
             $request,
             'AK02',
@@ -3042,6 +3077,10 @@ class AsesmenController extends Controller
             'url_ia_08',
             'url_ia_09',
             'url_ia_10',
+            'url_kan_ia_04b',
+            'url_kan_ia_05',
+            'url_kan_ia_06',
+            'url_kan_ak_02',
             'url_ak02',
             'url_ak03',
             'url_ak05',
@@ -3080,6 +3119,10 @@ class AsesmenController extends Controller
                 'ia08' => $dokumen->url_ia_08,
                 'ia09' => $dokumen->url_ia_09,
                 'ia10' => $dokumen->url_ia_10,
+                'kan_ia04b' => $dokumen->url_kan_ia_04b,
+                'kan_ia05' => $dokumen->url_kan_ia_05,
+                'kan_ia06' => $dokumen->url_kan_ia_06,
+                'kan_ak02' => $dokumen->url_kan_ak_02,
                 'ak02' => $dokumen->url_ak02,
                 'ak03' => $dokumen->url_ak03,
                 'ak05' => $dokumen->url_ak05,
@@ -3109,6 +3152,10 @@ class AsesmenController extends Controller
             'url_ia_08',
             'url_ia_09',
             'url_ia_10',
+            'url_kan_ia_04b',
+            'url_kan_ia_05',
+            'url_kan_ia_06',
+            'url_kan_ak_02',
             'url_ak02',
             'url_ak03',
             'url_ak05',
@@ -3410,7 +3457,7 @@ class AsesmenController extends Controller
         $validated = $request->validate([
             'dokumen_id' => 'required|integer',
             'apl2_answers' => 'required|array',
-            'apl2_answers.*.soal_id' => 'required|integer',
+            'apl2_answers.*.file_id' => 'required|integer|exists:apl2_files,id',
             'apl2_answers.*.valid' => 'nullable|boolean',
             'apl2_answers.*.asli' => 'nullable|boolean',
             'apl2_answers.*.terkini' => 'nullable|boolean',
@@ -3426,12 +3473,12 @@ class AsesmenController extends Controller
         ]);
 
         DB::transaction(function () use ($validated, $idIzin) {
-            // Save APL2 answers
+            // Save APL2 answers — one per file
             foreach ($validated['apl2_answers'] as $answer) {
                 Ia08Answer::updateOrCreate(
                     [
                         'id_izin' => $idIzin,
-                        'soal_id' => $answer['soal_id'],
+                        'apl2_file_id' => $answer['file_id'],
                     ],
                     [
                         'valid' => $answer['valid'] ?? null,
@@ -3494,10 +3541,10 @@ class AsesmenController extends Controller
             abort(404, 'Dokumen header not found');
         }
 
-        // Format answers from buildData
+        // Format answers keyed by file_id for the PDF
         $apl2Answers = [];
         foreach ($dataDokumen['apl2_answers'] as $answer) {
-            $apl2Answers[$answer->soal_id] = [
+            $apl2Answers[$answer->apl2_file_id] = [
                 'valid' => $answer->valid,
                 'asli' => $answer->asli,
                 'terkini' => $answer->terkini,
@@ -3611,7 +3658,7 @@ class AsesmenController extends Controller
             abort(404, 'Dokumen header not found');
         }
 
-        // Format answers from buildData
+        // Format answers keyed by soal_id for the PDF (interview questions)
         $answers = [];
         foreach ($dataDokumen['answers'] as $answer) {
             $answers[$answer->soal_id] = [
@@ -3849,5 +3896,24 @@ class AsesmenController extends Controller
             'message' => 'Success',
             'data'    => $data,
         ]);
+    }
+
+    // ──────────────────────────────────────────────
+    //  IA06 METHODS (KAN-only, delegates to KanAsesmenController)
+    // ──────────────────────────────────────────────
+
+    public function getIa06(Request $request, $id)
+    {
+        return app(KanAsesmenController::class)->getKanIa06($id);
+    }
+
+    public function submitIa06(Request $request, $idIzin)
+    {
+        return app(KanAsesmenController::class)->submitKanIa06($request, $idIzin);
+    }
+
+    public function ttdIa06(Request $request, $id)
+    {
+        return app(KanAsesmenController::class)->ttdKanIa06($request, $id);
     }
 }

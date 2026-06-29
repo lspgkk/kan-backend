@@ -329,7 +329,7 @@ class JadwalController extends Controller
 
         foreach ($validated['all_id_izin'] as $id_izin) {
             try {
-                $personalsData = Personal::where('id_izin', $id_izin)->select('nik', 'nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kabupaten', 'propinsi', 'telepon', 'email', 'account', 'password_plain', 'type')->first();
+                $personalsData = Personal::where('id_izin', $id_izin)->select('nik', 'nama', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'alamat', 'kabupaten', 'propinsi', 'telepon', 'email', 'account', 'password_plain', 'type', 'jenis_kelas_id')->first();
 
                 // SIKI pre-check with type-specific endpoint
                 $personalType = $personalsData->type ?? 'reguler';
@@ -575,11 +575,12 @@ class JadwalController extends Controller
                     // Collect asesi data for WhatsApp notification after jadwal is created
                     if ($personalsData->telepon) {
                         $asesiForNotif[] = [
-                            'id_izin'  => $id_izin,
-                            'nama'     => $personalsData->nama,
-                            'telepon'  => $personalsData->telepon,
-                            'account'  => $account,
-                            'password' => $password,
+                            'id_izin'         => $id_izin,
+                            'nama'            => $personalsData->nama,
+                            'telepon'         => $personalsData->telepon,
+                            'account'         => $account,
+                            'password'        => $password,
+                            'jenis_kelas_id'  => $personalsData->jenis_kelas_id,
                         ];
                     }
                 } catch (\Throwable $e) {
@@ -617,15 +618,17 @@ class JadwalController extends Controller
          *  =============================== */
         if (!empty($validated['pengajuan_tuk_ref']) && $createdJadwal) {
             $pengajuanTuk = PengajuanTuk::where('ref_number', $validated['pengajuan_tuk_ref'])->first();
+            $updateData = ['pengajuan_tuk_ref' => $validated['pengajuan_tuk_ref']];
 
             if ($pengajuanTuk && $pengajuanTuk->doc_hasil_verifikasi) {
-                $fileUrl = "https://moon.lspgatensi.id/files/new_gatensi/{$pengajuanTuk->doc_hasil_verifikasi}";
-                $createdJadwal->update(['file_verifikasi_tuk' => $fileUrl]);
+                $updateData['file_verifikasi_tuk'] = "https://moon.lspgatensi.id/files/new_gatensi/{$pengajuanTuk->doc_hasil_verifikasi}";
             } else {
                 Log::warning('PengajuanTuk not found or doc_hasil_verifikasi empty', [
                     'ref_number' => $validated['pengajuan_tuk_ref'],
                 ]);
             }
+
+            $createdJadwal->update($updateData);
         }
 
         /** ===============================
@@ -633,6 +636,17 @@ class JadwalController extends Controller
          *  =============================== */
         if (!empty($asesiForNotif) && $createdJadwal) {
             $this->sendWhatsAppToAsesi($asesiForNotif, $createdJadwal);
+        }
+
+        /** ===============================
+         *  💬 SEND WHATSAPP NOTIFICATION TO PETUGAS (ASESOR & ADMIN TUK)
+         *  =============================== */
+        if ($createdJadwal) {
+            try {
+                $this->sendWhatsAppToPetugas($createdJadwal);
+            } catch (\Throwable $e) {
+                Log::error('WA notif to petugas failed: ' . $e->getMessage());
+            }
         }
 
         /** ===============================
@@ -1056,11 +1070,7 @@ class JadwalController extends Controller
 
         $tukName = $jadwal->tuk?->Nama ?? $jadwal->tuk?->nama_tuk ?? '-';
         $tanggalUji = \Carbon\Carbon::parse($jadwal->tanggal_uji)->locale('id')->translatedFormat('d F Y');
-        $linkUjian = 'https://sisuj.vercel.app';
-
-        // Cek apakah jenis kelas daring
-        $jenisKelas = $jadwal->jenis_kelas ? JenisKelas::find($jadwal->jenis_kelas) : null;
-        $isDaring = $jenisKelas && strtolower(trim($jenisKelas->nama_kelas)) === 'daring';
+        $linkUjian = 'https://exam.lspgatensi.id';
 
         // Build lookup for skema per id_izin
         $skemaMap = [];
@@ -1097,28 +1107,35 @@ class JadwalController extends Controller
                     continue;
                 }
 
-                // Bangun parameter {{5}} — link platform dan zoom
+                // Bangun parameter — link platform dan zoom (per asesi)
+                $isDaring = !empty($asesi['jenis_kelas_id']) && (int) $asesi['jenis_kelas_id'] == 3;
+
                 if ($isDaring) {
                     $zoomUrl = env('ZOOM_URL');
-                    $linkContent = "Link Platform: {$linkUjian}";
-                    if ($zoomUrl) {
-                        $linkContent .= "\nLink Zoom: {$zoomUrl}";
-                    }
+                    $templateIdNotif = '1615618d-d2e3-4090-add6-ae85cc0f194f';
+                    $params = [
+                        'nama_asesi'    => $asesi['nama'],
+                        'tanggal_uji'   => $tanggalUji,
+                        'tuk'           => $tukName,
+                        'skema'         => $skemaMap[$asesi['id_izin']] ?? '-',
+                        'link_platform' => $linkUjian,
+                        'akun'          => 'User: ' . ($asesi['account'] ?? '-'),
+                        'password'      => 'Password: ' . ($asesi['password'] ?? '-'),
+                        'link_zoom'     => "Maka kami berharap Bapak/Ibu berkenan untuk mengikuti zoom dengan link : $zoomUrl" ?: '',
+                    ];
                 } else {
-                    $linkContent = "Link Platform: {$linkUjian}";
+                    $templateIdNotif = '7fb61271-24b3-44d7-9a81-7fda00b30031';
+                    $params = [
+                        'nama_asesi'  => $asesi['nama'],
+                        'tanggal_uji' => $tanggalUji,
+                        'tuk'         => $tukName,
+                        'skema'       => $skemaMap[$asesi['id_izin']] ?? '-',
+                        'link_ujian'  => $linkUjian,
+                        'akun'        => 'User: ' . ($asesi['account'] ?? '-'),
+                        'password'    => 'Password: ' . ($asesi['password'] ?? '-'),
+                    ];
                 }
 
-                $params = [
-                    'nama_asesi'  => $asesi['nama'],
-                    'tanggal_uji' => $tanggalUji,
-                    'tuk'         => $tukName,
-                    'skema'       => $skemaMap[$asesi['id_izin']] ?? '-',
-                    'link_ujian'  => $linkContent,
-                    'akun'        => 'User: ' . ($asesi['account'] ?? '-'),
-                    'password'    => 'Password: ' . ($asesi['password'] ?? '-'),
-                ];
-
-                $templateIdNotif = '7fb61271-24b3-44d7-9a81-7fda00b30031';
                 $result = $qontak->sendMessage($phone, $asesi['nama'], $params, $templateIdNotif);
 
                 if ($result) {
@@ -1136,6 +1153,144 @@ class JadwalController extends Controller
                 Log::error('WA notif exception', [
                     'id_izin' => $asesi['id_izin'],
                     'error'   => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Send WhatsApp notification to petugas (Asesor 1, Asesor 2, Admin TUK)
+     * when a draft jadwal is created.
+     */
+    private function sendWhatsAppToPetugas(Jadwal $jadwal): void
+    {
+        // Load relations if not already loaded
+        if (!$jadwal->relationLoaded('asesor')) {
+            $jadwal->load('asesor', 'asesor2', 'tuk', 'asesiJadwals.skema');
+        }
+
+        $tukName = $jadwal->tuk?->Nama ?? $jadwal->tuk?->nama_tuk ?? '-';
+        $tanggalUji = \Carbon\Carbon::parse($jadwal->tanggal_uji)->locale('id')->translatedFormat('d F Y');
+        $linkPlatform = 'https://exam.lspgatensi.id';
+
+        // Determine zoom link based on jenis_kelas
+        $isDaring = strtolower(trim($jadwal->jenis_kelas ?? '')) == 3;
+        if ($isDaring) {
+            $zoomInfo = env('ZOOM_URL', '');
+        } else {
+            $zoomInfo = "Zoom tidak tersedia di metode asesmen {$jadwal->jenis_kelas}";
+        }
+
+        // Collect unique skema names across all asesi
+        $skemaNames = $jadwal->asesiJadwals
+            ->map(fn($aj) => $aj->skema?->nama ?? $aj->skema?->skema ?? '-')
+            ->unique()
+            ->join(', ');
+
+        $qontak = new QontakService();
+        $templateId = '79743431-a3e4-44e8-a4be-86c79870bbd7';
+
+        // Build list of petugas to notify
+        $petugasList = [];
+
+        // Asesor 1
+        if ($jadwal->asesor_id && $jadwal->asesor) {
+            $asesor1User = User::where('noreg', $jadwal->asesor->noreg)->first();
+            $petugasList[] = [
+                'name'  => $asesor1User?->name ?? $jadwal->asesor->nama ?? 'Asesor 1',
+                'phone' => $asesor1User?->phone ?? null,
+                'role'  => 'Asesor 1',
+            ];
+        }
+
+        // Asesor 2
+        if ($jadwal->asesor2_id && $jadwal->asesor2) {
+            $asesor2User = User::where('noreg', $jadwal->asesor2->noreg)->first();
+            $petugasList[] = [
+                'name'  => $asesor2User?->name ?? $jadwal->asesor2->nama ?? 'Asesor 2',
+                'phone' => $asesor2User?->phone ?? null,
+                'role'  => 'Asesor 2',
+            ];
+        }
+
+        // Admin TUK
+        if ($jadwal->admin_id) {
+            $adminUser = User::find($jadwal->admin_id);
+            if ($adminUser) {
+                $petugasList[] = [
+                    'name'  => $adminUser->name ?? 'Admin TUK',
+                    'phone' => $adminUser->phone ?? null,
+                    'role'  => 'Admin TUK',
+                ];
+            } else {
+                Log::warning('WA notif skipped: admin_tuk user not found', [
+                    'admin_id' => $jadwal->admin_id,
+                    'jadwal_id' => $jadwal->jadwal_id,
+                ]);
+            }
+        }
+
+        foreach ($petugasList as $petugas) {
+            try {
+                $phone = $petugas['phone'];
+
+                if (empty($phone)) {
+                    Log::warning('WA notif skipped: no phone number for petugas', [
+                        'name' => $petugas['name'],
+                        'role' => $petugas['role'],
+                        'jadwal_id' => $jadwal->jadwal_id,
+                    ]);
+                    continue;
+                }
+
+                // Format phone: strip non-digits, ensure 62 prefix
+                $phone = preg_replace('/[^0-9]/', '', $phone);
+                if (str_starts_with($phone, '0')) {
+                    $phone = '62' . substr($phone, 1);
+                } elseif (!str_starts_with($phone, '62')) {
+                    $phone = '62' . $phone;
+                }
+
+                if (strlen($phone) < 10) {
+                    Log::warning('WA notif skipped: invalid phone number for petugas', [
+                        'name'  => $petugas['name'],
+                        'role'  => $petugas['role'],
+                        'phone' => $phone,
+                        'jadwal_id' => $jadwal->jadwal_id,
+                    ]);
+                    continue;
+                }
+
+                $params = [
+                    'nama'          => $petugas['name'],
+                    'role'          => $petugas['role'],
+                    'tanggal_uji'   => $tanggalUji,
+                    'tuk'           => $tukName,
+                    'skema'         => $skemaNames,
+                    'link_platform' => $linkPlatform,
+                    'link_zoom'     => $zoomInfo,
+                ];
+
+                $result = $qontak->sendMessage($phone, $petugas['name'], $params, $templateId);
+
+                if ($result) {
+                    Log::info('WA notif sent to petugas', [
+                        'name' => $petugas['name'],
+                        'role' => $petugas['role'],
+                        'jadwal_id' => $jadwal->jadwal_id,
+                    ]);
+                } else {
+                    Log::warning('WA notif failed to send to petugas', [
+                        'name' => $petugas['name'],
+                        'role' => $petugas['role'],
+                        'jadwal_id' => $jadwal->jadwal_id,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::error('WA notif exception for petugas', [
+                    'name'  => $petugas['name'],
+                    'role'  => $petugas['role'],
+                    'error' => $e->getMessage(),
                 ]);
             }
         }
@@ -1942,6 +2097,7 @@ class JadwalController extends Controller
             'is_started_praasesmen',
             'jenis_kelas',
             'tahap',
+            'pengajuan_tuk_ref',
             'sk_pelaksanaan_uji_direktur_approved',
             'spt_asesor_direktur_approved',
             'spt_komtek_direktur_approved',
@@ -1949,6 +2105,7 @@ class JadwalController extends Controller
             'tuk:id,nama,alamat',
             'asesor:id,nama,noreg',
             'asesor2:id,nama,noreg',
+            'pengajuanTuk',
         ]);
     }
 
@@ -1982,6 +2139,8 @@ class JadwalController extends Controller
             ->with('skema')
             ->first();
 
+        $jenisKelasId = Personal::where('id_izin', $asesiJadwal?->id_izin)->value('jenis_kelas_id');
+
         $jadwals = $this->baseJadwalQuery()
             ->where('jadwal_id', $jadwalId)
             ->where('tahap', '!=', 0)
@@ -1992,6 +2151,8 @@ class JadwalController extends Controller
 
         if ($jadwals) {
             $jadwalsArray = $jadwals->toArray();
+            $jadwalsArray['tuk']['nama'] = $jadwals->resolveNamaTuk($jenisKelasId);
+            $jadwalsArray['tuk']['alamat'] = $jadwals->resolveAlamatTuk($jenisKelasId);
             $jadwalsArray['skema_id'] = $asesiJadwal?->skema_id;
             $jadwalsArray['skema'] = $asesiJadwal?->skema
                 ? ['id' => $asesiJadwal->skema->id, 'nama' => $asesiJadwal->skema->nama]
@@ -2030,6 +2191,8 @@ class JadwalController extends Controller
             ->get()
             ->map(function ($j) {
                 $jArr = $j->toArray();
+                $jArr['tuk']['nama'] = $j->resolveNamaTuk();
+                $jArr['tuk']['alamat'] = $j->resolveAlamatTuk();
                 $jArr['asesi'] = $j->asesiJadwals->map(function ($a) {
                     return [
                         'id_izin'   => $a->id_izin,

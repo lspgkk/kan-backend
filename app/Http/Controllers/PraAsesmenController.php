@@ -49,6 +49,7 @@ use App\Models\UnitKompetensi;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -169,6 +170,7 @@ class PraAsesmenController extends Controller
     public function getDokumenHeader($id)
     {
         $namaAsesi = Personal::where('id_izin', $id)->value('nama');
+        $jenisKelasId = Personal::where('id_izin', $id)->value('jenis_kelas_id');
         $jadwalId = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
         $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
             ->where('id_izin', $id)
@@ -196,7 +198,8 @@ class PraAsesmenController extends Controller
                 'tanggal_uji',
                 'tanggal_selesai',
                 'jenis_kelas',
-                'tahap'
+                'tahap',
+                'pengajuan_tuk_ref',
             ])->with([
                 'tuk:id,nama',
                 'asesor:id,nama,noreg',
@@ -216,7 +219,7 @@ class PraAsesmenController extends Controller
             'data' => [
                 'jabatan_kerja' => $jabatanKerja,
                 'nomor_skema' => $jabatanConfig->no_skema,
-                'tuk' => $jadwal?->tuk?->nama,
+                'tuk' => $jadwal?->resolveNamaTuk($jenisKelasId),
                 'id_asesor_1' => $idAsesor1,
                 'id_asesor_2' => $idAsesor2,
                 'nama_asesi' => $namaAsesi,
@@ -249,6 +252,7 @@ class PraAsesmenController extends Controller
     private function buildDokumenHeader($id): ?array
     {
         $namaAsesi = Personal::where('id_izin', $id)->value('nama');
+        $jenisKelasId = Personal::where('id_izin', $id)->value('jenis_kelas_id');
         $jadwalId  = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
 
         if (!$jadwalId) {
@@ -280,6 +284,7 @@ class PraAsesmenController extends Controller
                 'tanggal_uji',
                 'tanggal_selesai',
                 'jenis_kelas',
+                'pengajuan_tuk_ref',
             ])
             ->with([
                 'tuk:id,nama',
@@ -307,7 +312,7 @@ class PraAsesmenController extends Controller
         return [
             'jabatan_kerja'   => $jabatanKerja,
             'nomor_skema'     => $jabatanConfig?->no_skema,
-            'tuk'             => $jadwal->tuk?->nama,
+            'tuk'             => $jadwal->resolveNamaTuk($jenisKelasId),
 
             'id_asesor_1'     => $idAsesor1,
             'id_asesor_2'     => $idAsesor2,
@@ -2384,12 +2389,12 @@ class PraAsesmenController extends Controller
 
         if ($klasifikasi) {
             $jenjang = (int) $klasifikasi->jenjang;
-            $metode  = strtolower($klasifikasi->metode_uji ?? '');
+            $apl2Submission = \App\Models\Apl2Submission::where('id_izin', $id)->first();
 
             if ($jenjang >= 1 && $jenjang <= 3) {
                 $autoTrueIds = [62, 227]; // Daftar Pertanyaan Tertulis, Hasil Observasi Langsung
             } elseif ($jenjang >= 4 && $jenjang <= 9) {
-                if ($metode === 'portofolio') {
+                if ($apl2Submission?->metode === 'portofolio') {
                     $autoTrueIds = [64, 226]; // Daftar Pertanyaan Wawancara, Hasil Verifikasi Portfolio
                 } else {
                     $autoTrueIds = [60, 62]; // Hasil Kegiatan Terstruktur, Hasil Observasi Langsung
@@ -2409,11 +2414,9 @@ class PraAsesmenController extends Controller
                 DB::raw('IFNULL(a.jawaban, 0) as jawaban')
             ])
             ->map(function ($row) use ($autoTrueIds) {
-                if (in_array($row->id, $autoTrueIds)) {
-                    $row->jawaban = true;
-                } else {
-                    $row->jawaban = (bool) $row->jawaban;
-                }
+                // Hanya item dalam autoTrueIds yang bernilai true,
+                // sisanya false (abaikan nilai dari DB)
+                $row->jawaban = in_array($row->id, $autoTrueIds);
                 return $row;
             });
 
@@ -2599,7 +2602,15 @@ class PraAsesmenController extends Controller
             ->get()
             ->keyBy('id_user');
 
+        // ── DEBUG ──
+        Log::info("[resolveDocumentBarcodes] START — idIzin={$idIzin} jenisDokumen={$jenisDokumen} forPdf=" . ($forPdf ? 'true' : 'false'));
+        $raw = Barcode::where('id_izin', $idIzin)
+            ->where('jenis_dokumen', $jenisDokumen)
+            ->get(['id', 'id_user', 'id_role', 'id_jadwal', 'url_image', 'jenis_dokumen']);
+        Log::info("[resolveDocumentBarcodes] raw barcodes:", $raw->toArray());
+
         if ($barcodes->isEmpty()) {
+            Log::warning("[resolveDocumentBarcodes] barcodes IS EMPTY → returning all null");
             return [
                 'asesi' => null,
                 'asesor1' => null,
@@ -2607,17 +2618,26 @@ class PraAsesmenController extends Controller
             ];
         }
 
-        /** 📌 Resolve jadwal — fallback to AsesiJadwal if barcode lacks id_jadwal */
-        $barcodeJadwalId = $barcodes->first()->id_jadwal;
-        if (!$barcodeJadwalId) {
-            $barcodeJadwalId = AsesiJadwal::where('id_izin', $idIzin)->value('jadwal_id');
+        Log::info("[resolveDocumentBarcodes] barcodes keyed by id_user — keys: " . json_encode($barcodes->keys()->toArray()));
+
+        /** 📌 Resolve jadwal from AsesiJadwal (authoritative source — NOT from barcodes,
+         *  because barcodes snapshot id_jadwal at sign-time and may be stale/inconsistent) */
+        $jadwalId = AsesiJadwal::where('id_izin', $idIzin)->value('jadwal_id');
+        Log::info("[resolveDocumentBarcodes] jadwalId from AsesiJadwal: " . var_export($jadwalId, true));
+
+        $jadwal = null;
+        if ($jadwalId) {
+            $jadwal = Jadwal::select(['asesor_id', 'asesor2_id'])
+                ->with([
+                    'asesor:id,nama,noreg',
+                    'asesor2:id,nama,noreg',
+                ])
+                ->where('jadwal_id', $jadwalId)
+                ->first();
         }
 
-        $jadwal = Jadwal::select(['asesor_id', 'asesor2_id'])
-            ->where('jadwal_id', $barcodeJadwalId)
-            ->first();
-
         if (!$jadwal) {
+            Log::warning("[resolveDocumentBarcodes] JADWAL NOT FOUND for jadwal_id=" . var_export($jadwalId, true) . " → returning asesi only");
             return [
                 'asesi' => $map($barcodes->firstWhere('id_role', 8)),
                 'asesor1' => null,
@@ -2625,28 +2645,26 @@ class PraAsesmenController extends Controller
             ];
         }
 
-        /** 📌 Resolve asesor → user */
-        $asesors = AsesorBnsp::select(['id', 'noreg'])
-            ->whereIn('id', array_filter([
-                $jadwal->asesor_id,
-                $jadwal->asesor2_id
-            ]))
-            ->get()
-            ->keyBy('id');
+        Log::info("[resolveDocumentBarcodes] jadwal found — asesor_id={$jadwal->asesor_id} asesor2_id={$jadwal->asesor2_id}");
+        Log::info("[resolveDocumentBarcodes] eager-loaded asesor: " . ($jadwal->asesor ? "id={$jadwal->asesor->id} noreg={$jadwal->asesor->noreg}" : 'NULL'));
+        Log::info("[resolveDocumentBarcodes] eager-loaded asesor2: " . ($jadwal->asesor2 ? "id={$jadwal->asesor2->id} noreg={$jadwal->asesor2->noreg}" : 'NULL'));
 
-        $asesorUsers = User::whereIn('noreg', $asesors->pluck('noreg'))
-            ->get()
-            ->keyBy('noreg');
-
-        $asesor1User = isset($asesors[$jadwal->asesor_id])
-            ? ($asesorUsers[$asesors[$jadwal->asesor_id]->noreg] ?? null)
+        /** 📌 Resolve asesor → user via eager‑loaded noreg
+         *  (same pattern as buildDokumenHeader / getDokumenHeader) */
+        $asesor1User = $jadwal->asesor
+            ? User::where('noreg', $jadwal->asesor->noreg)->first()
             : null;
 
-        $asesor2User = isset($asesors[$jadwal->asesor2_id])
-            ? ($asesorUsers[$asesors[$jadwal->asesor2_id]->noreg] ?? null)
+        $asesor2User = $jadwal->asesor2
+            ? User::where('noreg', $jadwal->asesor2->noreg)->first()
             : null;
 
-        return [
+        Log::info("[resolveDocumentBarcodes] asesor1User: " . ($asesor1User ? "id={$asesor1User->id} name={$asesor1User->name}" : 'NULL'));
+        Log::info("[resolveDocumentBarcodes] asesor2User: " . ($asesor2User ? "id={$asesor2User->id} name={$asesor2User->name}" : 'NULL'));
+        Log::info("[resolveDocumentBarcodes] asesor1 barcode in collection? " . ($asesor1User && isset($barcodes[$asesor1User->id]) ? 'YES' : 'NO'));
+        Log::info("[resolveDocumentBarcodes] asesor2 barcode in collection? " . ($asesor2User && isset($barcodes[$asesor2User->id]) ? 'YES' : 'NO'));
+
+        $result = [
             'asesi' =>
                 $map($barcodes->firstWhere('id_role', 8)),
             'asesor1' =>
@@ -2659,6 +2677,10 @@ class PraAsesmenController extends Controller
                     ? $map($barcodes[$asesor2User->id] ?? null)
                     : null,
         ];
+
+        Log::info("[resolveDocumentBarcodes] RESULT: asesi=" . ($result['asesi'] ? 'PRESENT' : 'NULL') . " asesor1=" . ($result['asesor1'] ? 'PRESENT' : 'NULL') . " asesor2=" . ($result['asesor2'] ? 'PRESENT' : 'NULL'));
+
+        return $result;
     }
 
     private function imageUrlToBase64(?string $url): ?string

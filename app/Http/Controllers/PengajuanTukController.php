@@ -115,7 +115,7 @@ class PengajuanTukController extends Controller
         $refNumber = 'TUK-AJJ-' . strtoupper(Str::random(8));
         $user = $request->user();
 
-        $namaTuk = 'TUK ' . ($personal->nama ?? '');
+        $namaTuk = 'TUK SEWAKTU ' . ($personal->nama ?? '');
         $dataTuk = [
             'namaTuk'       => $namaTuk,
             'alamat'        => $personal->alamat ?? '',

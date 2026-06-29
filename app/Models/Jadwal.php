@@ -25,6 +25,7 @@ class Jadwal extends Model
         'sesi',
         'link_meeting',
         'link_video',
+        'pengajuan_tuk_ref',
         'file_verifikasi_tuk',
         'jenis_kelas',
         'jenis_anggaran',
@@ -70,6 +71,61 @@ class Jadwal extends Model
     public function tuk()
     {
         return $this->belongsTo(MyTukBnsp::class, 'tuk_id', 'id');
+    }
+
+    public function pengajuanTuk()
+    {
+        return $this->belongsTo(PengajuanTuk::class, 'pengajuan_tuk_ref', 'ref_number');
+    }
+
+    /**
+     * Resolve the TUK name, using PengajuanTuk.data_tuk.namaTuk
+     * for online/daring classes when available.
+     *
+     * @param int|null $jenisKelasId The jenis_kelas_id from personal
+     */
+    public function resolveNamaTuk(?int $jenisKelasId = null): ?string
+    {
+        $shouldUsePengajuan = ($jenisKelasId === null)
+            ? !empty($this->pengajuan_tuk_ref)
+            : ($jenisKelasId === 3 && !empty($this->pengajuan_tuk_ref));
+
+        if ($shouldUsePengajuan) {
+            $pengajuan = $this->relationLoaded('pengajuanTuk')
+                ? $this->pengajuanTuk
+                : $this->pengajuanTuk()->first();
+
+            if ($pengajuan && !empty($pengajuan->data_tuk['namaTuk'])) {
+                return $pengajuan->data_tuk['namaTuk'];
+            }
+        }
+
+        return $this->tuk?->nama;
+    }
+
+    /**
+     * Resolve the TUK address, using PengajuanTuk.data_tuk.alamat
+     * for online/daring classes when available.
+     *
+     * @param int|null $jenisKelasId The jenis_kelas_id from personal
+     */
+    public function resolveAlamatTuk(?int $jenisKelasId = null): ?string
+    {
+        $shouldUsePengajuan = ($jenisKelasId === null)
+            ? !empty($this->pengajuan_tuk_ref)
+            : ($jenisKelasId === 3 && !empty($this->pengajuan_tuk_ref));
+
+        if ($shouldUsePengajuan) {
+            $pengajuan = $this->relationLoaded('pengajuanTuk')
+                ? $this->pengajuanTuk
+                : $this->pengajuanTuk()->first();
+
+            if ($pengajuan && !empty($pengajuan->data_tuk['alamat'])) {
+                return $pengajuan->data_tuk['alamat'];
+            }
+        }
+
+        return $this->tuk?->alamat;
     }
 
     public function asesor()

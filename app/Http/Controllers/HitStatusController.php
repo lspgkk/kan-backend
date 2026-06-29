@@ -71,11 +71,26 @@ class HitStatusController extends Controller
         try {
             $siki = app(SikiService::class);
             if ($siki->isActive()) {
-                $httpClient = new \GuzzleHttp\Client();
-                $httpClient->request('POST', $apiEndpoint, [
-                    'headers' => $siki->getHeaders(),
-                    'json' => $apiData,
-                ]);
+                try {
+                    $httpClient = new \GuzzleHttp\Client();
+                    $httpClient->request('POST', $apiEndpoint, [
+                        'headers' => $siki->getHeaders(),
+                        'json' => $apiData,
+                    ]);
+                } catch (\GuzzleHttp\Exception\RequestException $e) {
+                    $responseBody = $e->getResponse()?->getBody()->getContents() ?? $e->getMessage();
+                    $responseData = json_decode($responseBody, true);
+                    $message = $responseData['message'] ?? '';
+
+                    if ($message === 'tidak dapat mengirim kode status 20, kode status saat ini 20') {
+                        Log::info('SIKI status already 20, proceeding with local update', [
+                            'id_izin' => $id_izin,
+                        ]);
+                        // Continue to local update — SIKI already at target status
+                    } else {
+                        throw $e; // Re-throw to be caught by outer catch
+                    }
+                }
             } else {
                 Log::info('SIKI API call skipped (is_active=false)', [
                     'id_izin' => $id_izin,
@@ -192,7 +207,13 @@ class HitStatusController extends Controller
             if (!$response->successful()) {
                 $message = $response->json()['message'] ?? 'Terjadi kesalahan pada SIKI';
 
-                if (in_array($message, [
+                // If SIKI already has status 10, proceed with local update
+                if ($message === 'tidak dapat mengirim kode status 10, kode status saat ini 10') {
+                    Log::info('SIKI status already 10, proceeding with local update', [
+                        'id_izin' => $id_izin,
+                    ]);
+                    // Fall through to local update below
+                } elseif (in_array($message, [
                     'tidak dapat mengirim kode status 10, kode status saat ini 32',
                     'tidak dapat mengirim kode status 10, kode status saat ini 30',
                 ])) {
@@ -200,13 +221,13 @@ class HitStatusController extends Controller
                         'success' => false,
                         'message' => 'ID Izin sudah divalidasi!'
                     ], 409);
+                } else {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Terjadi masalah pada ID Izin ($id_izin)",
+                        'detail'  => $message
+                    ], 500);
                 }
-
-                return response()->json([
-                    'success' => false,
-                    'message' => "Terjadi masalah pada ID Izin ($id_izin)",
-                    'detail'  => $message
-                ], 500);
             }
 
             $responseData = $response->json();
@@ -699,16 +720,9 @@ class HitStatusController extends Controller
         $link = rtrim($frontendUrl, '/') . '/persiapan-asesmen/' . $uuid;
 
         // Jika kelasnya daring, sertakan link Zoom
-        $isDaring = false;
-        if ($personal->jenis_kelas_id) {
-            $jenisKelas = JenisKelas::find($personal->jenis_kelas_id);
-            $isDaring = $jenisKelas && strtolower(trim($jenisKelas->nama_kelas)) === 'daring';
-        }
-        if ($isDaring) {
+        if ($personal->jenis_kelas_id == 3) {
             $zoomUrl = env('ZOOM_URL');
-            if ($zoomUrl) {
-                $link = "Link Verifikasi Data: {$link}\nLink Zoom: {$zoomUrl}";
-            }
+            $link = "Link Verifikasi Data: {$link} & Link Zoom: {$zoomUrl}";
         }
 
         $qontak = app(QontakService::class);

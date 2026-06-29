@@ -18,6 +18,8 @@ use App\Http\Controllers\PermohonanController;
 use App\Http\Controllers\HitStatusController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\JabatanKerjaController;
+use App\Http\Controllers\KanSoalController;
+use App\Http\Controllers\KanImportController;
 use App\Http\Controllers\MidtransWebhookController;
 use App\Http\Controllers\JadwalController;
 use App\Http\Controllers\JenisAnggaranController;
@@ -320,7 +322,7 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('/dokumen/absen/{id}', [AsesmenController::class, 'absensi']);
     Route::get('/generate-penyusun', [BarcodeController::class, 'generateBarcodePenyusun']);
     Route::get('/generate-manajer', [BarcodeController::class, 'generateBarcodeManajer']);
-    
+
     Route::prefix('praasesmen')->group(function () {
         Route::post('/{id}/absen-awal', [PraAsesmenController::class, 'absenAwal']);
         Route::post('/{id}/absen-akhir', [PraAsesmenController::class, 'absenAkhir']);
@@ -361,6 +363,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/ia04a', [AsesmenController::class, 'ttdIa04a']);
         Route::post('/{id}/ia04b', [AsesmenController::class, 'ttdIa04b']);
         Route::post('/{id}/ia05', [AsesmenController::class, 'ttdIa05']);
+        Route::post('/{id}/ia06', [AsesmenController::class, 'ttdIa06']);
         Route::post('/{id}/ia08', [AsesmenController::class, 'ttdIa08']);
         Route::post('/{id}/ia09', [AsesmenController::class, 'ttdIa09']);
         Route::post('/{id}/ia10', [AsesmenController::class, 'ttdIa10']);
@@ -383,6 +386,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::get('/{id}/tugas', [AsesmenController::class, 'getTugas']);
         Route::get('/{id}/ia04b', [AsesmenController::class, 'getIa04b']);
         Route::get('/{id}/ia05', [AsesmenController::class, 'getIa05']);
+        Route::get('/{id}/ia06', [AsesmenController::class, 'getIa06']);
         Route::get('/{id}/ia08', [AsesmenController::class, 'getIa08']);
         Route::get('/{id}/ia09', [AsesmenController::class, 'getIa09']);
         Route::get('/{id}/ia10', [AsesmenController::class, 'getIa10']);
@@ -398,6 +402,7 @@ Route::middleware(['auth:api'])->group(function () {
         Route::post('/{id}/ia04b', [AsesmenController::class, 'submitIa04b']);
         Route::post('/{id}/nilai-ia04b', [AsesmenController::class, 'nilaiIa04b']);
         Route::post('/{id}/ia05', [AsesmenController::class, 'submitIa05']);
+        Route::post('/{id}/ia06', [AsesmenController::class, 'submitIa06']);
         Route::post('/{id}/ia08', [AsesmenController::class, 'submitIa08']);
         Route::post('/{id}/ia09', [AsesmenController::class, 'submitIa09']);
         Route::post('/{id}/ia10', [AsesmenController::class, 'submitIa10']);
@@ -479,4 +484,23 @@ Route::prefix('diskon')->group(function () {
         Route::get('/template', [\App\Http\Controllers\GenerateDokumenController::class, 'downloadTemplate']);
         Route::post('/import', [\App\Http\Controllers\GenerateDokumenController::class, 'importAndGenerate']);
     });
+});
+
+// --- KAN Public Routes (no auth required) ---
+Route::post('/kan/import', [KanImportController::class, 'import']);
+
+Route::prefix('kan/soal')->group(function () {
+    Route::get('/', [KanSoalController::class, 'index']);
+    Route::post('/', [KanSoalController::class, 'store']);
+    Route::get('/{id}', [KanSoalController::class, 'show']);
+    Route::put('/{id}', [KanSoalController::class, 'update']);
+    Route::delete('/{id}', [KanSoalController::class, 'destroy']);
+    Route::post('/bulk', [KanSoalController::class, 'bulkStore']);
+});
+
+Route::prefix('kan/ref')->group(function () {
+    Route::get('/unit-kompetensi/{id_jabatan}', [KanSoalController::class, 'refUnitKompetensi']);
+    Route::get('/kuk/{id_unit}', [KanSoalController::class, 'refKuk']);
+    Route::get('/dokumen/{id_jabatan}', [KanSoalController::class, 'refDokumen']);
+    Route::get('/skema/{id_jabatan}', [KanSoalController::class, 'refSkema']);
 });

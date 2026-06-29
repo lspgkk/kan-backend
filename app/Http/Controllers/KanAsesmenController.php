@@ -1,0 +1,928 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\AsesiJadwal;
+use App\Models\AsesorBnsp;
+use App\Models\Barcode;
+use App\Models\BuktiAsesmen;
+use App\Models\JabatanConfigA;
+use App\Models\JabatanDokumen;
+use App\Models\JabatanKerja;
+use App\Models\Jadwal;
+use App\Models\KanAk2Feedback;
+use App\Models\KanIa4bAnswer;
+use App\Models\KanIa5Answer;
+use App\Models\KanIa5Feedback;
+use App\Models\KanIa6Answer;
+use App\Models\KanIa6Feedback;
+use App\Models\KanSoal;
+use App\Models\KlasifikasiKualifikasi;
+use App\Models\Personal;
+use App\Models\Ak2Answer;
+use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use Ramsey\Uuid\Uuid;
+
+class KanAsesmenController extends Controller
+{
+    // ──────────────────────────────────────────────
+    //  BUILDER: DOKUMEN HEADER
+    // ──────────────────────────────────────────────
+
+    private function buildKanDokumenHeader($id): ?array
+    {
+        $namaAsesi = Personal::where('id_izin', $id)->value('nama');
+        $jadwalId  = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
+
+        if (!$jadwalId) {
+            return null;
+        }
+
+        $klasifikasi = KlasifikasiKualifikasi::select(['jabatan_kerja', 'jenjang'])
+            ->where('id_izin', $id)
+            ->first();
+
+        if (!$klasifikasi) {
+            return null;
+        }
+
+        $jabatanKerja = JabatanKerja::where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)
+            ->value('jabatan_kerja');
+
+        $jabatanConfig = JabatanConfigA::select('no_skema')
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->first();
+
+        $jadwal = Jadwal::with([
+                'tuk:id,nama',
+                'asesor:id,nama,noreg',
+                'asesor2:id,nama,noreg',
+            ])
+            ->select(['jadwal_id', 'tuk_id', 'asesor_id', 'asesor2_id', 'tanggal_uji', 'tanggal_selesai', 'jenis_kelas'])
+            ->where('jadwal_id', $jadwalId)
+            ->first();
+
+        if (!$jadwal) {
+            return null;
+        }
+
+        // Build dynamic asesor list
+        $asesorList = collect();
+        if ($jadwal->asesor) {
+            $asesorList->push((object) [
+                'nama'  => $jadwal->asesor->nama,
+                'noreg' => $jadwal->asesor->noreg,
+                'id'    => $jadwal->asesor_id,
+            ]);
+        }
+        if ($jadwal->asesor2) {
+            $asesorList->push((object) [
+                'nama'  => $jadwal->asesor2->nama,
+                'noreg' => $jadwal->asesor2->noreg,
+                'id'    => $jadwal->asesor2_id,
+            ]);
+        }
+
+        $penyusunValidator = JabatanConfigA::with([
+            'penyusun:id,name,noreg',
+            'validator:id,name,noreg',
+        ])
+        ->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'validator_id', 'validator_tgl', 'validator_img'])
+        ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+        ->first();
+
+        return [
+            // Flat variables (used by KAN templates)
+            'jabatan_kerja'   => $jabatanKerja,
+            'nomor_skema'     => $jabatanConfig?->no_skema,
+            'tuk'             => $jadwal->tuk?->nama,
+            'nama_asesi'      => $namaAsesi,
+            'asesor_list'     => $asesorList,
+            'jenjang'         => $klasifikasi->jenjang,
+            'tanggal'         => $jadwal->tanggal_uji
+                ? Carbon::parse($jadwal->tanggal_uji)->translatedFormat('d F Y') : '',
+            'tanggal_mulai'   => $jadwal->tanggal_uji
+                ? Carbon::parse($jadwal->tanggal_uji)->translatedFormat('d F Y') : '',
+            'tanggal_selesai' => $jadwal->tanggal_selesai
+                ? Carbon::parse($jadwal->tanggal_selesai)->translatedFormat('d F Y') : '',
+            // Penyusun & Validator (for KAN templates)
+            'nama_penyusun'    => $penyusunValidator?->penyusun?->name,
+            'nama_validator'   => $penyusunValidator?->validator?->name,
+            'noreg_penyusun'   => $penyusunValidator?->penyusun?->noreg,
+            'noreg_validator'  => $penyusunValidator?->validator?->noreg,
+            'tanggal_penyusun' => $penyusunValidator?->penyusun_tgl,
+            'tanggal_validator'=> $penyusunValidator?->validator_tgl,
+            'barcode_penyusun' => $penyusunValidator?->penyusun_img
+                ? $this->imageUrlToBase64($penyusunValidator->penyusun_img) : null,
+            'barcode_validator'=> $penyusunValidator?->validator_img
+                ? $this->imageUrlToBase64($penyusunValidator->validator_img) : null,
+        ];
+    }
+
+    // ──────────────────────────────────────────────
+    //  BUILDER: KAN IA04B DATA
+    // ──────────────────────────────────────────────
+
+    private function buildKanIa04bData(int|string $id, bool $forPdf = false): ?array
+    {
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->where('id_izin', $id)->first();
+
+        if (!$klasifikasi) return null;
+
+        $barcodes = $this->resolveDocumentBarcodes($id, 'IA04B', $forPdf);
+
+        $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where('kode', 'FR.IA.04.B')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dokumen) {
+            return [
+                'barcodes' => $barcodes,
+                'dokumen' => null,
+                'soal' => [],
+                'rekomendasi' => null,
+                'total_skor' => 0,
+            ];
+        }
+
+        // Questions (tipe=8 for DIT, tipe=3 for rekomendasi) with KAN answers
+        $questions = KanSoal::select([
+                'kan_soals.id',
+                'kan_soals.no',
+                'kan_soals.soal',
+                'kan_soals.soal1',
+                'kan_soals.soal2',
+                'kan_soals.tipe',
+                'kan_soals.is_komentar',
+                'kan_ia4b_answers.jawaban',
+                'kan_ia4b_answers.skor',
+            ])
+            ->leftJoin('kan_ia4b_answers', function ($join) use ($id, $dokumen) {
+                $join->on('kan_ia4b_answers.soal_id', '=', 'kan_soals.id')
+                    ->where('kan_ia4b_answers.id_izin', $id)
+                    ->where('kan_ia4b_answers.dokumen_id', $dokumen->id);
+            })
+            ->where('kan_soals.id_dokumen', $dokumen->id)
+            ->whereIn('kan_soals.tipe', [3, 8])
+            ->orderBy('kan_soals.no', 'asc')
+            ->get()
+            ->map(function ($q) {
+                $q->pencapaian = $q->skor !== null ? (int) $q->skor : null;
+                return $q;
+            });
+
+        // Separate rekomendasi item
+        $rekomendasi = $questions->firstWhere('tipe', 3);
+        $soalList = $questions->where('tipe', '!=', 3)->values();
+
+        // Calculate total skor
+        $totalSkor = $soalList->sum('skor');
+
+        return [
+            'barcodes'    => $barcodes,
+            'dokumen'     => $dokumen,
+            'soal_list'   => $soalList,
+            'rekomendasi' => $rekomendasi ? [
+                'id'            => $rekomendasi->id,
+                'soal'          => $rekomendasi->soal,
+                'is_komentar'   => $rekomendasi->is_komentar,
+                'rekomendasi'   => (bool) $rekomendasi->skor,
+            ] : null,
+            'total_skor'  => $totalSkor,
+        ];
+    }
+
+    // ──────────────────────────────────────────────
+    //  BUILDER: KAN IA05 DATA
+    // ──────────────────────────────────────────────
+
+    private function buildKanIa05Data(int|string $id, bool $forPdf = false): ?array
+    {
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->where('id_izin', $id)->first();
+
+        if (!$klasifikasi) return null;
+
+        $barcodes = $this->resolveDocumentBarcodes($id, 'IA05', $forPdf);
+
+        $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where('kode', 'FR.IA.05')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dokumen) {
+            return [
+                'barcodes' => $barcodes,
+                'dokumen' => null,
+                'soal_list' => [],
+                'umpan_balik' => null,
+                'jumlah_benar' => 0,
+                'jumlah_salah' => 0,
+            ];
+        }
+
+        $questions = KanSoal::select([
+                'kan_soals.id',
+                'kan_soals.no',
+                'kan_soals.soal',
+                'kan_soals.jawab_a',
+                'kan_soals.jawab_b',
+                'kan_soals.jawab_c',
+                'kan_soals.jawab_d',
+                'kan_soals.jawaban as kunci_jawaban',
+                'kan_soals.id_unitkompetensi',
+                'kan_soals.id_kuk',
+                'kan_ia5_answers.jawaban as jawaban_asesi',
+                'kan_ia5_answers.skor',
+            ])
+            ->leftJoin('kan_ia5_answers', function ($join) use ($id, $dokumen) {
+                $join->on('kan_ia5_answers.soal_id', '=', 'kan_soals.id')
+                    ->where('kan_ia5_answers.id_izin', $id)
+                    ->where('kan_ia5_answers.dokumen_id', $dokumen->id);
+            })
+            ->with(['unit:id,kode', 'kuk:id,kode'])
+            ->where('kan_soals.id_dokumen', $dokumen->id)
+            ->where('kan_soals.tipe', 1)
+            ->orderBy('kan_soals.no', 'asc')
+            ->get()
+            ->map(function ($q) {
+                $q->unit_kode = $q->unit?->kode;
+                $q->kuk_kode  = $q->kuk?->kode;
+                return $q;
+            });
+
+        $feedback = KanIa5Feedback::where('id_izin', $id)->value('umpan_balik');
+
+        $jumlahBenar = $questions->filter(fn($q) => $q->skor === 1)->count();
+        $jumlahSalah = $questions->filter(fn($q) => $q->skor === 0)->count();
+
+        return [
+            'barcodes'      => $barcodes,
+            'dokumen'       => $dokumen,
+            'soal_list'     => $questions,
+            'umpan_balik'   => $feedback,
+            'jumlah_benar'  => $jumlahBenar,
+            'jumlah_salah'  => $jumlahSalah,
+        ];
+    }
+
+    // ──────────────────────────────────────────────
+    //  BUILDER: KAN IA06 DATA (NEW)
+    // ──────────────────────────────────────────────
+
+    private function buildKanIa06Data(int|string $id, bool $forPdf = false): ?array
+    {
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->where('id_izin', $id)->first();
+
+        if (!$klasifikasi) return null;
+
+        $barcodes = $this->resolveDocumentBarcodes($id, 'IA06', $forPdf);
+
+        $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where('kode', 'FR.IA.06')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dokumen) {
+            return [
+                'barcodes'   => $barcodes,
+                'dokumen'    => null,
+                'soal_list'  => [],
+                'umpan_balik'=> null,
+                'unit_elemen_kuk' => null,
+                'total_skor' => 0,
+            ];
+        }
+
+        $questions = KanSoal::select([
+                'kan_soals.id',
+                'kan_soals.no',
+                'kan_soals.soal',
+                'kan_soals.id_unitkompetensi',
+                'kan_soals.id_kuk',
+                'kan_ia6_answers.jawaban',
+                'kan_ia6_answers.skor',
+            ])
+            ->leftJoin('kan_ia6_answers', function ($join) use ($id, $dokumen) {
+                $join->on('kan_ia6_answers.soal_id', '=', 'kan_soals.id')
+                    ->where('kan_ia6_answers.id_izin', $id)
+                    ->where('kan_ia6_answers.dokumen_id', $dokumen->id);
+            })
+            ->with(['unit:id,kode', 'kuk:id,kode'])
+            ->where('kan_soals.id_dokumen', $dokumen->id)
+            ->where('kan_soals.tipe', 8)
+            ->orderBy('kan_soals.no', 'asc')
+            ->get()
+            ->map(function ($q) {
+                $q->unit_kode = $q->unit?->kode;
+                $q->kuk_kode  = $q->kuk?->kode;
+                return $q;
+            });
+
+        $ia6Feedback = KanIa6Feedback::where('id_izin', $id)->first();
+
+        $totalSkor = $questions->sum('skor');
+
+        return [
+            'barcodes'       => $barcodes,
+            'dokumen'        => $dokumen,
+            'soal_list'      => $questions,
+            'umpan_balik'    => $ia6Feedback?->umpan_balik,
+            'unit_elemen_kuk'=> $ia6Feedback?->unit_elemen_kuk,
+            'total_skor'     => $totalSkor,
+        ];
+    }
+
+    // ──────────────────────────────────────────────
+    //  BUILDER: KAN AK02 DATA
+    // ──────────────────────────────────────────────
+
+    private function buildKanAk02Data(int|string $id, bool $forPdf = false): ?array
+    {
+        $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->where('id_izin', $id)->first();
+
+        if (!$klasifikasi) return null;
+
+        $barcodes = $this->resolveDocumentBarcodes($id, 'AK02', $forPdf);
+
+        $dokumen = JabatanDokumen::select(['id', 'nama_dokumen'])
+            ->where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where('kode', 'FR.AK.02')
+            ->where('is_active', true)
+            ->first();
+
+        // Unit kompetensi evidence (reuse existing BNSP table)
+        $unitKompetensi = \App\Models\UnitKompetensi::select(['id', 'kode', 'nama'])
+            ->whereHas('jabatanKelompokUnits.kelompok.dokumen', function ($q) use ($klasifikasi) {
+                $q->where('id_jabatan', $klasifikasi->jabatan_kerja);
+            })
+            ->get()
+            ->map(function ($unit) use ($id) {
+                $evidence = Ak2Answer::where('id_izin', $id)
+                    ->where('id_unit_kompetensi', $unit->id)
+                    ->first();
+
+                $unit->evidence = (object) [
+                    'observasi'             => $evidence?->observasi ?? false,
+                    'portofolio'            => $evidence?->portofolio ?? false,
+                    'pertanyaan_wawancara'  => $evidence?->pertanyaan_wawancara ?? false,
+                    'pertanyaan_lisan'      => $evidence?->pertanyaan_lisan ?? false,
+                    'pertanyaan_tertulis'   => $evidence?->pertanyaan_tertulis ?? false,
+                    'proyek_kerja'          => $evidence?->proyek_kerja ?? false,
+                    'lainnya'               => $evidence?->lainnya ?? false,
+                ];
+                return $unit;
+            });
+
+        // KAN AK02 feedback scores
+        $ak2Feedback = KanAk2Feedback::where('id_izin', $id)->first();
+
+        $threshold = $klasifikasi->jenjang <= 6 ? 65 : 70;
+
+        return [
+            'barcodes'           => $barcodes,
+            'dokumen'            => $dokumen,
+            'unit_kompetensi'    => $unitKompetensi,
+            'total_skor_dit'     => $ak2Feedback?->total_skor_dit,
+            'total_skor_pilihan_ganda' => $ak2Feedback?->total_skor_pg,
+            'total_skor_esai'    => $ak2Feedback?->total_skor_esai,
+            'nilai_skor_dit'     => $ak2Feedback?->nilai_skor_dit,
+            'nilai_skor_pilihan_ganda' => $ak2Feedback?->nilai_skor_pg,
+            'nilai_skor_esai'    => $ak2Feedback?->nilai_skor_esai,
+            'skor_nilai_akhir'   => $ak2Feedback?->skor_nilai_akhir,
+            'isLulus'            => $ak2Feedback?->is_kompeten === true,
+            'isTidakLulus'       => $ak2Feedback?->is_kompeten === false,
+            'tindak_lanjut'      => $ak2Feedback?->tindak_lanjut,
+            'komentar'           => $ak2Feedback?->komentar,
+            'threshold_passing'  => $threshold,
+        ];
+    }
+
+    // ──────────────────────────────────────────────
+    //  SUBMIT: KAN IA04B
+    // ──────────────────────────────────────────────
+
+    public function submitKanIa04b(Request $request, $idIzin)
+    {
+        $validated = $request->validate([
+            'dokumen_id'           => 'required|integer',
+            'answers'              => 'required|array',
+            'answers.*.soal_id'    => 'required|integer',
+            'answers.*.jawaban'    => 'nullable|string',
+            'answers.*.skor'       => 'nullable|integer|min:0|max:3',
+            'rekomendasi'          => 'nullable|boolean',
+        ]);
+
+        DB::transaction(function () use ($validated, $idIzin) {
+            foreach ($validated['answers'] as $answer) {
+                KanIa4bAnswer::updateOrCreate(
+                    [
+                        'id_izin'    => $idIzin,
+                        'dokumen_id' => $validated['dokumen_id'],
+                        'soal_id'    => $answer['soal_id'],
+                    ],
+                    [
+                        'jawaban'   => $answer['jawaban'] ?? null,
+                        'skor'      => $answer['skor'] ?? null,
+                        'is_rekomendasi' => false,
+                    ]
+                );
+            }
+
+            // Handle rekomendasi item
+            if ($request->has('rekomendasi')) {
+                // Find the rekomendasi question for this dokumen
+                $rekomSoal = KanSoal::where('id_dokumen', $validated['dokumen_id'])
+                    ->where('tipe', 3)->first();
+
+                if ($rekomSoal) {
+                    KanIa4bAnswer::updateOrCreate(
+                        [
+                            'id_izin'    => $idIzin,
+                            'dokumen_id' => $validated['dokumen_id'],
+                            'soal_id'    => $rekomSoal->id,
+                        ],
+                        [
+                            'is_rekomendasi' => true,
+                            'rekomendasi'    => $request->boolean('rekomendasi'),
+                        ]
+                    );
+                }
+            }
+        });
+
+        return response()->json(['message' => 'KAN IA04B answers saved']);
+    }
+
+    // ──────────────────────────────────────────────
+    //  SUBMIT: KAN IA05
+    // ──────────────────────────────────────────────
+
+    public function submitKanIa05(Request $request, $idIzin)
+    {
+        $validated = $request->validate([
+            'dokumen_id'           => 'required|integer',
+            'answers'              => 'required|array',
+            'answers.*.soal_id'    => 'required|integer',
+            'answers.*.jawaban'    => 'nullable|in:A,B,C,D',
+            'answers.*.skor'       => 'nullable|integer|min:0|max:1',
+            'umpan_balik'          => 'nullable|string',
+        ]);
+
+        DB::transaction(function () use ($validated, $idIzin) {
+            foreach ($validated['answers'] as $answer) {
+                KanIa5Answer::updateOrCreate(
+                    [
+                        'id_izin'    => $idIzin,
+                        'dokumen_id' => $validated['dokumen_id'],
+                        'soal_id'    => $answer['soal_id'],
+                    ],
+                    [
+                        'jawaban' => $answer['jawaban'] ?? null,
+                        'skor'    => $answer['skor'] ?? null,
+                    ]
+                );
+            }
+
+            if (!empty($validated['umpan_balik'])) {
+                KanIa5Feedback::updateOrCreate(
+                    ['id_izin' => $idIzin],
+                    ['umpan_balik' => $validated['umpan_balik']]
+                );
+            }
+        });
+
+        return response()->json(['message' => 'KAN IA05 answers saved']);
+    }
+
+    // ──────────────────────────────────────────────
+    //  SUBMIT: KAN IA06 (NEW)
+    // ──────────────────────────────────────────────
+
+    public function submitKanIa06(Request $request, $idIzin)
+    {
+        $validated = $request->validate([
+            'dokumen_id'           => 'required|integer',
+            'answers'              => 'required|array',
+            'answers.*.soal_id'    => 'required|integer',
+            'answers.*.jawaban'    => 'nullable|string',
+            'answers.*.skor'       => 'nullable|integer|min:0|max:3',
+            'umpan_balik'          => 'nullable|string',
+            'unit_elemen_kuk'      => 'nullable|string',
+        ]);
+
+        DB::transaction(function () use ($validated, $idIzin) {
+            foreach ($validated['answers'] as $answer) {
+                KanIa6Answer::updateOrCreate(
+                    [
+                        'id_izin'    => $idIzin,
+                        'dokumen_id' => $validated['dokumen_id'],
+                        'soal_id'    => $answer['soal_id'],
+                    ],
+                    [
+                        'jawaban' => $answer['jawaban'] ?? null,
+                        'skor'    => $answer['skor'] ?? null,
+                    ]
+                );
+            }
+
+            KanIa6Feedback::updateOrCreate(
+                ['id_izin' => $idIzin],
+                [
+                    'umpan_balik'     => $validated['umpan_balik'] ?? null,
+                    'unit_elemen_kuk' => $validated['unit_elemen_kuk'] ?? null,
+                ]
+            );
+        });
+
+        return response()->json(['message' => 'KAN IA06 answers saved']);
+    }
+
+    // ──────────────────────────────────────────────
+    //  SUBMIT: KAN AK02
+    // ──────────────────────────────────────────────
+
+    public function submitKanAk02(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'answers'                           => 'required|array',
+            'answers.*.id_unit_kompetensi'      => 'required|integer',
+            'answers.*.observasi'               => 'nullable|boolean',
+            'answers.*.portofolio'              => 'nullable|boolean',
+            'answers.*.pertanyaan_wawancara'    => 'nullable|boolean',
+            'answers.*.pertanyaan_lisan'        => 'nullable|boolean',
+            'answers.*.pertanyaan_tertulis'     => 'nullable|boolean',
+            'answers.*.proyek_kerja'            => 'nullable|boolean',
+            'answers.*.lainnya'                 => 'nullable|boolean',
+            'total_skor_dit'                    => 'nullable|numeric',
+            'total_skor_pg'                     => 'nullable|numeric',
+            'total_skor_esai'                   => 'nullable|numeric',
+            'is_kompeten'                       => 'required|boolean',
+            'tindak_lanjut'                     => 'nullable|string',
+            'komentar'                          => 'nullable|string',
+        ]);
+
+        // Determine threshold based on jenjang
+        $klasifikasi = KlasifikasiKualifikasi::select('jenjang')
+            ->where('id_izin', $id)->first();
+        $threshold = $klasifikasi && $klasifikasi->jenjang <= 6 ? 65 : 70;
+
+        DB::transaction(function () use ($validated, $id, $threshold) {
+            // Save evidence answers (reuse BNSP table)
+            foreach ($validated['answers'] as $answer) {
+                Ak2Answer::updateOrCreate(
+                    [
+                        'id_izin'            => $id,
+                        'id_unit_kompetensi' => $answer['id_unit_kompetensi'],
+                    ],
+                    [
+                        'observasi'            => $answer['observasi'] ?? false,
+                        'portofolio'           => $answer['portofolio'] ?? false,
+                        'pertanyaan_wawancara' => $answer['pertanyaan_wawancara'] ?? false,
+                        'pertanyaan_lisan'     => $answer['pertanyaan_lisan'] ?? false,
+                        'pertanyaan_tertulis'  => $answer['pertanyaan_tertulis'] ?? false,
+                        'proyek_kerja'         => $answer['proyek_kerja'] ?? false,
+                        'lainnya'              => $answer['lainnya'] ?? false,
+                    ]
+                );
+            }
+
+            // Compute weighted scores
+            $totalDit  = $validated['total_skor_dit'] ?? 0;
+            $totalPg   = $validated['total_skor_pg'] ?? 0;
+            $totalEsai = $validated['total_skor_esai'] ?? 0;
+
+            $nilaiDit  = $totalDit / 10 * 50;   // IA04B: 50% weight
+            $nilaiPg   = $totalPg / 20 * 30;    // IA05: 30% weight
+            $nilaiEsai = $totalEsai / 10 * 20;  // IA06: 20% weight
+            $skorAkhir = $nilaiDit + $nilaiPg + $nilaiEsai;
+
+            KanAk2Feedback::updateOrCreate(
+                ['id_izin' => $id],
+                [
+                    'total_skor_dit'    => $totalDit,
+                    'total_skor_pg'     => $totalPg,
+                    'total_skor_esai'   => $totalEsai,
+                    'nilai_skor_dit'    => $nilaiDit,
+                    'nilai_skor_pg'     => $nilaiPg,
+                    'nilai_skor_esai'   => $nilaiEsai,
+                    'skor_nilai_akhir'  => $skorAkhir,
+                    'is_kompeten'       => $validated['is_kompeten'],
+                    'threshold_passing' => $threshold,
+                    'tindak_lanjut'     => $validated['tindak_lanjut'] ?? null,
+                    'komentar'          => $validated['komentar'] ?? null,
+                ]
+            );
+        });
+
+        return response()->json(['message' => 'KAN AK02 saved']);
+    }
+
+    // ──────────────────────────────────────────────
+    //  GET METHODS
+    // ──────────────────────────────────────────────
+
+    public function getKanIa04b($id)
+    {
+        $data = $this->buildKanIa04bData($id);
+        if ($data === null) {
+            return response()->json(['message' => 'Data not found'], 404);
+        }
+        return response()->json(['message' => 'OK', 'data' => $data]);
+    }
+
+    public function getKanIa05($id)
+    {
+        $data = $this->buildKanIa05Data($id);
+        if ($data === null) {
+            return response()->json(['message' => 'Data not found'], 404);
+        }
+        return response()->json(['message' => 'OK', 'data' => $data]);
+    }
+
+    public function getKanIa06($id)
+    {
+        $data = $this->buildKanIa06Data($id);
+        if ($data === null) {
+            return response()->json(['message' => 'Data not found'], 404);
+        }
+        return response()->json(['message' => 'OK', 'data' => $data]);
+    }
+
+    public function getKanAk02($id)
+    {
+        $data = $this->buildKanAk02Data($id);
+        if ($data === null) {
+            return response()->json(['message' => 'Data not found'], 404);
+        }
+        return response()->json(['message' => 'OK', 'data' => $data]);
+    }
+
+    // ──────────────────────────────────────────────
+    //  TTD / PDF GENERATION METHODS
+    // ──────────────────────────────────────────────
+
+    public function ttdKanIa04b(Request $request, $id)
+    {
+        $data = $this->generateTtdBarcode($request, 'IA04B', 'ttd_kan_ia04b', $id);
+        $dataDokumen = $this->buildKanIa04bData($id, true);
+        if (!$dataDokumen) abort(404, 'Data not found');
+
+        $dokumenHeader = $this->buildKanDokumenHeader($id);
+        if (!$dokumenHeader) abort(404, 'Dokumen header not found');
+
+        $viewData = array_merge($dataDokumen, $dokumenHeader);
+
+        $pdf = Pdf::loadView('pdf.kan_ia04b', $viewData)->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/kan_ia04b';
+        $filename = 'KAN-IA04B-' . $id . '.pdf';
+        $path = $directory . '/' . $filename;
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_kan_ia_04b' => $fullUrl]
+        );
+
+        return response()->json(['message' => 'Success', 'data' => $data]);
+    }
+
+    public function ttdKanIa05(Request $request, $id)
+    {
+        $data = $this->generateTtdBarcode($request, 'IA05', 'ttd_kan_ia05', $id);
+        $dataDokumen = $this->buildKanIa05Data($id, true);
+        if (!$dataDokumen) abort(404, 'Data not found');
+
+        $dokumenHeader = $this->buildKanDokumenHeader($id);
+        if (!$dokumenHeader) abort(404, 'Dokumen header not found');
+
+        $viewData = array_merge($dataDokumen, $dokumenHeader);
+
+        $pdf = Pdf::loadView('pdf.kan_ia05', $viewData)->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/kan_ia05';
+        $filename = 'KAN-IA05-' . $id . '.pdf';
+        $path = $directory . '/' . $filename;
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_kan_ia_05' => $fullUrl]
+        );
+
+        return response()->json(['message' => 'Success', 'data' => $data]);
+    }
+
+    public function ttdKanIa06(Request $request, $id)
+    {
+        $data = $this->generateTtdBarcode($request, 'IA06', 'ttd_kan_ia06', $id);
+        $dataDokumen = $this->buildKanIa06Data($id, true);
+        if (!$dataDokumen) abort(404, 'Data not found');
+
+        $dokumenHeader = $this->buildKanDokumenHeader($id);
+        if (!$dokumenHeader) abort(404, 'Dokumen header not found');
+
+        $viewData = array_merge($dataDokumen, $dokumenHeader);
+
+        $pdf = Pdf::loadView('pdf.kan_ia06', $viewData)->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/kan_ia06';
+        $filename = 'KAN-IA06-' . $id . '.pdf';
+        $path = $directory . '/' . $filename;
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_kan_ia_06' => $fullUrl]
+        );
+
+        return response()->json(['message' => 'Success', 'data' => $data]);
+    }
+
+    public function ttdKanAk02(Request $request, $id)
+    {
+        $data = $this->generateTtdBarcode($request, 'AK02', 'ttd_kan_ak02', $id);
+        $dataDokumen = $this->buildKanAk02Data($id, true);
+        if (!$dataDokumen) abort(404, 'Data not found');
+
+        $dokumenHeader = $this->buildKanDokumenHeader($id);
+        if (!$dokumenHeader) abort(404, 'Dokumen header not found');
+
+        $viewData = array_merge($dataDokumen, $dokumenHeader);
+
+        $pdf = Pdf::loadView('pdf.kan_ak02', $viewData)->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/kan_ak02';
+        $filename = 'KAN-AK02-' . $id . '.pdf';
+        $path = $directory . '/' . $filename;
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_kan_ak_02' => $fullUrl]
+        );
+
+        return response()->json(['message' => 'Success', 'data' => $data]);
+    }
+
+    // ──────────────────────────────────────────────
+    //  BARCODE HELPERS (same logic as AsesmenController)
+    // ──────────────────────────────────────────────
+
+    private function resolveDocumentBarcodes(
+        int|string $idIzin,
+        string $jenisDokumen,
+        bool $forPdf = false
+    ): array {
+        $map = $forPdf
+            ? fn(?Barcode $b) => $this->mapBarcodeForPdf($b)
+            : fn(?Barcode $b) => $this->mapBarcode($b);
+
+        $barcodes = Barcode::with('user')
+            ->where('id_izin', $idIzin)
+            ->where('jenis_dokumen', $jenisDokumen)
+            ->get()
+            ->keyBy('id_user');
+
+        if ($barcodes->isEmpty()) {
+            return [
+                'asesi'  => null,
+                'asesor1' => null,
+                'asesor2' => null,
+            ];
+        }
+
+        $jadwal = Jadwal::select(['asesor_id', 'asesor2_id'])
+            ->where('jadwal_id', $barcodes->first()->id_jadwal)
+            ->first();
+
+        if (!$jadwal) {
+            return [
+                'asesi'   => $map($barcodes->firstWhere('id_role', 8)),
+                'asesor1' => null,
+                'asesor2' => null,
+            ];
+        }
+
+        $asesors = AsesorBnsp::select(['id', 'noreg'])
+            ->whereIn('id', array_filter([$jadwal->asesor_id, $jadwal->asesor2_id]))
+            ->get()
+            ->keyBy('id');
+
+        $asesorUsers = User::whereIn('noreg', $asesors->pluck('noreg'))
+            ->get()
+            ->keyBy('noreg');
+
+        $asesor1User = isset($asesors[$jadwal->asesor_id])
+            ? ($asesorUsers[$asesors[$jadwal->asesor_id]->noreg] ?? null) : null;
+
+        $asesor2User = isset($asesors[$jadwal->asesor2_id])
+            ? ($asesorUsers[$asesors[$jadwal->asesor2_id]->noreg] ?? null) : null;
+
+        return [
+            'asesi'   => $map($barcodes->firstWhere('id_role', 8)),
+            'asesor1' => $asesor1User ? $map($barcodes[$asesor1User->id] ?? null) : null,
+            'asesor2' => $asesor2User ? $map($barcodes[$asesor2User->id] ?? null) : null,
+        ];
+    }
+
+    private function generateTtdBarcode(Request $request, string $docType, string $filePrefix, string $izinId)
+    {
+        $request->validate(['id_jadwal' => 'required']);
+
+        $uuid = (string) Uuid::uuid4();
+        $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
+        $filename = "{$filePrefix}_" . Str::uuid() . '.png';
+
+        $qrImage = QrCode::format('png')->size(300)->margin(1)->generate($urlTtd);
+
+        $path = "barcodes/{$filename}";
+        Storage::disk('str_moon')->put($path, $qrImage);
+
+        $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        Barcode::updateOrCreate(
+            [
+                'id_user'       => auth()->user()->id,
+                'id_izin'       => $izinId,
+                'jenis_dokumen' => $docType,
+            ],
+            [
+                'id_jadwal' => $request->id_jadwal,
+                'url_image' => $urlImage,
+                'url_ttd'   => $urlTtd,
+                'id_role'   => auth()->user()->role_id,
+            ]
+        );
+
+        return ['url_image' => $urlImage, 'url_ttd' => $urlTtd];
+    }
+
+    private function mapBarcode(?Barcode $b): ?object
+    {
+        if (!$b) return null;
+        return (object) [
+            'url'     => $b->url_image,
+            'tanggal' => $b->updated_at,
+        ];
+    }
+
+    private function mapBarcodeForPdf(?Barcode $b): ?object
+    {
+        if (!$b) return null;
+        return (object) [
+            'url'     => $this->imageUrlToBase64($b->url_image),
+            'tanggal' => $b->updated_at,
+        ];
+    }
+
+    private function imageUrlToBase64(?string $url): ?string
+    {
+        if (!$url) return null;
+        try {
+            $contents = file_get_contents($url);
+            if ($contents === false) return null;
+            $extension = pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'png';
+            $mime = match (strtolower($extension)) {
+                'jpg', 'jpeg' => 'image/jpeg',
+                'gif'         => 'image/gif',
+                'svg'         => 'image/svg+xml',
+                default       => 'image/png',
+            };
+            return 'data:' . $mime . ';base64,' . base64_encode($contents);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+}

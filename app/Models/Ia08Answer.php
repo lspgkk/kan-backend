@@ -12,6 +12,7 @@ class Ia08Answer extends Model
     protected $fillable = [
         'id_izin',
         'soal_id',
+        'apl2_file_id',
         'valid',
         'asli',
         'terkini',
@@ -28,5 +29,10 @@ class Ia08Answer extends Model
     public function soal()
     {
         return $this->belongsTo(Soal::class, 'soal_id');
+    }
+
+    public function file()
+    {
+        return $this->belongsTo(Apl2File::class, 'apl2_file_id');
     }
 }

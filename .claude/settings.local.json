@@ -101,7 +101,11 @@
       "Bash(findstr /i \"core\")",
       "Bash(npx vue-tsc *)",
       "Bash(dir C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\gatensi-dashboard *)",
-      "Bash(awk *)"
+      "Bash(awk *)",
+      "Bash(python3 -c \"import PyPDF2; print\\('PyPDF2 available'\\)\")",
+      "Bash(python -c \"import PyPDF2; print\\('PyPDF2 available'\\)\")",
+      "Bash(\"C:\\\\Users\\\\Rafie Pradipta\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\" -m pip install PyPDF2 -q)",
+      "Bash('C:\\\\Users\\\\Rafie Pradipta\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe' -c ' *)"
     ]
   }
 }
