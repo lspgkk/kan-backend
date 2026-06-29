@@ -426,7 +426,7 @@
             <!-- Kelompok Pekerjaan {{ $kelompok['urut'] }} -->
             <table width="100%" cellpadding="5" cellspacing="0" align="center">
                 <tr>
-                    {{-- Kelompok name (header row) --}}
+                    {{-- Kelompok name (header row) -   -}}
                     <td style="width: 20%;" class="no-bottom">
                         <strong>{{ $kelompok['nama'] }}</strong>
                     </td>
@@ -459,10 +459,10 @@
             <br />
 
         <!-- Tabel Metode Asesmen untuk Kelompok ini -->
-        <table width="100%" cellpadding="5" cellspacing="0" align="center" style="font-size: 10pt;">
+        <table width="100%" cellpadding="5" cellspacing="0" align="center" style="font-size: 9pt;">
             <tr>
-                <td class="no-bottom" style="width: 15%;" align="center"></td>
-                <td class="no-bottom" style="width: 18%;" align="center">
+                <td class="no-bottom" style="width: 11%;" align="center"></td>
+                <td class="no-bottom" style="width: 14%;" align="center">
                 </td>
                 <td colspan="3" align="center"><strong>Jenis Bukti</strong></td>
                 <td colspan="6" align="center"><strong>Metode dan Perangkat Asesmen<br/>
@@ -476,15 +476,15 @@
                 </td>
             </tr>
             <tr>
-                <td class="no-top" style="width: 15%;" align="center"><strong>Unit Kompetensi</strong></td>
-                <td class="no-top" style="width: 18%;" align="center">
+                <td class="no-top" style="width: 11%;" align="center"><strong>Unit Kompetensi</strong></td>
+                <td class="no-top" style="width: 14%;" align="center">
                     <strong>Bukti-Bukti</strong><br />
                     <small>(Kinerja, Produk, Portofolio, dan/atau Pengetahuan) diidentifikasi berdasarkan Kriteria Unjuk Kerja dan Pendekatan Asesmen.</small>
                 </td>
-                <td style="width: 5%;" align="center"><strong>L</strong></td>
-                <td style="width: 5%;" align="center"><strong>TL</strong></td>
-                <td style="width: 5%;" align="center"><strong>T</strong></td>
-                <td class="vhead" style="width: 13%;">
+                <td style="width: 3%;" align="center"><strong>L</strong></td>
+                <td style="width: 3%;" align="center"><strong>TL</strong></td>
+                <td style="width: 3%;" align="center"><strong>T</strong></td>
+                <td class="vhead" style="width: 11%;">
                     <div class="vtext">
                         <strong>Observasi langsung</strong><br>
                         <small>
@@ -493,7 +493,7 @@
                         </small>
                     </div>
                 </td>
-                <td class="vhead" style="width: 13%;">
+                <td class="vhead" style="width: 11%;">
                     <div class="vtext">
                         <strong>Kegiatan Terstruktur</strong><br />
                         <small>
@@ -502,7 +502,7 @@
                     </div>
                 </td>
 
-                <td class="vhead" style="width: 13%;">
+                <td class="vhead" style="width: 11%;">
                     <div class="vtext">
                         <strong>Tanya Jawab</strong><br />
                         <small>
@@ -512,7 +512,7 @@
                     </div>
                 </td>
 
-                <td class="vhead" style="width: 13%;">
+                <td class="vhead" style="width: 12%;">
                     <div class="vtext">
                         <strong>Verifikasi Portfolio</strong><br />
                         <small>
@@ -532,7 +532,7 @@
                     </div>
                 </td>
 
-                <td class="vhead" style="width: 10%;">
+                <td class="vhead" style="width: 11%;">
                     <div class="vtext">
                         <strong>Verifikasi Pihak Ketiga</strong><br />
                         <small>
@@ -547,8 +547,11 @@
                     $td3 = ''; // L column
                     $td4 = ''; // TL column
                     $td5 = ''; // T column
+                    $td6 = ''; // Observasi langsung column
                     $td7 = ''; // Kegiatan Terstruktur column
                     $td8 = ''; // Tanya Jawab column
+                    $td9 = ''; // Verifikasi Portfolio column
+                    $td10 = ''; // Reviu Produk column
                     $td11 = ''; // Verifikasi Pihak Ketiga column
 
                     $jenjang = $dokumenHeader['jenjang'] ?? null;
@@ -578,17 +581,17 @@
                     }
                 @endphp
                 <tr>
-                    <td>{{ $i + 1 }}. {{ $unit['nama_unit'] }}</td>
-                    <td>Hasil tanya jawab tentang: {{ $unit['nama_unit'] }}</td>
-                    <td align="center">{{ $td3 }}</td>
-                    <td align="center">{{ $td4 }}</td>
-                    <td align="center">{{ $td5 }}</td>
-                    <td align="center"></td>
-                    <td align="center">{{ $td7 }}</td>
-                    <td align="center">{{ $td8 }}</td>
-                    <td align="center"></td>
-                    <td align="center"></td>
-                    <td align="center">{{ $td11 }}</td>
+                    <td style="width: 11%; word-wrap: break-word; overflow-wrap: break-word;">{{ $i + 1 }}. {{ $unit['nama_unit'] }}</td>
+                    <td style="width: 14%; word-wrap: break-word; overflow-wrap: break-word;">Hasil tanya jawab tentang: {{ $unit['nama_unit'] }}</td>
+                    <td style="width: 3%;" align="center">{{ $td3 }}</td>
+                    <td style="width: 3%;" align="center">{{ $td4 }}</td>
+                    <td style="width: 3%;" align="center">{{ $td5 }}</td>
+                    <td style="width: 11%;" align="center">{!! $td6 ?: '&nbsp;' !!}</td>
+                    <td style="width: 11%;" align="center">{!! $td7 ?: '&nbsp;' !!}</td>
+                    <td style="width: 11%;" align="center">{!! $td8 ?: '&nbsp;' !!}</td>
+                    <td style="width: 12%;" align="center">{!! $td9 ?: '&nbsp;' !!}</td>
+                    <td style="width: 10%;" align="center">{!! $td10 ?: '&nbsp;' !!}</td>
+                    <td style="width: 11%;" align="center">{!! $td11 ?: '&nbsp;' !!}</td>
                 </tr>
             @endforeach
         </table>

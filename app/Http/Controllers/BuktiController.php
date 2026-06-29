@@ -48,6 +48,7 @@ class BuktiController extends Controller
             'url_ak01', 'url_ak02', 'url_ak03', 'url_ak04', 'url_ak05', 'url_ak06', 'url_ak07',
             'url_ia_01', 'url_ia_02', 'url_ia_03', 'url_ia_04a', 'url_ia_04b', 'url_ia_05',
             'url_ia_08', 'url_ia_09', 'url_ia_10',
+            'url_kan_ia_04b', 'url_kan_ia_05', 'url_kan_ia_06', 'url_kan_ak_02',
             'url_paparan', 'url_docs_asesmen',
         ];
 

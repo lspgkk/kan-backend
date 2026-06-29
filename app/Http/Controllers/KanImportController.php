@@ -33,7 +33,7 @@ class KanImportController extends Controller
             'ia05.*.soal' => 'required|string',
             'ia06' => 'nullable|array',
             'ia06.*.no' => 'required|integer',
-            'ia06.*.soal' => 'required|string',
+            'ia06.*.soal' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -44,7 +44,9 @@ class KanImportController extends Controller
         }
 
         // ── 1. Resolve jabatan_kerja ──
-        $jabatan = JabatanKerja::where('jabatan_kerja', $request->nama)->first();
+        $jabatan = JabatanKerja::where('jabatan_kerja', $request->nama)
+            ->orderBy('id_jabatan_kerja', 'desc')
+            ->first();
         if (!$jabatan) {
             return response()->json([
                 'message' => "Skema '{$request->nama}' tidak ditemukan di tabel jabatan_kerja",
@@ -52,19 +54,28 @@ class KanImportController extends Controller
         }
         $idJabatan = $jabatan->id_jabatan_kerja;
 
-        // ── 2. Pre-cache dokumen ──
-        $dokumenCache = [];
+        // ── 2. Pre-cache & auto-create dokumen jika belum ada ──
         $dokumenKodes = ['FR.IA.04.B', 'FR.IA.05', 'FR.IA.06'];
+        $dokumenNama = [
+            'FR.IA.04.B' => 'LEMBAR PERIKSA KEGIATAN TERSTRUKTUR',
+            'FR.IA.05' => 'PERTANYAAN TERTULIS PILIHAN GANDA',
+            'FR.IA.06' => 'PERTANYAAN TERTULIS ESAI',
+        ];
 
+        $dokumenCache = [];
         foreach ($dokumenKodes as $kode) {
             $dok = JabatanDokumen::where('id_jabatan', $idJabatan)
                 ->where('kode', $kode)
                 ->where('is_active', true)
                 ->first();
+
             if (!$dok) {
-                return response()->json([
-                    'message' => "Dokumen {$kode} untuk skema ini tidak ditemukan atau tidak aktif",
-                ], 404);
+                $dok = JabatanDokumen::create([
+                    'id_jabatan' => $idJabatan,
+                    'kode' => $kode,
+                    'nama_dokumen' => $dokumenNama[$kode],
+                    'is_active' => true,
+                ]);
             }
             $dokumenCache[$kode] = $dok->id;
         }
@@ -77,7 +88,6 @@ class KanImportController extends Controller
 
         // ── 4. Import helper ──
         $total = 0;
-        $errors = [];
 
         DB::beginTransaction();
         try {
@@ -173,7 +183,6 @@ class KanImportController extends Controller
             'data' => [
                 'nama_skema' => $request->nama,
                 'total' => $total,
-                'errors' => $errors,
             ],
         ]);
     }

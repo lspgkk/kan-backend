@@ -669,6 +669,7 @@ class InvoiceController extends Controller
 
                     Log::info('DEBUG CI harga query', [
                         'id_izin' => $id_izin,
+                        
                         'jenjang' => $klas_kua->jenjang,
                         'tipe_query' => ucwords($validatedMetode),
                         'harga_found' => $harga ? true : false,

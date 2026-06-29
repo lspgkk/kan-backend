@@ -47,6 +47,7 @@ class GenerateDokumenService
     // Controllers whose private build*Data methods we call via reflection
     private \App\Http\Controllers\PraAsesmenController $praAsesmenController;
     private \App\Http\Controllers\AsesmenController $asesmenController;
+    private \App\Http\Controllers\KanAsesmenController $kanAsesmenController;
 
     public function __construct(
         PermohonanSyncService $syncService,
@@ -56,6 +57,7 @@ class GenerateDokumenService
         $this->llmService = $llmService;
         $this->praAsesmenController = app(\App\Http\Controllers\PraAsesmenController::class);
         $this->asesmenController = app(\App\Http\Controllers\AsesmenController::class);
+        $this->kanAsesmenController = app(\App\Http\Controllers\KanAsesmenController::class);
     }
 
     // ─────────────────────────────────────────────
@@ -263,6 +265,7 @@ class GenerateDokumenService
                 'Ia01' => 2539, 'Ia02' => 3000, 'Ia03' => 3400,
                 'Ia04a' => 2539, 'Ia04b' => 3554, 'Ia05' => 5742,
                 'Ak02' => 6807, 'Ak03' => 7124, 'Ak05' => 7401, 'Ak06' => 7401,
+                'KanIa04b' => 8000, 'KanIa05' => 8300, 'KanIa06' => 8600, 'KanAk02' => 8900,
             ];
 
             // Pre-fetch all existing barcodes in ONE query (avoids ~42 individual DB upserts)
@@ -341,8 +344,29 @@ class GenerateDokumenService
             gc_collect_cycles();
             logger()->debug("[GEN] {$idIzin} ASESMEN-DONE memory=" . round(memory_get_usage(true) / 1024 / 1024, 1) . "MB peak=" . round(memory_get_peak_usage(true) / 1024 / 1024, 1) . "MB");
 
+            // ── Step 8b: Generate KAN documents ──
+            $kanDocs = [
+                ['method' => 'KanIa04b', 'blade' => 'kan_ia04b', 'dir' => 'kan_ia04b', 'code' => 'KAN-IA-04B', 'col' => 'url_kan_ia_04b'],
+                ['method' => 'KanIa05', 'blade' => 'kan_ia05', 'dir' => 'kan_ia05', 'code' => 'KAN-IA-05', 'col' => 'url_kan_ia_05'],
+                ['method' => 'KanIa06', 'blade' => 'kan_ia06', 'dir' => 'kan_ia06', 'code' => 'KAN-IA-06', 'col' => 'url_kan_ia_06'],
+                ['method' => 'KanAk02', 'blade' => 'kan_ak02', 'dir' => 'kan_ak02', 'code' => 'KAN-AK-02', 'col' => 'url_kan_ak_02'],
+            ];
+
+            foreach ($kanDocs as $doc) {
+                try {
+                    $url = $this->generateDocument($idIzin, $doc['method'], $doc['blade'], $doc['dir'], $doc['code'], $doc['col'], $header, $barcodes[$doc['method']] ?? []);
+                    $urls[$doc['col']] = $url;
+                    if (!$url) logger()->warning("[GEN] {$idIzin} KAN DOC FAILED: {$doc['method']}");
+                } catch (\Throwable $e) {
+                    logger()->warning("[GEN] {$idIzin} KAN DOC EXCEPTION {$doc['method']}: " . $e->getMessage());
+                    $urls[$doc['col']] = null;
+                }
+            }
+            gc_collect_cycles();
+            logger()->debug("[GEN] {$idIzin} KAN-DONE memory=" . round(memory_get_usage(true) / 1024 / 1024, 1) . "MB peak=" . round(memory_get_peak_usage(true) / 1024 / 1024, 1) . "MB");
+
             // ── Final result summary ──
-            $totalDocs = count($praDocs) + count($asesmenDocs);
+            $totalDocs = count($praDocs) + count($asesmenDocs) + count($kanDocs);
             $generatedUrls = array_filter($urls, fn($v) => $v !== null);
             $generated = count($generatedUrls);
 
@@ -1999,6 +2023,11 @@ class GenerateDokumenService
             'Ak03' => [$this->asesmenController, 'AsesmenController'],
             'Ak05' => [$this->asesmenController, 'AsesmenController'],
             'Ak06' => [$this->asesmenController, 'AsesmenController'],
+            // KAN documents
+            'KanIa04b' => [$this->kanAsesmenController, 'KanAsesmenController'],
+            'KanIa05' => [$this->kanAsesmenController, 'KanAsesmenController'],
+            'KanIa06' => [$this->kanAsesmenController, 'KanAsesmenController'],
+            'KanAk02' => [$this->kanAsesmenController, 'KanAsesmenController'],
         ];
 
         if (!isset($mapping[$method])) {
