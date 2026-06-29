@@ -164,6 +164,8 @@ class KanAsesmenController extends Controller
                 'kan_soals.soal2',
                 'kan_soals.tipe',
                 'kan_soals.is_komentar',
+                'kan_soals.id_unitkompetensi',
+                'kan_soals.id_kuk',
                 'kan_ia4b_answers.jawaban',
                 'kan_ia4b_answers.skor',
             ])
@@ -172,12 +174,15 @@ class KanAsesmenController extends Controller
                     ->where('kan_ia4b_answers.id_izin', $id)
                     ->where('kan_ia4b_answers.dokumen_id', $dokumen->id);
             })
+            ->with(['unit:id,kode', 'kuk:id,kode'])
             ->where('kan_soals.id_dokumen', $dokumen->id)
             ->whereIn('kan_soals.tipe', [3, 8])
             ->orderBy('kan_soals.no', 'asc')
             ->get()
             ->map(function ($q) {
                 $q->pencapaian = $q->skor !== null ? (int) $q->skor : null;
+                $q->unit_kode = $q->unit?->kode;
+                $q->kuk_kode  = $q->kuk?->kode;
                 return $q;
             });
 

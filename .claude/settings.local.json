@@ -105,7 +105,9 @@
       "Bash(python3 -c \"import PyPDF2; print\\('PyPDF2 available'\\)\")",
       "Bash(python -c \"import PyPDF2; print\\('PyPDF2 available'\\)\")",
       "Bash(\"C:\\\\Users\\\\Rafie Pradipta\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\" -m pip install PyPDF2 -q)",
-      "Bash('C:\\\\Users\\\\Rafie Pradipta\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe' -c ' *)"
+      "Bash('C:\\\\Users\\\\Rafie Pradipta\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe' -c ' *)",
+      "Bash(git add *)",
+      "Bash(git reset *)"
     ]
   }
 }
