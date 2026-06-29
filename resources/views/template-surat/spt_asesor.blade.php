@@ -151,12 +151,6 @@ dengan ini memberi tugas kepada Asesor utama:
 </tr>
 
 <tr>
-<td class="label">Nomor Registrasi</td>
-<td class="colon">:</td>
-<td><span class="highlight">{{ $nama_met ?? '' }}</span></td>
-</tr>
-
-<tr>
 <td class="label">Nomor MET</td>
 <td class="colon">:</td>
 <td><span class="highlight">{{ $nama_met ?? '' }}</span></td>
@@ -177,12 +171,6 @@ dan kepada Asesor peninjau:
 <td class="label">Nama</td>
 <td class="colon">:</td>
 <td><span class="highlight">{{ $nama_asesor2 }}</span></td>
-</tr>
-
-<tr>
-<td class="label">Nomor Registrasi</td>
-<td class="colon">:</td>
-<td><span class="highlight">{{ $nama_met2 ?? '' }}</span></td>
 </tr>
 
 <tr>

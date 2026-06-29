@@ -113,7 +113,9 @@ class DokumenTUKService
         $romawi   = $this->bulanRomawi($now->month);
         $tahun    = $now->year;
         $tglSurat = $now->isoFormat('D MMMM Y');
-        $tglVerif = $now->isoFormat('D MMMM Y');
+        $tglVerif = isset($dataTuk['tanggal_verifikasi'])
+            ? Carbon::parse($dataTuk['tanggal_verifikasi'])->isoFormat('D MMMM Y')
+            : $now->isoFormat('D MMMM Y');
         $direkturName = $this->getDirekturName();
         $verifikatorName = $this->getRelatedUserName($pengajuan->verifikator);
 

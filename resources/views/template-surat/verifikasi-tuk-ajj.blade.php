@@ -623,7 +623,7 @@ table.bordered td.left {
         <td class="left">Kecepatan Jaringan</td>
         <td class="left" style="font-size: 12px;">
             <ul style="padding-left: 14px; margin: 0;">
-                <li>Min. 1 Mbps</li>
+                <li>Min. 10 Mbps</li>
             </ul>
         </td>
         <td>1</td>
