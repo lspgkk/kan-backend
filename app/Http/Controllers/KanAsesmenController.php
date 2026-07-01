@@ -91,10 +91,13 @@ class KanAsesmenController extends Controller
         }
 
         $penyusunValidator = JabatanConfigA::with([
-            'penyusun:id,name,noreg',
-            'validator:id,name,noreg',
+            'kanPenyusun:id,name,noreg',
+            'kanValidator:id,name,noreg',
         ])
-        ->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'validator_id', 'validator_tgl', 'validator_img'])
+        ->select([
+            'kan_penyusun_id', 'kan_penyusun_tgl', 'kan_penyusun_img',
+            'kan_validator_id', 'kan_validator_tgl', 'kan_validator_img',
+        ])
         ->where('id_jabatan', $klasifikasi->jabatan_kerja)
         ->first();
 
@@ -112,17 +115,17 @@ class KanAsesmenController extends Controller
                 ? Carbon::parse($jadwal->tanggal_uji)->translatedFormat('d F Y') : '',
             'tanggal_selesai' => $jadwal->tanggal_selesai
                 ? Carbon::parse($jadwal->tanggal_selesai)->translatedFormat('d F Y') : '',
-            // Penyusun & Validator (for KAN templates)
-            'nama_penyusun'    => $penyusunValidator?->penyusun?->name,
-            'nama_validator'   => $penyusunValidator?->validator?->name,
-            'noreg_penyusun'   => $penyusunValidator?->penyusun?->noreg,
-            'noreg_validator'  => $penyusunValidator?->validator?->noreg,
-            'tanggal_penyusun' => $penyusunValidator?->penyusun_tgl,
-            'tanggal_validator'=> $penyusunValidator?->validator_tgl,
-            'barcode_penyusun' => $penyusunValidator?->penyusun_img
-                ? $this->imageUrlToBase64($penyusunValidator->penyusun_img) : null,
-            'barcode_validator'=> $penyusunValidator?->validator_img
-                ? $this->imageUrlToBase64($penyusunValidator->validator_img) : null,
+            // KAN Penyusun & Validator (separate from BNSP)
+            'nama_penyusun'    => $penyusunValidator?->kanPenyusun?->name,
+            'nama_validator'   => $penyusunValidator?->kanValidator?->name,
+            'noreg_penyusun'   => $penyusunValidator?->kanPenyusun?->noreg,
+            'noreg_validator'  => $penyusunValidator?->kanValidator?->noreg,
+            'tanggal_penyusun' => $penyusunValidator?->kan_penyusun_tgl,
+            'tanggal_validator'=> $penyusunValidator?->kan_validator_tgl,
+            'barcode_penyusun' => $penyusunValidator?->kan_penyusun_img
+                ? $this->imageUrlToBase64($penyusunValidator->kan_penyusun_img) : null,
+            'barcode_validator'=> $penyusunValidator?->kan_validator_img
+                ? $this->imageUrlToBase64($penyusunValidator->kan_validator_img) : null,
         ];
     }
 

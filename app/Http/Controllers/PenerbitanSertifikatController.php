@@ -621,7 +621,8 @@ class PenerbitanSertifikatController extends Controller
         // upload spt komtek
         // Get BA Komtek
 
-        $nama_komtek = Jadwal::select(['komtek1', 'komtek2', 'komtek3'])->where("jadwal_id", trim($request->input("jadwal_id")))->first();
+        $jadwal = Jadwal::where("jadwal_id", trim($request->input("jadwal_id")))->first();
+        $nama_komtek = $jadwal;
         $nama_komtek1 = DB::connection("mygatensi")->table("mypersonillsp")->where("Nomor", $nama_komtek->komtek1)->first()->Nama;
         $nama_komtek2 = DB::connection("mygatensi")->table("mypersonillsp")->where("Nomor", $nama_komtek->komtek2)->first()->Nama;
         $nama_komtek3 = DB::connection("mygatensi")->table("mypersonillsp")->where("Nomor", $nama_komtek->komtek3)->first()->Nama;
@@ -709,8 +710,8 @@ class PenerbitanSertifikatController extends Controller
             "nama_komtek1" => $nama_komtek1,
             "nama_komtek2" => $nama_komtek2,
             "nama_komtek3" => $nama_komtek3,
-            "nama_tuk" => $response_jadwal['dataJadwal']['nama_tuk'],
-            "alamat_tuk" => $found_tuk->Alamat,
+            "nama_tuk" => $jadwal->resolveNamaTuk($jadwal->jenis_kelas) ?? $response_jadwal['dataJadwal']['nama_tuk'],
+            "alamat_tuk" => $jadwal->resolveAlamatTuk($jadwal->jenis_kelas) ?? $found_tuk->Alamat,
             "hari_tanggal" => \Carbon\Carbon::parse($response_jadwal['dataJadwal']['tanggal_mulai'])->setTimezone('Asia/Jakarta')->isoFormat('dddd, D MMMM YYYY'),
             "jmlh_peserta" => $count_data,
             "nama_skema" => join(", ", $nama_skema),
