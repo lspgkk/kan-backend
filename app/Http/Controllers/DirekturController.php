@@ -76,7 +76,7 @@ class DirekturController extends Controller
         $user = auth()->user();
 
         // Verify user is a komtek (role_id=4)
-        if ($user->role_id !== '4') {
+        if ((int) $user->role_id !== 4) {
             return response()->json(['message' => 'Invalid Role'], 403);
         }
 
@@ -432,8 +432,8 @@ class DirekturController extends Controller
             'nama_met' => $asesor1?->noreg ?? '',
             'nama_asesor2' => $asesor2?->nama ?? '',
             'nama_met2' => $asesor2?->noreg ?? '',
-            'nama_tuk' => $tuk->nama ?? '',
-            'alamat_tuk' => $tuk->alamat ?? '',
+            'nama_tuk' => $jadwal->resolveNamaTuk($jadwal->jenis_kelas) ?? $tuk->nama ?? '',
+            'alamat_tuk' => $jadwal->resolveAlamatTuk($jadwal->jenis_kelas) ?? $tuk->alamat ?? '',
             'hari_tanggal' => Carbon::parse($jadwal->tanggal_uji)->isoFormat('dddd, D MMMM Y'),
             'jmlh_peserta' => count($peserta),
             'nama_skema' => implode(', ', $namaSkemaList),
@@ -547,8 +547,8 @@ class DirekturController extends Controller
             'nama_komtek1' => $getNamaKomtek($jadwal->komtek1),
             'nama_komtek2' => $getNamaKomtek($jadwal->komtek2),
             'nama_komtek3' => $getNamaKomtek($jadwal->komtek3),
-            'nama_tuk' => $tuk->nama ?? '',
-            'alamat_tuk' => $tuk->alamat ?? '',
+            'nama_tuk' => $jadwal->resolveNamaTuk($jadwal->jenis_kelas) ?? $tuk->nama ?? '',
+            'alamat_tuk' => $jadwal->resolveAlamatTuk($jadwal->jenis_kelas) ?? $tuk->alamat ?? '',
             'hari_tanggal' => Carbon::parse($jadwal->tanggal_uji)->isoFormat('dddd, D MMMM Y'),
             'jmlh_peserta' => count($peserta),
             'nama_skema' => implode(', ', $namaSkemaList),
@@ -575,7 +575,7 @@ class DirekturController extends Controller
      */
     private function verifyDirektur($jadwal_id)
     {
-        if (auth()->user()->role_id !== '6') {
+        if ((int) auth()->user()->role_id !== 6) {
             return response()->json(['message' => 'Invalid Role'], 403);
         }
 

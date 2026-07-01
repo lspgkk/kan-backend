@@ -328,7 +328,7 @@ table.bordered td.left {
     <tr>
         <td class="lbl">Hari, Tanggal</td>
         <td class="cln">:</td>
-        <td>{{ $hariTanggal }}</td>
+        <td>{{ $tanggalVerifikasi }}</td>
     </tr>
     <tr>
         <td class="lbl">Metode Verifikasi</td>
@@ -403,7 +403,7 @@ table.bordered td.left {
     <tr>
         <td class="lbl">Hari, Tanggal</td>
         <td class="cln">:</td>
-        <td>{{ $hariTanggal }}</td>
+        <td>{{ $tanggalVerifikasi }}</td>
     </tr>
     <tr>
         <td class="lbl">Jenis Asesmen</td>
@@ -550,7 +550,7 @@ table.bordered td.left {
     <tr>
         <td class="lbl">Hari, Tanggal</td>
         <td class="cln">:</td>
-        <td>{{ $hariTanggal }}</td>
+        <td>{{ $tanggalVerifikasi }}</td>
     </tr>
     <tr>
         <td class="lbl">Jenis Asesmen</td>

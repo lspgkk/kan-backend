@@ -400,8 +400,7 @@ class PengajuanTukController extends Controller
             })
             ->firstOrFail();
 
-        $qrHtml = $this->generateQrBarcode($user->id, $user->role_id, 'TTD Direktur TUK',
-            $this->signDate($pengajuan->data_tuk['tanggal_verifikasi'] ?? null));
+        $qrHtml = $this->generateQrBarcode($user->id, $user->role_id, 'TTD Direktur TUK', Carbon::now());
 
         $pengajuan->direktur_id = $user->id;
         $pengajuan->direktur_qr = $qrHtml;
@@ -433,8 +432,7 @@ class PengajuanTukController extends Controller
             return response()->json(['message' => 'AJJ tidak memerlukan konfirmasi TUK'], 422);
         }
 
-        $qrHtml = $this->generateQrBarcode($user->id, $user->role_id, 'TTD Ketua TUK',
-            $this->signDate($pengajuan->data_tuk['tanggal_verifikasi'] ?? null));
+        $qrHtml = $this->generateQrBarcode($user->id, $user->role_id, 'TTD Ketua TUK', Carbon::now());
 
         $pengajuan->ketua_tuk_id = $user->id;
         $pengajuan->ketua_tuk_qr = $qrHtml;
@@ -471,8 +469,7 @@ class PengajuanTukController extends Controller
             return response()->json(['message' => 'Bukan Verifikator Anda'], 403);
         }
 
-        $qrHtml = $this->generateQrBarcode($user->id, $user->role_id, 'TTD Verifikator TUK',
-            $this->signDate($pengajuan->data_sewaktu['plannedExamDate'] ?? $pengajuan->data_tuk['tanggal_verifikasi'] ?? null));
+        $qrHtml = $this->generateQrBarcode($user->id, $user->role_id, 'TTD Verifikator TUK', Carbon::now());
 
         if ($isAjj) {
             $request->validate([
@@ -542,10 +539,20 @@ class PengajuanTukController extends Controller
         // Validator QR is not rendered on any current page, but we store it for audit
         $qrHtml = $this->generateQrBarcode($user->id, $user->role_id, 'TTD Validator TUK', Carbon::now());
 
-        // Generate SK number
+        // Generate SK number — only if not already set.
+        // Reuses counter from this pengajuan's peminjaman number so all 4
+        // documents share the same sequence number.
         $now = Carbon::now();
-        $romawi = $this->bulanRomawi($now->month);
-        $pengajuan->no_sk = $this->generateNomor('no_sk', "0/LSP GKK C.003-G/{$romawi}/{$now->year}");
+        if (! $pengajuan->no_sk) {
+            $romawi = $this->bulanRomawi($now->month);
+            if ($pengajuan->no_surat_peminjaman && str_contains($pengajuan->no_surat_peminjaman, '/')) {
+                $pemParts = explode('/', $pengajuan->no_surat_peminjaman);
+                $counter = $pemParts[0];
+                $pengajuan->no_sk = "{$counter}/LSP GKK C.003-G/{$romawi}/{$now->year}";
+            } else {
+                $pengajuan->no_sk = $this->generateNomor('no_sk', "0/LSP GKK C.003-G/{$romawi}/{$now->year}");
+            }
+        }
 
         $pengajuan->validator_id = $user->id;
         $pengajuan->hasil_validasi = 'layak';
@@ -643,21 +650,33 @@ class PengajuanTukController extends Controller
 
     // ─── Surat Number Generator (from VerifikasiTukController) ──────
 
+    /**
+     * Generate next surat number.
+     * ALL document types share ONE master counter (tracked via no_surat_peminjaman)
+     * so that peminjaman, tugas, berita acara, and SK stay in sync.
+     */
     private function generateNomor(string $field, string $default): string
     {
-        $last = PengajuanTuk::whereNotNull($field)->latest('id')->first();
-        $lastVal = ($last && $last->{$field} && str_contains($last->{$field}, '/'))
-            ? $last->{$field}
+        // Master counter always from no_surat_peminjaman (the first number generated)
+        $last = PengajuanTuk::whereNotNull('no_surat_peminjaman')->latest('id')->first();
+        $lastVal = ($last && $last->no_surat_peminjaman && str_contains($last->no_surat_peminjaman, '/'))
+            ? $last->no_surat_peminjaman
             : $default;
 
-        $parts = explode('/', $lastVal);
+        $lastParts    = explode('/', $lastVal);
+        $defaultParts = explode('/', $default);
         $year = now()->year;
 
-        $parts[0] = ((int) ($parts[3] ?? 0) === $year) ? ((int) $parts[0] + 1) : 1;
-        $parts[2] = $this->bulanRomawi(now()->month);
-        $parts[3] = (string) $year;
+        // Increment counter from master, reset if year changed
+        $counter = (count($lastParts) >= 4 && (int)($lastParts[3] ?? 0) === $year)
+            ? ((int) $lastParts[0] + 1)
+            : 1;
 
-        return implode('/', $parts);
+        $defaultParts[0] = (string) $counter;
+        $defaultParts[2] = $this->bulanRomawi(now()->month);
+        $defaultParts[3] = (string) $year;
+
+        return implode('/', $defaultParts);
     }
 
     private function bulanRomawi(int $month): string
@@ -690,11 +709,5 @@ class PengajuanTukController extends Controller
         ]);
 
         return '<img src="' . $urlImage . '" width="100" height="100">';
-    }
-
-    private function signDate(?string $dateStr): Carbon
-    {
-        $date = Carbon::parse($dateStr ?? now());
-        return $date->setTimeFromTimeString(now()->toTimeString());
     }
 }

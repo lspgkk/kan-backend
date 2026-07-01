@@ -26,4 +26,14 @@ class JabatanConfigA extends Model
     {
         return $this->belongsTo(User::class, 'manajer_id', 'id');
     }
+
+    public function kanPenyusun()
+    {
+        return $this->belongsTo(User::class, 'kan_penyusun_id', 'id');
+    }
+
+    public function kanValidator()
+    {
+        return $this->belongsTo(User::class, 'kan_validator_id', 'id');
+    }
 }

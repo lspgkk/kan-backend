@@ -1419,8 +1419,8 @@ class JadwalController extends Controller
             'nama_met'      => $asesor1->noreg,
             'nama_asesor2'  => $asesor2->nama ?? '',
             'nama_met2'     => $asesor2->noreg ?? '',
-            'nama_tuk'      => $responseJadwal['dataJadwal']['nama_tuk'],
-            'alamat_tuk'    => $tuk->alamat,
+            'nama_tuk'      => $jadwal->resolveNamaTuk($jadwal->jenis_kelas) ?? $responseJadwal['dataJadwal']['nama_tuk'],
+            'alamat_tuk'    => $jadwal->resolveAlamatTuk($jadwal->jenis_kelas) ?? $tuk->alamat,
             'hari_tanggal'  => Carbon::parse(
                 $responseJadwal['dataJadwal']['tanggal_mulai']
             )->isoFormat('dddd, D MMMM YYYY'),
@@ -1510,9 +1510,7 @@ class JadwalController extends Controller
         /** ===============================
          *  1. RESOLVE KOMTEK NAMES (SAFE)
          *  =============================== */
-        $jadwal = Jadwal::select(['komtek1', 'komtek2', 'komtek3'])
-            ->where('jadwal_id', $jadwalId)
-            ->firstOrFail();
+        $jadwal = Jadwal::where('jadwal_id', $jadwalId)->firstOrFail();
 
         $getNamaKomtek = function ($nomor) {
             if (!$nomor) return null;
@@ -1638,8 +1636,8 @@ class JadwalController extends Controller
             'nama_komtek1' => $nama_komtek1,
             'nama_komtek2' => $nama_komtek2,
             'nama_komtek3' => $nama_komtek3,
-            'nama_tuk'     => $responseJadwal['dataJadwal']['nama_tuk'],
-            'alamat_tuk'   => $foundTuk->alamat,
+            'nama_tuk'     => $jadwal->resolveNamaTuk($jadwal->jenis_kelas) ?? $responseJadwal['dataJadwal']['nama_tuk'],
+            'alamat_tuk'   => $jadwal->resolveAlamatTuk($jadwal->jenis_kelas) ?? $foundTuk->alamat,
             'hari_tanggal' => Carbon::parse(
                 $responseJadwal['dataJadwal']['tanggal_mulai']
             )->isoFormat('dddd, D MMMM YYYY'),
@@ -2378,6 +2376,15 @@ class JadwalController extends Controller
                     ];
                 })->values();
                 unset($jArr['asesi_jadwals']);
+
+                // Jika jenis_kelas == 3, gunakan nama TUK dari PengajuanTuk
+                if ($j->jenis_kelas == 3 && !empty($j->pengajuan_tuk_ref)) {
+                    if (!empty($jArr['tuk'])) {
+                        $jArr['tuk']['nama'] = $j->resolveNamaTuk($j->jenis_kelas);
+                        $jArr['tuk']['alamat'] = $j->resolveAlamatTuk($j->jenis_kelas);
+                    }
+                }
+
                 return $jArr;
             });
 
@@ -2968,8 +2975,8 @@ class JadwalController extends Controller
             'nama_met' => $asesor1->noreg ?? '',
             'nama_asesor2' => $asesor2->nama ?? '',
             'nama_met2' => $asesor2->noreg ?? '',
-            'nama_tuk' => $tuk->nama ?? '',
-            'alamat_tuk' => $tuk->alamat ?? '',
+            'nama_tuk' => $jadwal->resolveNamaTuk($jadwal->jenis_kelas) ?? $tuk->nama ?? '',
+            'alamat_tuk' => $jadwal->resolveAlamatTuk($jadwal->jenis_kelas) ?? $tuk->alamat ?? '',
             'hari_tanggal' => Carbon::parse($jadwal->tanggal_uji)->isoFormat('dddd, D MMMM Y'),
             'jmlh_peserta' => count($peserta),
             'nama_skema' => implode(', ', $namaSkemaList),
@@ -3059,8 +3066,8 @@ class JadwalController extends Controller
             'nama_komtek1' => $nama_komtek1,
             'nama_komtek2' => $nama_komtek2,
             'nama_komtek3' => $nama_komtek3,
-            'nama_tuk' => $tuk->nama ?? '',
-            'alamat_tuk' => $tuk->alamat ?? '',
+            'nama_tuk' => $jadwal->resolveNamaTuk($jadwal->jenis_kelas) ?? $tuk->nama ?? '',
+            'alamat_tuk' => $jadwal->resolveAlamatTuk($jadwal->jenis_kelas) ?? $tuk->alamat ?? '',
             'hari_tanggal' => Carbon::parse($jadwal->tanggal_uji)->isoFormat('dddd, D MMMM Y'),
             'jmlh_peserta' => count($peserta),
             'nama_skema' => implode(', ', $namaSkemaList),
