@@ -47,9 +47,6 @@ jobs:
             echo "== Laravel cache clear =="
             php artisan optimize:clear
 
-            echo "== Run migration =="
-            php artisan migrate --force
-
             echo "== Cache production config =="
             php artisan config:cache
             php artisan view:cache
