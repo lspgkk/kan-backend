@@ -76,7 +76,7 @@ class DirekturController extends Controller
         $user = auth()->user();
 
         // Verify user is a komtek (role_id=4)
-        if ($user->role_id !== '4') {
+        if ((int) $user->role_id !== 4) {
             return response()->json(['message' => 'Invalid Role'], 403);
         }
 
@@ -575,7 +575,7 @@ class DirekturController extends Controller
      */
     private function verifyDirektur($jadwal_id)
     {
-        if (auth()->user()->role_id !== '6') {
+        if ((int) auth()->user()->role_id !== 6) {
             return response()->json(['message' => 'Invalid Role'], 403);
         }
 

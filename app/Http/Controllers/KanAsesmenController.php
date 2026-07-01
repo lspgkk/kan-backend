@@ -326,7 +326,7 @@ class KanAsesmenController extends Controller
                     ->where('kan_ia6_answers.id_izin', $id)
                     ->where('kan_ia6_answers.dokumen_id', $dokumen->id);
             })
-            ->with(['unit:id,kode', 'kuk:id,kode'])
+            ->with(['unit:id,kode', 'kuk:id,kode,nama'])
             ->where('kan_soals.id_dokumen', $dokumen->id)
             ->where('kan_soals.tipe', 8)
             ->orderBy('kan_soals.no', 'asc')
@@ -334,6 +334,7 @@ class KanAsesmenController extends Controller
             ->map(function ($q) {
                 $q->unit_kode = $q->unit?->kode;
                 $q->kuk_kode  = $q->kuk?->kode;
+                $q->kuk_nama  = $q->kuk?->nama;
                 return $q;
             });
 

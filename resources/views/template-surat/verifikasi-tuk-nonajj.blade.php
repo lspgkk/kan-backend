@@ -298,7 +298,7 @@ table.bordered td.left {
     <tr>
         <td class="lbl">Hari, Tanggal</td>
         <td class="cln">:</td>
-        <td>{{ $hariTanggal }}</td>
+        <td>{{ $tanggalVerifikasi }}</td>
     </tr>
     <tr>
         <td class="lbl">Skema Sertifikasi</td>
@@ -466,7 +466,7 @@ table.bordered td.left {
     <tr>
         <td class="lbl">Hari, Tanggal</td>
         <td class="cln">:</td>
-        <td>{{ $hariTanggal }}</td>
+        <td>{{ $tanggalVerifikasi }}</td>
     </tr>
     <tr>
         <td class="lbl">Metode Asesmen</td>

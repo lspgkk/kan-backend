@@ -2111,7 +2111,7 @@ class JadwalController extends Controller
 
     private function checkRole(string $roleId)
     {
-        if (auth()->user()->role_id !== $roleId) {
+        if ((string) auth()->user()->role_id !== $roleId) {
             return response()->json([
                 'message' => 'Invalid Role',
                 'data' => null
@@ -2378,6 +2378,15 @@ class JadwalController extends Controller
                     ];
                 })->values();
                 unset($jArr['asesi_jadwals']);
+
+                // Jika jenis_kelas == 3, gunakan nama TUK dari PengajuanTuk
+                if ($j->jenis_kelas == 3 && !empty($j->pengajuan_tuk_ref)) {
+                    if (!empty($jArr['tuk'])) {
+                        $jArr['tuk']['nama'] = $j->resolveNamaTuk($j->jenis_kelas);
+                        $jArr['tuk']['alamat'] = $j->resolveAlamatTuk($j->jenis_kelas);
+                    }
+                }
+
                 return $jArr;
             });
 
