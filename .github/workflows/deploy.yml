@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-certification-api
+  group: deploy-kan-api
   cancel-in-progress: true
 
 jobs:
@@ -22,10 +22,10 @@ jobs:
 
       - name: Deploy to server
         run: |
-          ssh -i ~/.ssh/id_ed25519 lspgatensi-certification-api@116.206.196.211 << 'EOF'
+          ssh -i ~/.ssh/id_ed25519 lspgatensi-kan-api@116.206.196.211 << 'EOF'
             set -e
 
-            cd /home/lspgatensi-certification-api/htdocs/certification-api.lspgatensi.id
+            cd /home/lspgatensi-kan-api/htdocs/kan-api.lspgatensi.id
 
             echo "== Current user =="
             whoami
