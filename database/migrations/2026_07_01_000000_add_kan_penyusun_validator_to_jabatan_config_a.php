@@ -9,8 +9,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('jabatan_config_a', function (Blueprint $table) {
+            // KAN no_skema
+            $table->string('kan_no_skema')->nullable()->after('manajer_tgl');
+
             // KAN penyusun (compiler)
-            $table->unsignedBigInteger('kan_penyusun_id')->nullable()->after('manajer_tgl');
+            $table->unsignedBigInteger('kan_penyusun_id')->nullable()->after('kan_no_skema');
             $table->date('kan_penyusun_tgl')->nullable()->after('kan_penyusun_id');
             $table->string('kan_penyusun_img')->nullable()->after('kan_penyusun_tgl');
             $table->string('kan_penyusun_url')->nullable()->after('kan_penyusun_img');
@@ -27,6 +30,7 @@ return new class extends Migration
     {
         Schema::table('jabatan_config_a', function (Blueprint $table) {
             $table->dropColumn([
+                'kan_no_skema',
                 'kan_penyusun_id',
                 'kan_penyusun_tgl',
                 'kan_penyusun_img',

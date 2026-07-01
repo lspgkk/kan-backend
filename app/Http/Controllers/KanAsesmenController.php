@@ -56,7 +56,7 @@ class KanAsesmenController extends Controller
         $jabatanKerja = JabatanKerja::where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)
             ->value('jabatan_kerja');
 
-        $jabatanConfig = JabatanConfigA::select('no_skema')
+        $jabatanConfig = JabatanConfigA::select('kan_no_skema')
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->first();
 
@@ -104,7 +104,7 @@ class KanAsesmenController extends Controller
         return [
             // Flat variables (used by KAN templates)
             'jabatan_kerja'   => $jabatanKerja,
-            'nomor_skema'     => $jabatanConfig?->no_skema,
+            'nomor_skema'     => $jabatanConfig?->kan_no_skema,
             'tuk'             => $jadwal->tuk?->nama,
             'nama_asesi'      => $namaAsesi,
             'asesor_list'     => $asesorList,

@@ -107,7 +107,9 @@
       "Bash(\"C:\\\\Users\\\\Rafie Pradipta\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\" -m pip install PyPDF2 -q)",
       "Bash('C:\\\\Users\\\\Rafie Pradipta\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe' -c ' *)",
       "Bash(git add *)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(git pull *)",
+      "Bash(git commit *)"
     ]
   }
 }
