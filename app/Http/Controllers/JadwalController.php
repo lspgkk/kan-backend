@@ -2281,7 +2281,16 @@ class JadwalController extends Controller
                 ];
             })->values();
             unset($jArr['asesi_jadwals']);
-            return $jArr;
+
+                // Jika jenis_kelas == 3, gunakan nama TUK dari PengajuanTuk
+                if ($j->jenis_kelas == 3 && !empty($j->pengajuan_tuk_ref)) {
+                    if (!empty($jArr['tuk'])) {
+                        $jArr['tuk']['nama'] = $j->resolveNamaTuk($j->jenis_kelas);
+                        $jArr['tuk']['alamat'] = $j->resolveAlamatTuk($j->jenis_kelas);
+                    }
+                }
+
+                return $jArr;
         });
 
         return response()->json([
@@ -2339,6 +2348,15 @@ class JadwalController extends Controller
                     ];
                 })->values();
                 unset($jArr['asesi_jadwals']);
+
+                // Jika jenis_kelas == 3, gunakan nama TUK dari PengajuanTuk
+                if ($j->jenis_kelas == 3 && !empty($j->pengajuan_tuk_ref)) {
+                    if (!empty($jArr['tuk'])) {
+                        $jArr['tuk']['nama'] = $j->resolveNamaTuk($j->jenis_kelas);
+                        $jArr['tuk']['alamat'] = $j->resolveAlamatTuk($j->jenis_kelas);
+                    }
+                }
+
                 return $jArr;
             });
 
