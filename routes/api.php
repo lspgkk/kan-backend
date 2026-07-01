@@ -19,6 +19,7 @@ use App\Http\Controllers\HitStatusController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\JabatanKerjaController;
 use App\Http\Controllers\KanSoalController;
+use App\Http\Controllers\KanConfigController;
 use App\Http\Controllers\KanImportController;
 use App\Http\Controllers\MidtransWebhookController;
 use App\Http\Controllers\JadwalController;
@@ -483,6 +484,10 @@ Route::prefix('diskon')->group(function () {
     Route::prefix('generate-dokumen')->group(function () {
         Route::get('/template', [\App\Http\Controllers\GenerateDokumenController::class, 'downloadTemplate']);
         Route::post('/import', [\App\Http\Controllers\GenerateDokumenController::class, 'importAndGenerate']);
+    });
+
+    Route::prefix('kan/config')->group(function () {
+        Route::post('/submit', [KanConfigController::class, 'submit']);
     });
 });
 
