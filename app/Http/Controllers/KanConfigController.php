@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AsesorBnsp;
 use App\Models\JabatanConfigA;
 use App\Models\JabatanKerja;
 use App\Models\KanAsesorJabatan;
@@ -9,12 +10,17 @@ use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class KanConfigController extends Controller
 {
     /**
      * Bulk-submit KAN configuration: no_skema, penyusun, validator,
      * and asesor-to-jabatan_kerja mappings.
+     *
+     * If a noreg is not yet registered as a user (role_id=5), the endpoint
+     * will attempt to fetch the asesor data from BNSP and auto-create the
+     * user account.
      */
     public function submit(Request $request)
     {
@@ -38,15 +44,12 @@ class KanConfigController extends Controller
         foreach ($entries as $idx => $entry) {
             $allSkemaNames[] = trim($entry['skema']);
 
-            // penyusun
             $noreg = trim($entry['penyusun']);
             $noregToFields[$noreg][] = "entries.{$idx}.penyusun";
 
-            // validator
             $noreg = trim($entry['validator']);
             $noregToFields[$noreg][] = "entries.{$idx}.validator";
 
-            // asesor entries
             if (!empty($entry['asesor'])) {
                 foreach ($entry['asesor'] as $key => $asesorNoreg) {
                     $noreg = trim($asesorNoreg);
@@ -57,28 +60,74 @@ class KanConfigController extends Controller
 
         $allUniqueNoregs = array_keys($noregToFields);
 
-        // Query registered users with role asesor (5)
-        $userLookup = User::whereIn('noreg', $allUniqueNoregs)
+        // Query existing users with role asesor (5) + also check users with same noreg but different role
+        $existingUsers = User::whereIn('noreg', $allUniqueNoregs)
             ->where('role_id', 5)
             ->pluck('id', 'noreg')
             ->toArray();
 
-        $registeredNoregs = array_keys($userLookup);
-        $missingNoregs = array_diff($allUniqueNoregs, $registeredNoregs);
+        // Also check users with the same noreg but possibly different role
+        $existingNoregAnyRole = User::whereIn('noreg', $allUniqueNoregs)
+            ->pluck('id', 'noreg')
+            ->toArray();
 
+        $missingNoregs = array_diff($allUniqueNoregs, array_keys($existingUsers));
+        $newlyCreatedUsers = [];
+
+        // ── Phase 1b: Auto-fetch & create users for missing noreg ──
         if (!empty($missingNoregs)) {
-            $errors = [];
+            $stillMissing = [];
+
             foreach ($missingNoregs as $noreg) {
-                $errors[] = [
-                    'noreg'  => $noreg,
-                    'fields' => $noregToFields[$noreg] ?? [],
+                // Skip if user already exists with this noreg (but not role 5)
+                if (isset($existingNoregAnyRole[$noreg])) {
+                    $existingUsers[$noreg] = $existingNoregAnyRole[$noreg];
+                    continue;
+                }
+
+                // 1. Fetch from BNSP — this also creates/updates the AsesorBnsp record
+                $asesorBnsp = AsesorBnsp::fetchFromBnspByNoreg($noreg);
+
+                if (!$asesorBnsp || !$asesorBnsp->nama) {
+                    $stillMissing[] = $noreg;
+                    continue;
+                }
+
+                // 2. Create user account
+                $email = $this->generateEmail($noreg, $asesorBnsp->nama);
+
+                $user = User::create([
+                    'name'     => $asesorBnsp->nama,
+                    'email'    => $email,
+                    'phone'    => $asesorBnsp->no_hp ?? null,
+                    'role_id'  => 5,
+                    'noreg'    => $noreg,
+                    'password' => Hash::make('123qweasd'),
+                ]);
+
+                $existingUsers[$noreg] = $user->id;
+                $newlyCreatedUsers[] = [
+                    'noreg' => $noreg,
+                    'name'  => $asesorBnsp->nama,
+                    'id'    => $user->id,
                 ];
             }
 
-            return response()->json([
-                'message' => 'Validasi gagal: MET/noreg tidak terdaftar sebagai asesor (role_id=5).',
-                'errors'  => ['unregistered_noreg' => $errors],
-            ], 422);
+            // If some noreg still cannot be resolved, return error
+            if (!empty($stillMissing)) {
+                $errors = [];
+                foreach ($stillMissing as $noreg) {
+                    $errors[] = [
+                        'noreg'  => $noreg,
+                        'fields' => $noregToFields[$noreg] ?? [],
+                    ];
+                }
+
+                return response()->json([
+                    'message' => 'Validasi gagal: MET/noreg tidak ditemukan di BNSP dan tidak terdaftar sebagai asesor.',
+                    'errors'  => ['unregistered_noreg' => $errors],
+                ], 422);
+            }
         }
 
         // ── Phase 2: Build skema name → JabatanKerja lookup ──
@@ -94,23 +143,21 @@ class KanConfigController extends Controller
         $asesorRecords = [];
 
         DB::transaction(function () use (
-            $entries, $userLookup, $jabatanKerjaLookup,
+            $entries, $existingUsers, $jabatanKerjaLookup,
             &$updatedConfigs, &$skippedNoMatch, &$skippedMissingConfig, &$asesorRecords
         ) {
             foreach ($entries as $entry) {
                 $skemaName = trim($entry['skema']);
 
-                // Match skema name to JabatanKerja
                 $idJabatanKerja = $jabatanKerjaLookup[$skemaName] ?? null;
                 if (!$idJabatanKerja) {
                     $skippedNoMatch[] = $skemaName;
                     continue;
                 }
 
-                $penyusunId  = $userLookup[trim($entry['penyusun'])] ?? null;
-                $validatorId = $userLookup[trim($entry['validator'])] ?? null;
+                $penyusunId  = $existingUsers[trim($entry['penyusun'])] ?? null;
+                $validatorId = $existingUsers[trim($entry['validator'])] ?? null;
 
-                // Update JabatanConfigA where id_jabatan = id_jabatan_kerja
                 $updated = JabatanConfigA::where('id_jabatan', $idJabatanKerja)->update([
                     'kan_no_skema'      => $entry['no_skema'],
                     'kan_penyusun_id'   => $penyusunId,
@@ -125,10 +172,9 @@ class KanConfigController extends Controller
                     $updatedConfigs++;
                 }
 
-                // Collect asesor mappings for batch upsert
                 if (!empty($entry['asesor'])) {
                     foreach ($entry['asesor'] as $asesorNoreg) {
-                        $asesorUserId = $userLookup[trim($asesorNoreg)] ?? null;
+                        $asesorUserId = $existingUsers[trim($asesorNoreg)] ?? null;
                         if ($asesorUserId) {
                             $asesorRecords[] = [
                                 'user_id'          => $asesorUserId,
@@ -141,7 +187,6 @@ class KanConfigController extends Controller
                 }
             }
 
-            // Batch upsert asesor mappings
             if (!empty($asesorRecords)) {
                 KanAsesorJabatan::upsert(
                     $asesorRecords,
@@ -154,11 +199,12 @@ class KanConfigController extends Controller
         return response()->json([
             'message' => 'Konfigurasi KAN berhasil disimpan.',
             'data'    => [
-                'total_entries'           => count($entries),
-                'updated_configs'         => $updatedConfigs,
-                'asesor_mappings_upserted'=> count($asesorRecords),
-                'skipped_no_match'        => $skippedNoMatch,
-                'skipped_missing_config'  => $skippedMissingConfig,
+                'total_entries'            => count($entries),
+                'updated_configs'          => $updatedConfigs,
+                'asesor_mappings_upserted' => count($asesorRecords),
+                'newly_created_users'      => $newlyCreatedUsers,
+                'skipped_no_match'         => $skippedNoMatch,
+                'skipped_missing_config'   => $skippedMissingConfig,
             ],
         ]);
     }
@@ -175,5 +221,28 @@ class KanConfigController extends Controller
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * Generate a unique email for a new asesor user based on noreg.
+     */
+    private function generateEmail(string $noreg, string $nama): string
+    {
+        // Sanitize noreg: replace spaces/dots with nothing
+        $sanitized = str_replace([' ', '.'], '', $noreg);
+        $base = strtolower($sanitized) . '@asesor.gatensi.id';
+
+        // Check uniqueness
+        if (!User::where('email', $base)->exists()) {
+            return $base;
+        }
+
+        // Fallback — append a suffix
+        $suffix = 1;
+        while (User::where('email', strtolower($sanitized) . '+' . $suffix . '@asesor.gatensi.id')->exists()) {
+            $suffix++;
+        }
+
+        return strtolower($sanitized) . '+' . $suffix . '@asesor.gatensi.id';
     }
 }
