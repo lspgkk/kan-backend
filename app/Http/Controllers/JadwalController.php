@@ -2109,7 +2109,7 @@ class JadwalController extends Controller
 
     private function checkRole(string $roleId)
     {
-        if ((string) auth()->user()->role_id !== $roleId) {
+        if ((int) auth()->user()->role_id !== (int) $roleId) {
             return response()->json([
                 'message' => 'Invalid Role',
                 'data' => null
