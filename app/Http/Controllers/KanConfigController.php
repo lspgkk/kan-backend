@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Ramsey\Uuid\Uuid;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
@@ -175,6 +177,9 @@ class KanConfigController extends Controller
             }
         });
 
+        // Generate Excel export
+        $excelUrl = $this->exportExcel($newlyCreatedUsers);
+
         return response()->json([
             'message' => 'Konfigurasi KAN berhasil disimpan.',
             'data'    => [
@@ -185,6 +190,7 @@ class KanConfigController extends Controller
                 'newly_created_users'        => $newlyCreatedUsers,
                 'skipped_no_match'           => $skippedNoMatch,
                 'skipped_missing_config'     => $skippedMissingConfig,
+                'excel_url'                  => $excelUrl,
             ],
         ]);
     }
@@ -241,7 +247,7 @@ class KanConfigController extends Controller
             $user = User::create([
                 'name'     => $asesorBnsp->nama,
                 'email'    => $email,
-                'phone'    => $asesorBnsp->no_hp ?? null,
+                'phone'    => $asesorBnsp->no_hp ?? '0',
                 'role_id'  => $roleId,
                 'noreg'    => $noreg,
                 'password' => Hash::make('123qweasd'),
@@ -285,6 +291,7 @@ class KanConfigController extends Controller
             $user = User::create([
                 'name'     => $name,
                 'email'    => $email,
+                'phone'    => '0',
                 'role_id'  => 16,
                 'password' => Hash::make('123qweasd'),
             ]);
@@ -396,6 +403,84 @@ class KanConfigController extends Controller
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * Export newly created users to Excel with each role in a separate sheet.
+     * Returns the public URL of the generated file.
+     */
+    private function exportExcel(array $newlyCreatedUsers): ?string
+    {
+        if (empty($newlyCreatedUsers)) {
+            return null;
+        }
+
+        // Group by role_id
+        $byRole = [];
+        foreach ($newlyCreatedUsers as $user) {
+            $roleId = $user['role_id'];
+            if (!isset($byRole[$roleId])) {
+                $byRole[$roleId] = [];
+            }
+            $byRole[$roleId][] = $user;
+        }
+
+        $roleNames = [
+            14 => 'Penyusun',
+            15 => 'Validator',
+            16 => 'Praktisi',
+        ];
+
+        $spreadsheet = new Spreadsheet();
+
+        $sheetIndex = 0;
+        foreach ($byRole as $roleId => $users) {
+            if ($sheetIndex > 0) {
+                $spreadsheet->createSheet();
+            }
+            $spreadsheet->setActiveSheetIndex($sheetIndex);
+
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle($roleNames[$roleId] ?? "Role-{$roleId}");
+
+            // Headers
+            $sheet->setCellValue('A1', 'Nama');
+            $sheet->setCellValue('B1', 'Email');
+            if (in_array($roleId, [14, 15])) {
+                $sheet->setCellValue('C1', 'Noreg');
+            }
+
+            // Data rows
+            $row = 2;
+            foreach ($users as $user) {
+                $sheet->setCellValue("A{$row}", $user['name'] ?? '');
+                $sheet->setCellValue("B{$row}", $user['email'] ?? '');
+                if (in_array($roleId, [14, 15])) {
+                    $sheet->setCellValue("C{$row}", $user['noreg'] ?? '');
+                }
+                $row++;
+            }
+
+            // Auto-size columns
+            foreach (range('A', 'C') as $col) {
+                $sheet->getColumnDimension($col)->setAutoSize(true);
+            }
+
+            $sheetIndex++;
+        }
+
+        // Save to storage
+        $filename = 'kan_users_' . date('Ymd_His') . '.xlsx';
+        $path = "exports/{$filename}";
+
+        $writer = new Xlsx($spreadsheet);
+        ob_start();
+        $writer->save('php://output');
+        $content = ob_get_clean();
+
+        Storage::disk('str_moon')->put($path, $content);
+
+        return "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
     }
 
     /**
