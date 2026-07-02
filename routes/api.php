@@ -494,6 +494,7 @@ Route::prefix('diskon')->group(function () {
 
     Route::prefix('kan/config')->group(function () {
         Route::post('/submit', [KanConfigController::class, 'submit']);
+        Route::get('/download-users', [KanConfigController::class, 'downloadUsers']);
     });
 
     // --- KAN Asesmen (authenticated) ---
