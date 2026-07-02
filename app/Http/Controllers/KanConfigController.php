@@ -93,10 +93,19 @@ class KanConfigController extends Controller
         );
 
         // ── Phase 2: Build skema name → JabatanKerja lookup ──
+        // Use get() instead of pluck() to handle duplicates — pick latest per name
         $allSkemaNames = array_unique($allSkemaNames);
-        $jabatanKerjaLookup = JabatanKerja::whereIn('jabatan_kerja', $allSkemaNames)
-            ->pluck('id_jabatan_kerja', 'jabatan_kerja')
-            ->toArray();
+        $jabatanKerjaRows = JabatanKerja::whereIn('jabatan_kerja', $allSkemaNames)
+            ->select('id_jabatan_kerja', 'jabatan_kerja')
+            ->orderBy('id_jabatan_kerja', 'desc')
+            ->get();
+
+        $jabatanKerjaLookup = [];
+        foreach ($jabatanKerjaRows as $row) {
+            if (!isset($jabatanKerjaLookup[$row->jabatan_kerja])) {
+                $jabatanKerjaLookup[$row->jabatan_kerja] = $row->id_jabatan_kerja;
+            }
+        }
 
         // ── Phase 3: Process in transaction ──
         $updatedConfigs = 0;
@@ -192,6 +201,64 @@ class KanConfigController extends Controller
                 'skipped_missing_config'     => $skippedMissingConfig,
                 'excel_url'                  => $excelUrl,
             ],
+        ]);
+    }
+
+    /**
+     * Download Excel list of KAN users (role 14, 15, 16) separated by sheet.
+     */
+    public function downloadUsers()
+    {
+        $roles = [
+            14 => 'Penyusun',
+            15 => 'Validator',
+            16 => 'Praktisi',
+        ];
+
+        $spreadsheet = new Spreadsheet();
+        $sheetIndex = 0;
+
+        foreach ($roles as $roleId => $roleName) {
+            if ($sheetIndex > 0) {
+                $spreadsheet->createSheet();
+            }
+            $spreadsheet->setActiveSheetIndex($sheetIndex);
+
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle($roleName);
+
+            $sheet->setCellValue('A1', 'Nama');
+            $sheet->setCellValue('B1', 'Email');
+            $sheet->getStyle('A1:B1')->getFont()->setBold(true);
+
+            $users = User::where('role_id', $roleId)
+                ->where('is_deleted', false)
+                ->select('name', 'email')
+                ->orderBy('name')
+                ->get();
+
+            $row = 2;
+            foreach ($users as $user) {
+                $sheet->setCellValue("A{$row}", $user->name);
+                $sheet->setCellValue("B{$row}", $user->email);
+                $row++;
+            }
+
+            $sheet->getColumnDimension('A')->setAutoSize(true);
+            $sheet->getColumnDimension('B')->setAutoSize(true);
+
+            $sheetIndex++;
+        }
+
+        $filename = 'kan_users_' . date('Ymd_His') . '.xlsx';
+        $writer = new Xlsx($spreadsheet);
+        ob_start();
+        $writer->save('php://output');
+        $content = ob_get_clean();
+
+        return response($content, 200, [
+            'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
     }
 
