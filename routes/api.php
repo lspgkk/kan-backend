@@ -21,6 +21,11 @@ use App\Http\Controllers\JabatanKerjaController;
 use App\Http\Controllers\KanSoalController;
 use App\Http\Controllers\KanConfigController;
 use App\Http\Controllers\KanImportController;
+use App\Http\Controllers\KanAsesmenController;
+use App\Http\Controllers\PenyusunController;
+use App\Http\Controllers\ValidatorController;
+use App\Http\Controllers\ManagerMutuController;
+use App\Http\Controllers\PraktisiController;
 use App\Http\Controllers\MidtransWebhookController;
 use App\Http\Controllers\JadwalController;
 use App\Http\Controllers\JenisAnggaranController;
@@ -321,6 +326,7 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('/dokumen/asesi/{id}', [AsesmenController::class, 'dokumenAsesi']);
     Route::get('/dokumen/asesi/{id}/download', [AsesmenController::class, 'downloadDokumenAsesi']);
     Route::get('/dokumen/absen/{id}', [AsesmenController::class, 'absensi']);
+    Route::get('/dokumen/{idIzin}/muk', [PenyusunController::class, 'getMuk']);
     Route::get('/generate-penyusun', [BarcodeController::class, 'generateBarcodePenyusun']);
     Route::get('/generate-manajer', [BarcodeController::class, 'generateBarcodeManajer']);
 
@@ -488,6 +494,83 @@ Route::prefix('diskon')->group(function () {
 
     Route::prefix('kan/config')->group(function () {
         Route::post('/submit', [KanConfigController::class, 'submit']);
+    });
+
+    // --- KAN Asesmen (authenticated) ---
+    Route::prefix('kan/asesmen')->group(function () {
+        Route::get('/{id}/ia04b', [KanAsesmenController::class, 'getKanIa04b']);
+        Route::post('/{id}/ia04b', [KanAsesmenController::class, 'submitKanIa04b']);
+        Route::get('/{id}/ia05', [KanAsesmenController::class, 'getKanIa05']);
+        Route::post('/{id}/ia05', [KanAsesmenController::class, 'submitKanIa05']);
+        Route::get('/{id}/ia06', [KanAsesmenController::class, 'getKanIa06']);
+        Route::post('/{id}/ia06', [KanAsesmenController::class, 'submitKanIa06']);
+        Route::get('/{id}/ak02', [KanAsesmenController::class, 'getKanAk02']);
+        Route::post('/{id}/ak02', [KanAsesmenController::class, 'submitKanAk02']);
+    });
+
+    Route::prefix('kan/qr')->group(function () {
+        Route::post('/{id}/ia04b', [KanAsesmenController::class, 'ttdKanIa04b']);
+        Route::post('/{id}/ia05', [KanAsesmenController::class, 'ttdKanIa05']);
+        Route::post('/{id}/ia06', [KanAsesmenController::class, 'ttdKanIa06']);
+        Route::post('/{id}/ak02', [KanAsesmenController::class, 'ttdKanAk02']);
+    });
+
+    // --- Penyusun ---
+    Route::prefix('penyusun')->group(function () {
+        Route::get('/jabker', [PenyusunController::class, 'jabker']);
+        Route::get('/skema', [PenyusunController::class, 'skema']);
+        Route::get('/skema/{id}/peserta', [PenyusunController::class, 'skemaPeserta']);
+        Route::get('/{idIzin}/ia04b', [PenyusunController::class, 'getIa04b']);
+        Route::post('/{idIzin}/ia04b', [PenyusunController::class, 'submitIa04b']);
+        Route::get('/{idIzin}/ia05', [PenyusunController::class, 'getIa05']);
+        Route::post('/{idIzin}/ia05', [PenyusunController::class, 'submitIa05']);
+        Route::get('/{idIzin}/ia06', [PenyusunController::class, 'getIa06']);
+        Route::post('/{idIzin}/ia06', [PenyusunController::class, 'submitIa06']);
+        Route::get('/{idIzin}/muk', [PenyusunController::class, 'getMuk']);
+    });
+
+    // --- Validator ---
+    Route::prefix('validator')->group(function () {
+        Route::get('/jabker', [ValidatorController::class, 'jabker']);
+        Route::get('/skema', [ValidatorController::class, 'skema']);
+        Route::get('/{idIzin}/ia04b', [ValidatorController::class, 'getIa04b']);
+        Route::post('/{idIzin}/ia04b', [ValidatorController::class, 'submitIa04b']);
+        Route::get('/{idIzin}/ia05', [ValidatorController::class, 'getIa05']);
+        Route::post('/{idIzin}/ia05', [ValidatorController::class, 'submitIa05']);
+        Route::get('/{idIzin}/ia06', [ValidatorController::class, 'getIa06']);
+        Route::post('/{idIzin}/ia06', [ValidatorController::class, 'submitIa06']);
+    });
+
+    // --- Manager Mutu ---
+    Route::prefix('manager-mutu')->group(function () {
+        Route::get('/jabker', [ManagerMutuController::class, 'jabker']);
+        Route::get('/skema', [ManagerMutuController::class, 'skema']);
+        Route::get('/{idIzin}/ia04b', [ManagerMutuController::class, 'getIa04b']);
+        Route::post('/{idIzin}/ia04b', [ManagerMutuController::class, 'submitIa04b']);
+        Route::get('/{idIzin}/ia05', [ManagerMutuController::class, 'getIa05']);
+        Route::post('/{idIzin}/ia05', [ManagerMutuController::class, 'submitIa05']);
+        Route::get('/{idIzin}/ia06', [ManagerMutuController::class, 'getIa06']);
+        Route::post('/{idIzin}/ia06', [ManagerMutuController::class, 'submitIa06']);
+    });
+
+    // --- Praktisi ---
+    Route::prefix('praktisi')->group(function () {
+        Route::get('/jabker', [PraktisiController::class, 'jabker']);
+        Route::get('/{idIzin}/status', [PraktisiController::class, 'status']);
+        Route::post('/{idIzin}/jawab', [PraktisiController::class, 'jawab']);
+        Route::get('/{idIzin}/ia04b', [PraktisiController::class, 'getIa04b']);
+        Route::get('/{idIzin}/ia05', [PraktisiController::class, 'getIa05']);
+        Route::get('/{idIzin}/ia06', [PraktisiController::class, 'getIa06']);
+        Route::get('/{idIzin}/apl01', [PraktisiController::class, 'getApl01']);
+        Route::post('/{idIzin}/apl01', [PraktisiController::class, 'submitApl01']);
+    });
+
+    // --- QR TTD for KAN Roles ---
+    Route::prefix('qr')->group(function () {
+        Route::post('/{idIzin}/penyusun', [PenyusunController::class, 'ttd']);
+        Route::post('/{idIzin}/validator', [ValidatorController::class, 'ttd']);
+        Route::post('/{idIzin}/manager-mutu', [ManagerMutuController::class, 'ttd']);
+        Route::post('/{idIzin}/praktisi', [PraktisiController::class, 'ttd']);
     });
 });
 

@@ -64,6 +64,11 @@ class KlasifikasiKualifikasi extends Model
         return $this->belongsTo(Asosiasi::class, 'asosiasi', 'id');
     }
 
+    public function asesiJadwal()
+    {
+        return $this->hasOne(AsesiJadwal::class, 'id_izin', 'id_izin');
+    }
+
     protected $casts = [
         'lsp' => 'integer'
     ];
