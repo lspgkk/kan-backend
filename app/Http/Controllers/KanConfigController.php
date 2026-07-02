@@ -93,17 +93,20 @@ class KanConfigController extends Controller
         );
 
         // ── Phase 2: Build skema name → JabatanKerja lookup ──
-        // Use get() instead of pluck() to handle duplicates — pick latest per name
+        // Force case-insensitive matching with LOWER() on both sides
         $allSkemaNames = array_unique($allSkemaNames);
-        $jabatanKerjaRows = JabatanKerja::whereIn('jabatan_kerja', $allSkemaNames)
-            ->select('id_jabatan_kerja', 'jabatan_kerja')
+        $lowerNames = array_map('strtolower', $allSkemaNames);
+
+        $jabatanKerjaRows = JabatanKerja::select('id_jabatan_kerja', 'jabatan_kerja')
+            ->whereRaw('LOWER(jabatan_kerja) IN (' . implode(',', array_fill(0, count($lowerNames), '?')) . ')', $lowerNames)
             ->orderBy('id_jabatan_kerja', 'desc')
             ->get();
 
         $jabatanKerjaLookup = [];
         foreach ($jabatanKerjaRows as $row) {
-            if (!isset($jabatanKerjaLookup[$row->jabatan_kerja])) {
-                $jabatanKerjaLookup[$row->jabatan_kerja] = $row->id_jabatan_kerja;
+            $key = strtolower($row->jabatan_kerja);
+            if (!isset($jabatanKerjaLookup[$key])) {
+                $jabatanKerjaLookup[$key] = $row->id_jabatan_kerja;
             }
         }
 
@@ -122,7 +125,7 @@ class KanConfigController extends Controller
             foreach ($entries as $entry) {
                 $skemaName = trim($entry['skema']);
 
-                $idJabatanKerja = $jabatanKerjaLookup[$skemaName] ?? null;
+                $idJabatanKerja = $jabatanKerjaLookup[strtolower($skemaName)] ?? null;
                 if (!$idJabatanKerja) {
                     $skippedNoMatch[] = $skemaName;
                     continue;
