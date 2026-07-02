@@ -438,17 +438,21 @@ class KanAsesmenController extends Controller
 
         DB::transaction(function () use ($validated, $idIzin) {
             foreach ($validated['answers'] as $answer) {
+                $updateData = ['is_rekomendasi' => false];
+                if (array_key_exists('jawaban', $answer)) {
+                    $updateData['jawaban'] = $answer['jawaban'];
+                }
+                if (array_key_exists('skor', $answer)) {
+                    $updateData['skor'] = $answer['skor'];
+                }
+
                 KanIa4bAnswer::updateOrCreate(
                     [
                         'id_izin'    => $idIzin,
                         'dokumen_id' => $validated['dokumen_id'],
                         'soal_id'    => $answer['soal_id'],
                     ],
-                    [
-                        'jawaban'   => $answer['jawaban'] ?? null,
-                        'skor'      => $answer['skor'] ?? null,
-                        'is_rekomendasi' => false,
-                    ]
+                    $updateData
                 );
             }
 
@@ -494,16 +498,21 @@ class KanAsesmenController extends Controller
 
         DB::transaction(function () use ($validated, $idIzin) {
             foreach ($validated['answers'] as $answer) {
+                $updateData = [];
+                if (array_key_exists('jawaban', $answer)) {
+                    $updateData['jawaban'] = $answer['jawaban'];
+                }
+                if (array_key_exists('skor', $answer)) {
+                    $updateData['skor'] = $answer['skor'];
+                }
+
                 KanIa5Answer::updateOrCreate(
                     [
                         'id_izin'    => $idIzin,
                         'dokumen_id' => $validated['dokumen_id'],
                         'soal_id'    => $answer['soal_id'],
                     ],
-                    [
-                        'jawaban' => $answer['jawaban'] ?? null,
-                        'skor'    => $answer['skor'] ?? null,
-                    ]
+                    $updateData
                 );
             }
 
@@ -536,16 +545,21 @@ class KanAsesmenController extends Controller
 
         DB::transaction(function () use ($validated, $idIzin) {
             foreach ($validated['answers'] as $answer) {
+                $updateData = [];
+                if (array_key_exists('jawaban', $answer)) {
+                    $updateData['jawaban'] = $answer['jawaban'];
+                }
+                if (array_key_exists('skor', $answer)) {
+                    $updateData['skor'] = $answer['skor'];
+                }
+
                 KanIa6Answer::updateOrCreate(
                     [
                         'id_izin'    => $idIzin,
                         'dokumen_id' => $validated['dokumen_id'],
                         'soal_id'    => $answer['soal_id'],
                     ],
-                    [
-                        'jawaban' => $answer['jawaban'] ?? null,
-                        'skor'    => $answer['skor'] ?? null,
-                    ]
+                    $updateData
                 );
             }
 

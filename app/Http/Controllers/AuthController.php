@@ -125,7 +125,7 @@ class AuthController extends Controller
             'role' => $role,
         ];
 
-        if ($role->name === 'Asesi') {
+        if (in_array($role->name, ['Asesi', 'Praktisi'])) {
             $idIzin = AsesiJadwal::where('account', $user->email)
                 ->value('id_izin');
 
