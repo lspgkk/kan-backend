@@ -286,17 +286,7 @@ class KanConfigController extends Controller
 
         $map = $existing;
 
-        // Find any user with same noreg (different role) as fallback
-        $anyRole = User::whereIn('noreg', $noregs)
-            ->whereNotIn('noreg', array_keys($existing))
-            ->pluck('id', 'noreg')
-            ->toArray();
-
-        foreach ($anyRole as $noreg => $userId) {
-            $map[$noreg] = $userId;
-        }
-
-        // Resolve missing noreg
+        // Truly missing → create new users (noreg not unique, safe to have same noreg with different role)
         $missing = array_diff($noregs, array_keys($map));
 
         foreach ($missing as $noreg) {
