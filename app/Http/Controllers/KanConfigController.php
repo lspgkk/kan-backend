@@ -29,18 +29,21 @@ class KanConfigController extends Controller
      */
     public function submit(Request $request)
     {
+        // Accept both "entries" and "data" as the input key
+        $inputKey = $request->has('entries') ? 'entries' : 'data';
+
         $validated = $request->validate([
-            'entries'                => 'required|array|min:1',
-            'entries.*.no_skema'     => 'required|string',
-            'entries.*.skema'        => 'required|string',
-            'entries.*.penyusun'     => 'required|string',
-            'entries.*.validator'    => 'required|string',
-            'entries.*.tgl_penyusun'  => 'nullable|string',
-            'entries.*.tgl_validator' => 'nullable|string',
-            'entries.*.asesor'       => 'nullable|array',
+            $inputKey                => 'required|array|min:1',
+            $inputKey . '.*.no_skema'     => 'required|string',
+            $inputKey . '.*.skema'        => 'required|string',
+            $inputKey . '.*.penyusun'     => 'required|string',
+            $inputKey . '.*.validator'    => 'required|string',
+            $inputKey . '.*.tgl_penyusun'  => 'nullable|string',
+            $inputKey . '.*.tgl_validator' => 'nullable|string',
+            $inputKey . '.*.asesor'       => 'nullable|array',
         ]);
 
-        $entries = $validated['entries'];
+        $entries = $validated[$inputKey];
 
         // ── Phase 1: Resolve all users ──
         $allSkemaNames = [];
