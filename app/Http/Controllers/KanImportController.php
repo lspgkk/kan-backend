@@ -8,6 +8,7 @@ use App\Models\KanSoal;
 use App\Models\Kuk;
 use App\Models\SubunitKompetensi;
 use App\Models\UnitKompetensi;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -185,6 +186,262 @@ class KanImportController extends Controller
                 'total' => $total,
             ],
         ]);
+    }
+
+    // ──────────────────────────────────────────────
+    //  IMPORT PER TIPE FILE
+    // ──────────────────────────────────────────────
+
+    /**
+     * POST /api/kan/import/ia04b
+     * Submit master soal IA04B (DIT) untuk suatu skema.
+     * Body: { nama, soal: [{ no, soal, lingkup?, kode_unit? }] }
+     */
+    public function importIa04b(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'nama'       => 'required|string',
+            'soal'       => 'required|array|min:1',
+            'soal.*.no'  => 'required|integer',
+            'soal.*.soal'=> 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation Error',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $jabatan   = $this->resolveJabatan($request->nama);
+        $refs      = $this->preCacheSoalRefs($jabatan->id_jabatan_kerja);
+        $dokumenId = $this->resolveDokumen($jabatan->id_jabatan_kerja, 'FR.IA.04.B', 'LEMBAR PERIKSA KEGIATAN TERSTRUKTUR');
+
+        $total = 0;
+        DB::beginTransaction();
+        try {
+            foreach ($request->soal as $item) {
+                $data = [
+                    'id_dokumen'        => $dokumenId,
+                    'tipe'              => 8,
+                    'no'                => $item['no'],
+                    'urut'              => $item['no'],
+                    'soal'              => $item['soal'],
+                    'soal1'             => $item['lingkup'] ?? null,
+                ];
+
+                if (!empty($item['kode_unit']) && isset($refs['units'][$item['kode_unit']])) {
+                    $data['id_unitkompetensi'] = $refs['units'][$item['kode_unit']];
+                }
+
+                KanSoal::updateOrCreate(
+                    ['id_dokumen' => $dokumenId, 'no' => $item['no']],
+                    $data
+                );
+                $total++;
+            }
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Import IA04B gagal: ' . $e->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => "{$total} soal IA04B berhasil diimport untuk skema '{$request->nama}'",
+            'data'    => [
+                'nama_skema' => $request->nama,
+                'total'      => $total,
+            ],
+        ]);
+    }
+
+    /**
+     * POST /api/kan/import/ia05
+     * Submit master soal IA05 (Pilihan Ganda) untuk suatu skema.
+     * Body: { nama, soal: [{ no, soal, jawab_a?, jawab_b?, jawab_c?, jawab_d?, jawaban?, kode_kuk? }] }
+     */
+    public function importIa05(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'nama'       => 'required|string',
+            'soal'       => 'required|array|min:1',
+            'soal.*.no'  => 'required|integer',
+            'soal.*.soal'=> 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation Error',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $jabatan   = $this->resolveJabatan($request->nama);
+        $refs      = $this->preCacheSoalRefs($jabatan->id_jabatan_kerja);
+        $dokumenId = $this->resolveDokumen($jabatan->id_jabatan_kerja, 'FR.IA.05', 'PERTANYAAN TERTULIS PILIHAN GANDA');
+
+        $total = 0;
+        DB::beginTransaction();
+        try {
+            foreach ($request->soal as $item) {
+                $data = [
+                    'id_dokumen' => $dokumenId,
+                    'tipe'       => 1,
+                    'no'         => $item['no'],
+                    'urut'       => $item['no'],
+                    'soal'       => $item['soal'],
+                    'jawab_a'    => $item['jawab_a'] ?? null,
+                    'jawab_b'    => $item['jawab_b'] ?? null,
+                    'jawab_c'    => $item['jawab_c'] ?? null,
+                    'jawab_d'    => $item['jawab_d'] ?? null,
+                    'jawaban'    => $item['jawaban'] ?? null,
+                ];
+
+                $data = $this->resolveKuk($item, $data, $refs['units'], $refs['kuks']);
+
+                KanSoal::updateOrCreate(
+                    ['id_dokumen' => $dokumenId, 'no' => $item['no']],
+                    $data
+                );
+                $total++;
+            }
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Import IA05 gagal: ' . $e->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => "{$total} soal IA05 berhasil diimport untuk skema '{$request->nama}'",
+            'data'    => [
+                'nama_skema' => $request->nama,
+                'total'      => $total,
+            ],
+        ]);
+    }
+
+    /**
+     * POST /api/kan/import/ia06
+     * Submit master soal IA06 (Esai) untuk suatu skema.
+     * Body: { nama, soal: [{ no, soal, kode_kuk? }] }
+     */
+    public function importIa06(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'nama'       => 'required|string',
+            'soal'       => 'required|array|min:1',
+            'soal.*.no'  => 'required|integer',
+            'soal.*.soal'=> 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation Error',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $jabatan   = $this->resolveJabatan($request->nama);
+        $refs      = $this->preCacheSoalRefs($jabatan->id_jabatan_kerja);
+        $dokumenId = $this->resolveDokumen($jabatan->id_jabatan_kerja, 'FR.IA.06', 'PERTANYAAN TERTULIS ESAI');
+
+        $total = 0;
+        DB::beginTransaction();
+        try {
+            foreach ($request->soal as $item) {
+                if (empty(trim($item['soal'] ?? ''))) {
+                    continue;
+                }
+
+                $data = [
+                    'id_dokumen' => $dokumenId,
+                    'tipe'       => 8,
+                    'no'         => $item['no'],
+                    'urut'       => $item['no'],
+                    'soal'       => $item['soal'],
+                ];
+
+                $data = $this->resolveKuk($item, $data, $refs['units'], $refs['kuks']);
+
+                KanSoal::updateOrCreate(
+                    ['id_dokumen' => $dokumenId, 'no' => $item['no']],
+                    $data
+                );
+                $total++;
+            }
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Import IA06 gagal: ' . $e->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => "{$total} soal IA06 berhasil diimport untuk skema '{$request->nama}'",
+            'data'    => [
+                'nama_skema' => $request->nama,
+                'total'      => $total,
+            ],
+        ]);
+    }
+
+    // ──────────────────────────────────────────────
+    //  SHARED HELPERS
+    // ──────────────────────────────────────────────
+
+    /**
+     * Resolve jabatan kerja by name.
+     */
+    private function resolveJabatan(string $nama): JabatanKerja
+    {
+        $jabatan = JabatanKerja::where('jabatan_kerja', $nama)
+            ->orderBy('id_jabatan_kerja', 'desc')
+            ->first();
+
+        if (!$jabatan) {
+            abort(404, "Skema '{$nama}' tidak ditemukan di tabel jabatan_kerja");
+        }
+
+        return $jabatan;
+    }
+
+    /**
+     * Find or create a JabatanDokumen record, return its id.
+     */
+    private function resolveDokumen($idJabatan, string $kode, string $namaDokumen): int
+    {
+        $dok = JabatanDokumen::where('id_jabatan', $idJabatan)
+            ->where('kode', $kode)
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dok) {
+            $dok = JabatanDokumen::create([
+                'id_jabatan'   => $idJabatan,
+                'kode'         => $kode,
+                'nama_dokumen' => $namaDokumen,
+                'is_active'    => true,
+            ]);
+        }
+
+        return $dok->id;
+    }
+
+    /**
+     * Pre-cache unit kompetensi & KUK untuk suatu jabatan.
+     */
+    private function preCacheSoalRefs($idJabatan): array
+    {
+        return [
+            'units' => UnitKompetensi::where('id_jabatan', $idJabatan)
+                ->pluck('id', 'kode'),
+            'kuks'  => Kuk::pluck('id', 'kode'),
+        ];
     }
 
     /**

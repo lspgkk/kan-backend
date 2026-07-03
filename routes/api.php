@@ -495,6 +495,7 @@ Route::prefix('diskon')->group(function () {
     Route::prefix('kan/config')->group(function () {
         Route::post('/submit', [KanConfigController::class, 'submit']);
         Route::get('/download-users', [KanConfigController::class, 'downloadUsers']);
+        Route::get('/praktisi-by-jabatan/{id_jabatan_kerja}', [KanConfigController::class, 'praktisiByJabatan']);
     });
 
     // --- KAN Asesmen (authenticated) ---
@@ -577,10 +578,16 @@ Route::prefix('diskon')->group(function () {
 
 // --- KAN Public Routes (no auth required) ---
 Route::post('/kan/import', [KanImportController::class, 'import']);
+Route::post('/kan/import/ia04b', [KanImportController::class, 'importIa04b']);
+Route::post('/kan/import/ia05', [KanImportController::class, 'importIa05']);
+Route::post('/kan/import/ia06', [KanImportController::class, 'importIa06']);
 
 Route::prefix('kan/soal')->group(function () {
     Route::get('/', [KanSoalController::class, 'index']);
     Route::post('/', [KanSoalController::class, 'store']);
+    Route::get('/ia04b/{id_jabatan_kerja}', [KanSoalController::class, 'getIa04bByJabatan']);
+    Route::get('/ia05/{id_jabatan_kerja}', [KanSoalController::class, 'getIa05ByJabatan']);
+    Route::get('/ia06/{id_jabatan_kerja}', [KanSoalController::class, 'getIa06ByJabatan']);
     Route::get('/{id}', [KanSoalController::class, 'show']);
     Route::put('/{id}', [KanSoalController::class, 'update']);
     Route::delete('/{id}', [KanSoalController::class, 'destroy']);
