@@ -26,6 +26,8 @@ class ManagerMutuController extends Controller
                 'jabatan_kerjas.jabatan_kerja',
                 'jabatan_kerjas.jenjang_id',
             ])
+            ->where('lsp_id_klasifikasi', 'SI')
+            ->where('versi', 2)
             ->get()
             ->map(function ($jabker) {
                 $skemaCount = JabatanConfigA::where('id_jabatan', $jabker->id_jabatan_kerja)
