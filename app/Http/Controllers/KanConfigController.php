@@ -9,6 +9,7 @@ use App\Models\JabatanKerja;
 use App\Models\KanPraktisiJabatan;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -564,5 +565,42 @@ class KanConfigController extends Controller
         }
 
         return $sanitized . '+' . $suffix . '@lspgatensi.id';
+    }
+
+    /**
+     * List praktisi (asesor) assigned to a specific jabatan kerja.
+     * GET /api/kan/config/praktisi-by-jabatan/{id_jabatan_kerja}
+     */
+    public function praktisiByJabatan(Request $request, $idJabatanKerja): JsonResponse
+    {
+        $query = KanPraktisiJabatan::with([
+            'user:id,name,email,phone,noreg',
+            'jabatanKerja:id_jabatan_kerja,jabatan_kerja',
+        ])->where('id_jabatan_kerja', $idJabatanKerja);
+
+        // Optional search by user name
+        if ($request->has('search')) {
+            $searchTerm = $request->query('search');
+            $query->whereHas('user', function ($q) use ($searchTerm) {
+                $q->where('name', 'like', "%{$searchTerm}%");
+            });
+        }
+
+        // Optional: return all without pagination
+        if ($request->boolean('all')) {
+            $results = $query->orderBy('created_at', 'desc')->get();
+            return response()->json([
+                'message' => 'OK',
+                'data'    => $results,
+            ]);
+        }
+
+        $perPage = (int) $request->query('per_page', 10);
+        $perPage = min(max($perPage, 1), 100);
+
+        return response()->json([
+            'message' => 'OK',
+            'data'    => $query->orderBy('created_at', 'desc')->paginate($perPage),
+        ]);
     }
 }

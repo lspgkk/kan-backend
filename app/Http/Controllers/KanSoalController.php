@@ -6,6 +6,7 @@ use App\Models\JabatanDokumen;
 use App\Models\KanSoal;
 use App\Models\Kuk;
 use App\Models\UnitKompetensi;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -267,6 +268,124 @@ class KanSoalController extends Controller
             'data'    => [
                 'unit_kompetensi' => $units,
                 'dokumen'         => $dokumen,
+            ],
+        ]);
+    }
+
+    // ──────────────────────────────────────────────
+    //  SOAL BY JABATAN KERJA (master soal per jenis file)
+    // ──────────────────────────────────────────────
+
+    /**
+     * GET /api/kan/soal/ia04b/{id_jabatan_kerja}
+     * Master soal IA04B (DIT + Rekomendasi) untuk suatu jabatan kerja.
+     * tipe: 3 (rekomendasi), 8 (esai/DIT)
+     */
+    public function getIa04bByJabatan($idJabatanKerja): JsonResponse
+    {
+        $dokumen = JabatanDokumen::select('id', 'kode', 'nama_dokumen')
+            ->where('id_jabatan', $idJabatanKerja)
+            ->where('kode', 'FR.IA.04.B')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dokumen) {
+            return response()->json([
+                'message' => 'OK',
+                'data'    => [
+                    'dokumen' => null,
+                    'soal'    => [],
+                ],
+            ]);
+        }
+
+        $soal = KanSoal::with(['unit:id,kode', 'kuk:id,kode'])
+            ->where('id_dokumen', $dokumen->id)
+            ->whereIn('tipe', [3, 8])
+            ->orderBy('no', 'asc')
+            ->get();
+
+        return response()->json([
+            'message' => 'OK',
+            'data'    => [
+                'dokumen' => $dokumen,
+                'soal'    => $soal,
+            ],
+        ]);
+    }
+
+    /**
+     * GET /api/kan/soal/ia05/{id_jabatan_kerja}
+     * Master soal IA05 (Pilihan Ganda) untuk suatu jabatan kerja.
+     * tipe: 1 (PG)
+     */
+    public function getIa05ByJabatan($idJabatanKerja): JsonResponse
+    {
+        $dokumen = JabatanDokumen::select('id', 'kode', 'nama_dokumen')
+            ->where('id_jabatan', $idJabatanKerja)
+            ->where('kode', 'FR.IA.05')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dokumen) {
+            return response()->json([
+                'message' => 'OK',
+                'data'    => [
+                    'dokumen' => null,
+                    'soal'    => [],
+                ],
+            ]);
+        }
+
+        $soal = KanSoal::with(['unit:id,kode', 'kuk:id,kode'])
+            ->where('id_dokumen', $dokumen->id)
+            ->where('tipe', 1)
+            ->orderBy('no', 'asc')
+            ->get();
+
+        return response()->json([
+            'message' => 'OK',
+            'data'    => [
+                'dokumen' => $dokumen,
+                'soal'    => $soal,
+            ],
+        ]);
+    }
+
+    /**
+     * GET /api/kan/soal/ia06/{id_jabatan_kerja}
+     * Master soal IA06 (Esai) untuk suatu jabatan kerja.
+     * tipe: 8 (esai)
+     */
+    public function getIa06ByJabatan($idJabatanKerja): JsonResponse
+    {
+        $dokumen = JabatanDokumen::select('id', 'kode', 'nama_dokumen')
+            ->where('id_jabatan', $idJabatanKerja)
+            ->where('kode', 'FR.IA.06')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dokumen) {
+            return response()->json([
+                'message' => 'OK',
+                'data'    => [
+                    'dokumen' => null,
+                    'soal'    => [],
+                ],
+            ]);
+        }
+
+        $soal = KanSoal::with(['unit:id,kode', 'kuk:id,kode'])
+            ->where('id_dokumen', $dokumen->id)
+            ->where('tipe', 8)
+            ->orderBy('no', 'asc')
+            ->get();
+
+        return response()->json([
+            'message' => 'OK',
+            'data'    => [
+                'dokumen' => $dokumen,
+                'soal'    => $soal,
             ],
         ]);
     }

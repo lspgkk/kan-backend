@@ -1,0 +1,1236 @@
+{
+  "info": {
+    "name": "KAN & Praktisi API — LSP Gatensi",
+    "description": "Kumpulan endpoint untuk modul KAN (Komite Asesmen Nasional) dan Praktisi, mencakup:\n\n- **KAN Config** — Konfigurasi skema, penyusun, validator, praktisi\n- **KAN Soal** — Master soal IA04B, IA05, IA06\n- **KAN Import** — Import/submit soal per tipe file\n- **KAN Reference** — Dropdown referensi (unit kompetensi, KUK, dokumen, skema)\n- **KAN Asesmen** — Get/submit jawaban asesmen per id_izin\n- **KAN QR** — TTD QR untuk dokumen KAN\n- **Penyusun** — Role penyusun (role_id=14)\n- **Validator** — Role validator (role_id=15)\n- **Manager Mutu** — Role manager mutu\n- **Praktisi** — Role praktisi/asesor (role_id=16)\n- **QR TTD** — Tanda tangan digital untuk semua role KAN\n\n---\n### Auth\n- Endpoint dengan label **🔒 Auth** membutuhkan Bearer token di header `Authorization: Bearer <token>`\n- Endpoint dengan label **🌐 Public** bisa diakses tanpa auth\n\n### Base URL\nGunakan variable `{{base_url}}` (default: `http://localhost:8000/api`)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "lsp-gatensi"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string",
+      "description": "Bearer token dari login (isi setelah login)"
+    },
+    {
+      "key": "id_izin",
+      "value": "",
+      "type": "string",
+      "description": "ID Izin asesi untuk testing"
+    },
+    {
+      "key": "id_jabatan_kerja",
+      "value": "",
+      "type": "string",
+      "description": "ID Jabatan Kerja untuk testing (contoh: SI0112020)"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "🔐 Auth",
+      "description": "Login untuk mendapatkan Bearer token",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@lspgatensi.id\",\n  \"password\": \"123qweasd\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login untuk mendapatkan access token. Token otomatis tersimpan ke variable `{{token}}`.\n\n**Response:**\n```json\n{\n  \"message\": \"Login successful\",\n  \"access_token\": \"<jwt-token>\",\n  \"token_type\": \"bearer\",\n  \"expires_in\": 3600\n}\n```"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    pm.collectionVariables.set('token', json.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "⚙️ KAN Config",
+      "description": "Konfigurasi KAN: submit skema, download user, list praktisi by jabatan.\n\n**Auth:** 🔒",
+      "item": [
+        {
+          "name": "Submit Konfigurasi KAN",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"entries\": [\n    {\n      \"no_skema\": \"KAN-001\",\n      \"skema\": \"SI0112020\",\n      \"penyusun\": \"REG-001234\",\n      \"validator\": \"REG-005678\",\n      \"tgl_penyusun\": \"2026-01-15\",\n      \"tgl_validator\": \"2026-01-20\",\n      \"asesor\": [\"Nama Asesor 1\", \"Nama Asesor 2\"]\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/config/submit",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "config", "submit"]
+            },
+            "description": "Bulk-submit konfigurasi KAN: no_skema, penyusun (role 14), validator (role 15), praktisi/asesor (role 16), dan generate QR codes.\n\n**Key:** `entries` atau `data` sebagai input key.\n\n**Auto-resolve:** Penyusun & Validator by noreg (fallback ke BNSP API), Asesor by nama (create jika belum ada).\n\n**Response:**\n```json\n{\n  \"message\": \"Konfigurasi KAN berhasil disimpan.\",\n  \"data\": {\n    \"total_entries\": 1,\n    \"updated_configs\": 1,\n    \"qr_generated\": 1,\n    \"praktisi_mappings_upserted\": 2,\n    \"newly_created_users\": [...],\n    \"skipped_no_match\": [],\n    \"skipped_missing_config\": [],\n    \"excel_url\": \"https://moon.lspgatensi.id/...\"\n  }\n}\n```"
+          }
+        },
+        {
+          "name": "Download Users KAN (Excel)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/config/download-users",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "config", "download-users"]
+            },
+            "description": "Download Excel berisi daftar user KAN (Penyusun, Validator, Praktisi) masing-masing dalam sheet terpisah.\n\n**Response:** File `.xlsx`"
+          }
+        },
+        {
+          "name": "List Praktisi by Jabatan Kerja",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/config/praktisi-by-jabatan/{{id_jabatan_kerja}}?per_page=10",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "config", "praktisi-by-jabatan", "{{id_jabatan_kerja}}"],
+              "query": [
+                { "key": "per_page", "value": "10", "description": "Item per halaman (1-100)" },
+                { "key": "search", "value": "", "description": "Filter by nama user", "disabled": true },
+                { "key": "all", "value": "false", "description": "true = tanpa pagination", "disabled": true }
+              ]
+            },
+            "description": "List user praktisi (asesor, role_id=16) yang terdaftar untuk suatu jabatan kerja.\n\n**Response:**\n```json\n{\n  \"message\": \"OK\",\n  \"data\": [\n    {\n      \"id_jabatan_kerja\": \"...\",\n      \"id_user\": \"...\",\n      \"user\": { \"id\": \"...\", \"name\": \"...\", \"email\": \"...\", \"phone\": \"...\", \"noreg\": \"...\" },\n      \"jabatan_kerja\": { \"id_jabatan_kerja\": \"...\", \"jabatan_kerja\": \"...\" }\n    }\n  ]\n}\n```"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📝 KAN Soal (Master)",
+      "description": "CRUD master soal KAN. Soal di-link ke jabatan melalui `id_dokumen` (JabatanDokumen).\n\n**Auth:** 🌐 Public (no auth required)",
+      "item": [
+        {
+          "name": "List Soal",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/soal?dokumen_id=1&tipe=8",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "soal"],
+              "query": [
+                { "key": "dokumen_id", "value": "1", "description": "Filter by id_dokumen (JabatanDokumen)" },
+                { "key": "tipe", "value": "8", "description": "Filter by tipe: 1=PG, 3=Rekomendasi, 8=Esai" }
+              ]
+            },
+            "description": "List semua soal KAN, bisa difilter by `dokumen_id` dan/atau `tipe`. Eager-load `unit` dan `kuk`. Diurutkan by `no` ascending."
+          }
+        },
+        {
+          "name": "Get Soal by ID",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/soal/1",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "soal", "1"]
+            },
+            "description": "Ambil satu soal KAN by ID."
+          }
+        },
+        {
+          "name": "Create Soal",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_dokumen\": 1,\n  \"tipe\": 8,\n  \"soal\": \"Teks pertanyaan di sini...\",\n  \"no\": 1,\n  \"soal1\": \"Konteks tambahan (untuk IA04B)\",\n  \"soal2\": \"Konteks tambahan bagian 2\",\n  \"id_unitkompetensi\": null,\n  \"id_kuk\": null,\n  \"jawab_a\": null,\n  \"jawab_b\": null,\n  \"jawab_c\": null,\n  \"jawab_d\": null,\n  \"jawaban\": null\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/soal",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "soal"]
+            },
+            "description": "Buat satu soal KAN baru.\n\n**Validation:**\n- `id_dokumen`: required, integer\n- `tipe`: required, in:1,3,8\n- `soal`: required, string\n- `no`: required, integer\n- `jawaban`: nullable, max:1 (hanya untuk tipe=1/PG)"
+          }
+        },
+        {
+          "name": "Update Soal",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"soal\": \"Teks pertanyaan yang sudah diupdate...\",\n  \"jawaban\": \"A\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/soal/1",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "soal", "1"]
+            },
+            "description": "Update satu soal KAN. Semua field optional (partial update)."
+          }
+        },
+        {
+          "name": "Delete Soal",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/kan/soal/1",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "soal", "1"]
+            },
+            "description": "Hapus satu soal KAN by ID."
+          }
+        },
+        {
+          "name": "Bulk Store Soal",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"soals\": [\n    {\n      \"id_dokumen\": 1,\n      \"tipe\": 8,\n      \"soal\": \"Soal pertama...\",\n      \"no\": 1\n    },\n    {\n      \"id_dokumen\": 1,\n      \"tipe\": 8,\n      \"soal\": \"Soal kedua...\",\n      \"no\": 2\n    },\n    {\n      \"id\": 5,\n      \"id_dokumen\": 1,\n      \"tipe\": 8,\n      \"soal\": \"Update soal existing by id\",\n      \"no\": 3\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/soal/bulk",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "soal", "bulk"]
+            },
+            "description": "Bulk insert/update soal. Jika `id` ada → update, jika tidak → create."
+          }
+        },
+        {
+          "name": "Get IA04B by Jabatan",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/soal/ia04b/{{id_jabatan_kerja}}",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "soal", "ia04b", "{{id_jabatan_kerja}}"]
+            },
+            "description": "Ambil master soal IA04B (DIT + Rekomendasi) untuk suatu jabatan kerja.\n\nMencari `JabatanDokumen` dengan `kode = 'FR.IA.04.B'`, lalu return semua soal dengan `tipe IN (3,8)`.\n\n**Response:**\n```json\n{\n  \"message\": \"OK\",\n  \"data\": {\n    \"dokumen\": { \"id\": 1, \"kode\": \"FR.IA.04.B\", \"nama_dokumen\": \"...\" },\n    \"soal\": [...]\n  }\n}\n```"
+          }
+        },
+        {
+          "name": "Get IA05 by Jabatan",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/soal/ia05/{{id_jabatan_kerja}}",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "soal", "ia05", "{{id_jabatan_kerja}}"]
+            },
+            "description": "Ambil master soal IA05 (Pilihan Ganda) untuk suatu jabatan kerja.\n\nMencari `JabatanDokumen` dengan `kode = 'FR.IA.05'`, lalu return semua soal dengan `tipe = 1`."
+          }
+        },
+        {
+          "name": "Get IA06 by Jabatan",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/soal/ia06/{{id_jabatan_kerja}}",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "soal", "ia06", "{{id_jabatan_kerja}}"]
+            },
+            "description": "Ambil master soal IA06 (Esai) untuk suatu jabatan kerja.\n\nMencari `JabatanDokumen` dengan `kode = 'FR.IA.06'`, lalu return semua soal dengan `tipe = 8`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📥 KAN Import",
+      "description": "Import soal KAN dari JSON. Bisa import semua tipe sekaligus atau per tipe file.\n\n**Auth:** 🌐 Public",
+      "item": [
+        {
+          "name": "Import All (Gabungan)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nama\": \"SI0112020\",\n  \"ia04b\": [\n    {\n      \"no\": 1,\n      \"soal\": \"Lakukan observasi terhadap...\",\n      \"lingkup\": \"Lingkup pekerjaan struktur baja\",\n      \"kode_unit\": \"M.71SKK00.001.1\"\n    }\n  ],\n  \"ia05\": [\n    {\n      \"no\": 1,\n      \"soal\": \"Apa yang dimaksud dengan K3?\",\n      \"jawab_a\": \"Kesehatan dan Keselamatan Kerja\",\n      \"jawab_b\": \"Keamanan dan Keteraturan Kerja\",\n      \"jawab_c\": \"Keselamatan dan Kesehatan Kerja\",\n      \"jawab_d\": \"Kenyamanan dan Keamanan Kerja\",\n      \"jawaban\": \"C\",\n      \"kode_kuk\": \"M.71SKK00.001.1\\n1\"\n    }\n  ],\n  \"ia06\": [\n    {\n      \"no\": 1,\n      \"soal\": \"Jelaskan prosedur keselamatan kerja...\",\n      \"kode_kuk\": \"M.71SKK00.001.1\\n2\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/import",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "import"]
+            },
+            "description": "Import semua tipe soal (IA04B + IA05 + IA06) sekaligus dalam 1 request.\n\n`nama` = nama jabatan_kerja (skema). Backend auto-resolve `id_jabatan`, create `JabatanDokumen` jika belum ada, dan resolve `kode_unit`/`kode_kuk`.\n\nResponse:\n```json\n{\n  \"message\": \"3 soal berhasil diimport untuk skema 'SI0112020'\",\n  \"data\": { \"nama_skema\": \"SI0112020\", \"total\": 3 }\n}\n```"
+          }
+        },
+        {
+          "name": "Import IA04B",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nama\": \"SI0112020\",\n  \"soal\": [\n    {\n      \"no\": 1,\n      \"soal\": \"Lakukan observasi terhadap...\",\n      \"lingkup\": \"Lingkup pekerjaan struktur baja\",\n      \"kode_unit\": \"M.71SKK00.001.1\"\n    },\n    {\n      \"no\": 2,\n      \"soal\": \"Demonstrasikan teknik pengelasan...\",\n      \"lingkup\": \"Pengelasan SMAW posisi 3G\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/import/ia04b",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "import", "ia04b"]
+            },
+            "description": "Import master soal IA04B (DIT, tipe=8) untuk satu skema.\n\n**Key diubah:** `soal` (bukan `ia04b`) — khusus untuk endpoint per tipe file.\n\nResponse:\n```json\n{\n  \"message\": \"2 soal IA04B berhasil diimport untuk skema 'SI0112020'\",\n  \"data\": { \"nama_skema\": \"SI0112020\", \"total\": 2 }\n}\n```"
+          }
+        },
+        {
+          "name": "Import IA05",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nama\": \"SI0112020\",\n  \"soal\": [\n    {\n      \"no\": 1,\n      \"soal\": \"Apa yang dimaksud dengan K3?\",\n      \"jawab_a\": \"Kesehatan dan Keselamatan Kerja\",\n      \"jawab_b\": \"Keamanan dan Keteraturan Kerja\",\n      \"jawab_c\": \"Keselamatan dan Kesehatan Kerja\",\n      \"jawab_d\": \"Kenyamanan dan Keamanan Kerja\",\n      \"jawaban\": \"C\",\n      \"kode_kuk\": \"M.71SKK00.001.1\\n1\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/import/ia05",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "import", "ia05"]
+            },
+            "description": "Import master soal IA05 (Pilihan Ganda, tipe=1) untuk satu skema.\n\nResponse:\n```json\n{\n  \"message\": \"1 soal IA05 berhasil diimport untuk skema 'SI0112020'\",\n  \"data\": { \"nama_skema\": \"SI0112020\", \"total\": 1 }\n}\n```"
+          }
+        },
+        {
+          "name": "Import IA06",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nama\": \"SI0112020\",\n  \"soal\": [\n    {\n      \"no\": 1,\n      \"soal\": \"Jelaskan prosedur keselamatan kerja pada ketinggian...\",\n      \"kode_kuk\": \"M.71SKK00.001.1\\n2\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/import/ia06",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "import", "ia06"]
+            },
+            "description": "Import master soal IA06 (Esai, tipe=8) untuk satu skema.\n\nSoal dengan teks kosong akan di-skip (template placeholder).\n\nResponse:\n```json\n{\n  \"message\": \"1 soal IA06 berhasil diimport untuk skema 'SI0112020'\",\n  \"data\": { \"nama_skema\": \"SI0112020\", \"total\": 1 }\n}\n```"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📖 KAN Reference",
+      "description": "Referensi/dropdown data untuk frontend: unit kompetensi, KUK, dokumen, skema.\n\n**Auth:** 🌐 Public",
+      "item": [
+        {
+          "name": "Unit Kompetensi by Jabatan",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/ref/unit-kompetensi/{{id_jabatan_kerja}}",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "ref", "unit-kompetensi", "{{id_jabatan_kerja}}"]
+            },
+            "description": "Daftar unit kompetensi untuk suatu jabatan kerja.\n\n**Response:**\n```json\n{\n  \"message\": \"OK\",\n  \"data\": [\n    { \"id\": 1, \"kode\": \"M.71SKK00.001.1\", \"nama\": \"Menerapkan K3\" }\n  ]\n}\n```"
+          }
+        },
+        {
+          "name": "KUK by Unit Kompetensi",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/ref/kuk/1",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "ref", "kuk", "1"]
+            },
+            "description": "Daftar KUK (Kriteria Unjuk Kerja) untuk suatu unit kompetensi (via subunit).\n\n**Response:**\n```json\n{\n  \"message\": \"OK\",\n  \"data\": [\n    { \"id\": 1, \"kode\": \"...\", \"nama\": \"...\", \"subunit_kode\": \"...\" }\n  ]\n}\n```"
+          }
+        },
+        {
+          "name": "Dokumen KAN by Jabatan",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/ref/dokumen/{{id_jabatan_kerja}}",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "ref", "dokumen", "{{id_jabatan_kerja}}"]
+            },
+            "description": "Daftar dokumen KAN (`jabatan_dokumens`) untuk suatu jabatan.\n\nFilter: `kode IN ('FR.IA.04.B', 'FR.IA.05', 'FR.IA.06', 'FR.AK.02')` dan `is_active = true`.\n\n**Response:**\n```json\n{\n  \"message\": \"OK\",\n  \"data\": [\n    { \"id\": 1, \"kode\": \"FR.IA.04.B\", \"nama_dokumen\": \"LEMBAR PERIKSA KEGIATAN TERSTRUKTUR\" },\n    { \"id\": 2, \"kode\": \"FR.IA.05\", \"nama_dokumen\": \"PERTANYAAN TERTULIS PILIHAN GANDA\" },\n    { \"id\": 3, \"kode\": \"FR.IA.06\", \"nama_dokumen\": \"PERTANYAAN TERTULIS ESAI\" },\n    { \"id\": 4, \"kode\": \"FR.AK.02\", \"nama_dokumen\": \"REKOMENDASI KEPUTUSAN\" }\n  ]\n}\n```"
+          }
+        },
+        {
+          "name": "Skema Lengkap by Jabatan",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/ref/skema/{{id_jabatan_kerja}}",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "ref", "skema", "{{id_jabatan_kerja}}"]
+            },
+            "description": "Gabungan: semua unit kompetensi (dengan nested KUK list) + dokumen KAN untuk suatu jabatan.\n\n**Response:**\n```json\n{\n  \"message\": \"OK\",\n  \"data\": {\n    \"unit_kompetensi\": [\n      {\n        \"id\": 1,\n        \"kode\": \"M.71SKK00.001.1\",\n        \"nama\": \"Menerapkan K3\",\n        \"kuk_list\": [\n          { \"id\": 1, \"kode\": \"...\", \"nama\": \"...\", \"subunit_kode\": \"...\" }\n        ]\n      }\n    ],\n    \"dokumen\": [...]\n  }\n}\n```"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📋 KAN Asesmen",
+      "description": "Get dan submit jawaban asesmen KAN per `id_izin` (asesi).\n\nPath parameter `{id}` = `id_izin` (ID pendaftaran asesi).\n\n**Auth:** 🔒",
+      "item": [
+        {
+          "name": "Get IA04B",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ia04b",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "asesmen", "{{id_izin}}", "ia04b"]
+            },
+            "description": "Ambil data IA04B (DIT + Rekomendasi) untuk seorang asesi.\n\nReturn: barcodes, dokumen, soal_list (tipe=8 DIT), rekomendasi (tipe=3), total_skor.\n\nSetiap soal include: `jawaban` (teks jawaban asesi), `skor` (0-3), `pencapaian`, `unit_kode`, `kuk_kode`."
+          }
+        },
+        {
+          "name": "Submit IA04B",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    {\n      \"soal_id\": 1,\n      \"jawaban\": \"Hasil observasi menunjukkan...\",\n      \"skor\": 2\n    },\n    {\n      \"soal_id\": 99,\n      \"is_rekomendasi\": true,\n      \"rekomendasi\": true\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ia04b",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "asesmen", "{{id_izin}}", "ia04b"]
+            },
+            "description": "Submit jawaban IA04B untuk seorang asesi.\n\nUntuk DIT (tipe=8): `soal_id`, `jawaban` (teks), `skor` (0-3).\nUntuk Rekomendasi (tipe=3): `is_rekomendasi: true`, `rekomendasi` (boolean)."
+          }
+        },
+        {
+          "name": "Get IA05",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ia05",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "asesmen", "{{id_izin}}", "ia05"]
+            },
+            "description": "Ambil data IA05 (Pilihan Ganda) untuk seorang asesi.\n\nReturn: barcodes, dokumen, soal_list (tipe=1 PG), jumlah_benar, jumlah_salah.\n\nSetiap soal include: `jawaban` (kunci), `jawaban_asesi`, `jawab_a..d`, `skor` (0-1)."
+          }
+        },
+        {
+          "name": "Submit IA05",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"soal_id\": 1, \"jawaban\": \"C\" },\n    { \"soal_id\": 2, \"jawaban\": \"A\" }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ia05",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "asesmen", "{{id_izin}}", "ia05"]
+            },
+            "description": "Submit jawaban IA05 (PG) untuk seorang asesi.\n\nBody: array `answers` dengan `soal_id` dan `jawaban` (A/B/C/D). Skor otomatis dihitung (1=benar, 0=salah)."
+          }
+        },
+        {
+          "name": "Get IA06",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ia06",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "asesmen", "{{id_izin}}", "ia06"]
+            },
+            "description": "Ambil data IA06 (Esai) untuk seorang asesi.\n\nReturn: barcodes, dokumen, soal_list (tipe=8 esai), total_skor.\n\nSetiap soal include: `jawaban` (teks), `skor` (0-3), `pencapaian`, `unit_kode`, `kuk_kode`."
+          }
+        },
+        {
+          "name": "Submit IA06",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"soal_id\": 1, \"jawaban\": \"Penjelasan esai...\", \"skor\": 2 }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ia06",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "asesmen", "{{id_izin}}", "ia06"]
+            },
+            "description": "Submit jawaban IA06 (Esai) untuk seorang asesi.\n\nBody: array `answers` dengan `soal_id`, `jawaban` (teks esai), `skor` (0-3)."
+          }
+        },
+        {
+          "name": "Get AK02",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ak02",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "asesmen", "{{id_izin}}", "ak02"]
+            },
+            "description": "Ambil data AK02 (Rekomendasi Keputusan) untuk seorang asesi.\n\nReturn: barcodes, dokumen, units (dengan rekaman bukti per KUK), scores dari `KanAk2Feedback`.\n\nScoring:\n- `total_skor_dit` (IA04B, max 10 × 3 = 30)\n- `total_skor_pg` (IA05, max 20 × 1 = 20)\n- `total_skor_esai` (IA06, max 10 × 3 = 30)\n- Weighted: `nilai_skor_dit` (×50%), `nilai_skor_pg` (×30%), `nilai_skor_esai` (×20%)\n- `skor_nilai_akhir`, `is_kompeten`, `threshold_passing` (65 atau 70)"
+          }
+        },
+        {
+          "name": "Submit AK02",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"units\": [\n    {\n      \"unit_id\": 1,\n      \"kuks\": [\n        { \"kuk_id\": 1, \"observasi\": true, \"portofolio\": false, \"pertanyaan_lisan\": true, \"pertanyaan_tertulis\": false, \"wawancara\": true }\n      ]\n    }\n  ],\n  \"tindak_lanjut\": \"Lanjut ke sertifikasi\",\n  \"komentar\": \"Asesi kompeten di semua unit\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ak02",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "asesmen", "{{id_izin}}", "ak02"]
+            },
+            "description": "Submit AK02 (Rekomendasi Keputusan) untuk seorang asesi.\n\nScoring otomatis: backend menghitung ulang `total_skor_dit`, `total_skor_pg`, `total_skor_esai` dari jawaban yang sudah di-submit, lalu menghitung weighted final score.\n\nThreshold: 65 (jenjang ≤6) atau 70 (jenjang >6).\n\nResponse include `skor_nilai_akhir` dan `is_kompeten`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🖊️ KAN QR (TTD)",
+      "description": "Generate QR code tanda tangan untuk dokumen KAN per `id_izin`.\n\n**Auth:** 🔒",
+      "item": [
+        {
+          "name": "TTD IA04B",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ttd\": \"data:image/png;base64,iVBORw0KGgo...\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/qr/{{id_izin}}/ia04b",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "qr", "{{id_izin}}", "ia04b"]
+            },
+            "description": "Generate QR signature untuk IA04B.\n\nBody: `ttd` (base64 image)."
+          }
+        },
+        {
+          "name": "TTD IA05",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ttd\": \"data:image/png;base64,iVBORw0KGgo...\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/qr/{{id_izin}}/ia05",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "qr", "{{id_izin}}", "ia05"]
+            },
+            "description": "Generate QR signature untuk IA05."
+          }
+        },
+        {
+          "name": "TTD IA06",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ttd\": \"data:image/png;base64,iVBORw0KGgo...\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/qr/{{id_izin}}/ia06",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "qr", "{{id_izin}}", "ia06"]
+            },
+            "description": "Generate QR signature untuk IA06."
+          }
+        },
+        {
+          "name": "TTD AK02",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ttd\": \"data:image/png;base64,iVBORw0KGgo...\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/qr/{{id_izin}}/ak02",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "qr", "{{id_izin}}", "ak02"]
+            },
+            "description": "Generate QR signature untuk AK02."
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 Penyusun (Role 14)",
+      "description": "Endpoint untuk role Penyusun (role_id=14).\n\n**Auth:** 🔒 (user harus login sebagai penyusun)",
+      "item": [
+        {
+          "name": "My Jabatan Kerja",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/penyusun/jabker",
+              "host": ["{{base_url}}"],
+              "path": ["penyusun", "jabker"]
+            },
+            "description": "List jabatan kerja yang di-assign ke penyusun yang sedang login."
+          }
+        },
+        {
+          "name": "My Skema",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/penyusun/skema",
+              "host": ["{{base_url}}"],
+              "path": ["penyusun", "skema"]
+            },
+            "description": "List skema (JabatanConfigA) untuk penyusun yang sedang login."
+          }
+        },
+        {
+          "name": "Peserta by Skema",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/penyusun/skema/1/peserta",
+              "host": ["{{base_url}}"],
+              "path": ["penyusun", "skema", "1", "peserta"]
+            },
+            "description": "List peserta (asesi) yang terdaftar di suatu skema tertentu.\n\nPath parameter `{id}` = id skema (JabatanConfigA)."
+          }
+        },
+        {
+          "name": "Get IA04B",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/penyusun/{{id_izin}}/ia04b",
+              "host": ["{{base_url}}"],
+              "path": ["penyusun", "{{id_izin}}", "ia04b"]
+            },
+            "description": "Lihat data IA04B seorang asesi (read-only view untuk penyusun)."
+          }
+        },
+        {
+          "name": "Submit IA04B (Penyusun)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"soal_id\": 1, \"jawaban\": \"Observasi...\", \"skor\": 2 }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/penyusun/{{id_izin}}/ia04b",
+              "host": ["{{base_url}}"],
+              "path": ["penyusun", "{{id_izin}}", "ia04b"]
+            },
+            "description": "Penyusun submit/mengisi jawaban IA04B untuk seorang asesi."
+          }
+        },
+        {
+          "name": "Get IA05",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/penyusun/{{id_izin}}/ia05",
+              "host": ["{{base_url}}"],
+              "path": ["penyusun", "{{id_izin}}", "ia05"]
+            },
+            "description": "Lihat data IA05 seorang asesi."
+          }
+        },
+        {
+          "name": "Submit IA05 (Penyusun)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"soal_id\": 1, \"jawaban\": \"C\" }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/penyusun/{{id_izin}}/ia05",
+              "host": ["{{base_url}}"],
+              "path": ["penyusun", "{{id_izin}}", "ia05"]
+            },
+            "description": "Penyusun submit jawaban IA05 (PG) untuk seorang asesi."
+          }
+        },
+        {
+          "name": "Get IA06",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/penyusun/{{id_izin}}/ia06",
+              "host": ["{{base_url}}"],
+              "path": ["penyusun", "{{id_izin}}", "ia06"]
+            },
+            "description": "Lihat data IA06 seorang asesi."
+          }
+        },
+        {
+          "name": "Submit IA06 (Penyusun)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"soal_id\": 1, \"jawaban\": \"Penjelasan...\", \"skor\": 2 }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/penyusun/{{id_izin}}/ia06",
+              "host": ["{{base_url}}"],
+              "path": ["penyusun", "{{id_izin}}", "ia06"]
+            },
+            "description": "Penyusun submit jawaban IA06 (Esai) untuk seorang asesi."
+          }
+        },
+        {
+          "name": "Get MUK",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/penyusun/{{id_izin}}/muk",
+              "host": ["{{base_url}}"],
+              "path": ["penyusun", "{{id_izin}}", "muk"]
+            },
+            "description": "Lihat data MUK (Materi Uji Kompetensi) seorang asesi."
+          }
+        }
+      ]
+    },
+    {
+      "name": "✅ Validator (Role 15)",
+      "description": "Endpoint untuk role Validator (role_id=15).\n\n**Auth:** 🔒 (user harus login sebagai validator)",
+      "item": [
+        {
+          "name": "My Jabatan Kerja",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/validator/jabker",
+              "host": ["{{base_url}}"],
+              "path": ["validator", "jabker"]
+            },
+            "description": "List jabatan kerja yang di-assign ke validator yang sedang login."
+          }
+        },
+        {
+          "name": "My Skema",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/validator/skema",
+              "host": ["{{base_url}}"],
+              "path": ["validator", "skema"]
+            },
+            "description": "List skema (JabatanConfigA) untuk validator yang sedang login."
+          }
+        },
+        {
+          "name": "Get IA04B",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/validator/{{id_izin}}/ia04b",
+              "host": ["{{base_url}}"],
+              "path": ["validator", "{{id_izin}}", "ia04b"]
+            },
+            "description": "Lihat data IA04B seorang asesi (read-only view untuk validator)."
+          }
+        },
+        {
+          "name": "Submit IA04B (Validator)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"soal_id\": 1, \"jawaban\": \"Validasi...\", \"skor\": 2 }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/validator/{{id_izin}}/ia04b",
+              "host": ["{{base_url}}"],
+              "path": ["validator", "{{id_izin}}", "ia04b"]
+            },
+            "description": "Validator submit validasi jawaban IA04B untuk seorang asesi."
+          }
+        },
+        {
+          "name": "Get IA05",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/validator/{{id_izin}}/ia05",
+              "host": ["{{base_url}}"],
+              "path": ["validator", "{{id_izin}}", "ia05"]
+            },
+            "description": "Lihat data IA05 seorang asesi."
+          }
+        },
+        {
+          "name": "Submit IA05 (Validator)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"soal_id\": 1, \"jawaban\": \"C\" }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/validator/{{id_izin}}/ia05",
+              "host": ["{{base_url}}"],
+              "path": ["validator", "{{id_izin}}", "ia05"]
+            },
+            "description": "Validator submit validasi jawaban IA05 (PG) untuk seorang asesi."
+          }
+        },
+        {
+          "name": "Get IA06",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/validator/{{id_izin}}/ia06",
+              "host": ["{{base_url}}"],
+              "path": ["validator", "{{id_izin}}", "ia06"]
+            },
+            "description": "Lihat data IA06 seorang asesi."
+          }
+        },
+        {
+          "name": "Submit IA06 (Validator)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"soal_id\": 1, \"jawaban\": \"Validasi esai...\", \"skor\": 2 }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/validator/{{id_izin}}/ia06",
+              "host": ["{{base_url}}"],
+              "path": ["validator", "{{id_izin}}", "ia06"]
+            },
+            "description": "Validator submit validasi jawaban IA06 (Esai) untuk seorang asesi."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔍 Manager Mutu",
+      "description": "Endpoint untuk role Manager Mutu.\n\n**Auth:** 🔒 (user harus login sebagai manager mutu)",
+      "item": [
+        {
+          "name": "My Jabatan Kerja",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/manager-mutu/jabker",
+              "host": ["{{base_url}}"],
+              "path": ["manager-mutu", "jabker"]
+            },
+            "description": "List jabatan kerja yang di-assign ke manager mutu yang sedang login."
+          }
+        },
+        {
+          "name": "My Skema",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/manager-mutu/skema",
+              "host": ["{{base_url}}"],
+              "path": ["manager-mutu", "skema"]
+            },
+            "description": "List skema untuk manager mutu yang sedang login."
+          }
+        },
+        {
+          "name": "Get IA04B",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/manager-mutu/{{id_izin}}/ia04b",
+              "host": ["{{base_url}}"],
+              "path": ["manager-mutu", "{{id_izin}}", "ia04b"]
+            },
+            "description": "Lihat data IA04B seorang asesi."
+          }
+        },
+        {
+          "name": "Submit IA04B (Manager Mutu)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"soal_id\": 1, \"jawaban\": \"Review mutu...\", \"skor\": 2 }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/manager-mutu/{{id_izin}}/ia04b",
+              "host": ["{{base_url}}"],
+              "path": ["manager-mutu", "{{id_izin}}", "ia04b"]
+            },
+            "description": "Manager mutu submit review IA04B."
+          }
+        },
+        {
+          "name": "Get IA05",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/manager-mutu/{{id_izin}}/ia05",
+              "host": ["{{base_url}}"],
+              "path": ["manager-mutu", "{{id_izin}}", "ia05"]
+            },
+            "description": "Lihat data IA05 seorang asesi."
+          }
+        },
+        {
+          "name": "Submit IA05 (Manager Mutu)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"soal_id\": 1, \"jawaban\": \"C\" }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/manager-mutu/{{id_izin}}/ia05",
+              "host": ["{{base_url}}"],
+              "path": ["manager-mutu", "{{id_izin}}", "ia05"]
+            },
+            "description": "Manager mutu submit review IA05."
+          }
+        },
+        {
+          "name": "Get IA06",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/manager-mutu/{{id_izin}}/ia06",
+              "host": ["{{base_url}}"],
+              "path": ["manager-mutu", "{{id_izin}}", "ia06"]
+            },
+            "description": "Lihat data IA06 seorang asesi."
+          }
+        },
+        {
+          "name": "Submit IA06 (Manager Mutu)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\n    { \"soal_id\": 1, \"jawaban\": \"Review mutu esai...\", \"skor\": 2 }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/manager-mutu/{{id_izin}}/ia06",
+              "host": ["{{base_url}}"],
+              "path": ["manager-mutu", "{{id_izin}}", "ia06"]
+            },
+            "description": "Manager mutu submit review IA06."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏗️ Praktisi / Asesor (Role 16)",
+      "description": "Endpoint untuk role Praktisi/Asesor (role_id=16).\n\n**Auth:** 🔒 (user harus login sebagai praktisi)",
+      "item": [
+        {
+          "name": "My Jabatan Kerja",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/praktisi/jabker",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "jabker"]
+            },
+            "description": "List jabatan kerja yang di-assign ke praktisi yang sedang login (dari tabel `kan_praktisi_jabatan`)."
+          }
+        },
+        {
+          "name": "Status Asesmen",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "status"]
+            },
+            "description": "Cek progress/status asesmen seorang asesi: sudah menjawab apa saja, nilai sementara, dll."
+          }
+        },
+        {
+          "name": "Jawab (Submit Semua)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ia04b\": [\n    { \"soal_id\": 1, \"jawaban\": \"Observasi...\", \"skor\": 2 }\n  ],\n  \"ia05\": [\n    { \"soal_id\": 1, \"jawaban\": \"C\" }\n  ],\n  \"ia06\": [\n    { \"soal_id\": 1, \"jawaban\": \"Esai...\", \"skor\": 2 }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/jawab",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "jawab"]
+            },
+            "description": "Praktisi submit jawaban IA04B + IA05 + IA06 sekaligus untuk seorang asesi.\n\nBody: `{ ia04b: [...], ia05: [...], ia06: [...] }` — semuanya optional, bisa submit sebagian.\n\nDelegate ke `KanAsesmenController` untuk logic submit."
+          }
+        },
+        {
+          "name": "Get IA04B",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/ia04b",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "ia04b"]
+            },
+            "description": "Lihat data IA04B seorang asesi (untuk praktisi sebagai asesor)."
+          }
+        },
+        {
+          "name": "Get IA05",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/ia05",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "ia05"]
+            },
+            "description": "Lihat data IA05 seorang asesi."
+          }
+        },
+        {
+          "name": "Get IA06",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/ia06",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "ia06"]
+            },
+            "description": "Lihat data IA06 seorang asesi."
+          }
+        },
+        {
+          "name": "Get APL.01",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/apl01",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "apl01"]
+            },
+            "description": "Lihat data APL.01 (formulir pendaftaran asesi) seorang asesi."
+          }
+        },
+        {
+          "name": "Submit APL.01",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"catatan\": \"APL.01 sudah diverifikasi\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/apl01",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "apl01"]
+            },
+            "description": "Praktisi submit/review APL.01 seorang asesi."
+          }
+        }
+      ]
+    },
+    {
+      "name": "✍️ QR TTD (Semua Role KAN)",
+      "description": "Generate QR code tanda tangan untuk semua role KAN (Penyusun, Validator, Manager Mutu, Praktisi).\n\nBerbeda dengan `KAN QR` — ini untuk TTD di level role, bukan per dokumen asesmen.\n\n**Auth:** 🔒",
+      "item": [
+        {
+          "name": "TTD Penyusun",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ttd\": \"data:image/png;base64,iVBORw0KGgo...\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/qr/{{id_izin}}/penyusun",
+              "host": ["{{base_url}}"],
+              "path": ["qr", "{{id_izin}}", "penyusun"]
+            },
+            "description": "Generate QR TTD untuk Penyusun pada suatu id_izin."
+          }
+        },
+        {
+          "name": "TTD Validator",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ttd\": \"data:image/png;base64,iVBORw0KGgo...\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/qr/{{id_izin}}/validator",
+              "host": ["{{base_url}}"],
+              "path": ["qr", "{{id_izin}}", "validator"]
+            },
+            "description": "Generate QR TTD untuk Validator pada suatu id_izin."
+          }
+        },
+        {
+          "name": "TTD Manager Mutu",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ttd\": \"data:image/png;base64,iVBORw0KGgo...\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/qr/{{id_izin}}/manager-mutu",
+              "host": ["{{base_url}}"],
+              "path": ["qr", "{{id_izin}}", "manager-mutu"]
+            },
+            "description": "Generate QR TTD untuk Manager Mutu pada suatu id_izin."
+          }
+        },
+        {
+          "name": "TTD Praktisi",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ttd\": \"data:image/png;base64,iVBORw0KGgo...\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/qr/{{id_izin}}/praktisi",
+              "host": ["{{base_url}}"],
+              "path": ["qr", "{{id_izin}}", "praktisi"]
+            },
+            "description": "Generate QR TTD untuk Praktisi pada suatu id_izin."
+          }
+        }
+      ]
+    }
+  ]
+}
