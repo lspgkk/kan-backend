@@ -31,6 +31,8 @@ class PenyusunController extends Controller
                 'jabatan_kerjas.jabatan_kerja',
                 'jabatan_kerjas.jenjang_id',
             ])
+            ->where('lsp_id_klasifikasi', 'SI')
+            ->where('versi', 2)
             ->get()
             ->map(function ($jabker) {
                 // Count skema (jabatan_config_a entries) for this jabatan

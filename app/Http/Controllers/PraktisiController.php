@@ -51,6 +51,8 @@ class PraktisiController extends Controller
 
         $jabker = JabatanKerja::select(['id_jabatan_kerja', 'jabatan_kerja'])
             ->where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)
+            ->where('lsp_id_klasifikasi', 'SI')
+            ->where('versi', 2)
             ->first();
 
         if (!$jabker) {
