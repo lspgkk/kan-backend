@@ -64,11 +64,11 @@ class PenyusunController extends Controller
                 'jabatan:id_jabatan_kerja,jabatan_kerja',
             ])
             ->whereNotNull('kan_no_skema')
-            ->select(['id', 'id_jabatan', 'kan_no_skema', 'kan_penyusun_id', 'kan_validator_id'])
+            ->select(['id_jabatan', 'kan_no_skema', 'kan_penyusun_id', 'kan_validator_id'])
             ->get()
             ->map(function ($config) {
                 return [
-                    'id'              => $config->id,
+                    'id'              => $config->id_jabatan,
                     'id_jabatan'      => $config->id_jabatan,
                     'jabatan_kerja'   => $config->jabatan?->jabatan_kerja,
                     'kan_no_skema'    => $config->kan_no_skema,
@@ -87,7 +87,7 @@ class PenyusunController extends Controller
     public function skemaPeserta($idSkema): JsonResponse
     {
         $config = JabatanConfigA::with('jabatan:id_jabatan_kerja,jabatan_kerja')
-            ->findOrFail($idSkema);
+            ->where('id_jabatan', $idSkema)->firstOrFail();
 
         // Get all id_izin for this jabatan
         $peserta = KlasifikasiKualifikasi::select([
@@ -118,7 +118,7 @@ class PenyusunController extends Controller
             'message' => 'OK',
             'data'    => [
                 'skema'    => [
-                    'id'            => $config->id,
+                    'id'            => $config->id_jabatan,
                     'jabatan_kerja' => $config->jabatan?->jabatan_kerja,
                     'kan_no_skema'  => $config->kan_no_skema,
                 ],

@@ -57,11 +57,11 @@ class ManagerMutuController extends Controller
                 'jabatan:id_jabatan_kerja,jabatan_kerja',
             ])
             ->whereNotNull('kan_no_skema')
-            ->select(['id', 'id_jabatan', 'kan_no_skema', 'kan_penyusun_id', 'kan_validator_id'])
+            ->select(['id_jabatan', 'kan_no_skema', 'kan_penyusun_id', 'kan_validator_id'])
             ->get()
             ->map(function ($config) {
                 return [
-                    'id'              => $config->id,
+                    'id'              => $config->id_jabatan,
                     'id_jabatan'      => $config->id_jabatan,
                     'jabatan_kerja'   => $config->jabatan?->jabatan_kerja,
                     'kan_no_skema'    => $config->kan_no_skema,
