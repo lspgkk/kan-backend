@@ -1,3 +1,5 @@
+name: Deploy KAN API
+
 on:
   push:
     branches:
@@ -14,48 +16,72 @@ jobs:
 
     steps:
       - name: Prepare SSH
+        shell: bash
         run: |
+          set -e
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H 116.206.196.211 >> ~/.ssh/known_hosts
+          ssh-keyscan -T 30 -H 116.206.196.211 >> ~/.ssh/known_hosts
 
       - name: Deploy to server
+        shell: bash
         run: |
-          ssh -i ~/.ssh/id_ed25519 lspgatensi-kan-api@116.206.196.211 << 'EOF'
-            set -e
+          ssh -T -i ~/.ssh/id_ed25519 \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o PasswordAuthentication=no \
+            -o PubkeyAuthentication=yes \
+            -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=30 \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=5 \
+            lspgatensi-kan-api@116.206.196.211 'bash -se' <<'EOF'
+          set -Eeuo pipefail
 
-            cd /home/lspgatensi-kan-api/htdocs/kan-api.lspgatensi.id
+          APP_DIR="/home/lspgatensi-kan-api/htdocs/kan-api.lspgatensi.id"
 
-            echo "== Current user =="
-            whoami
+          cd "$APP_DIR"
 
-            echo "== Current folder =="
-            pwd
+          echo "== Current user =="
+          whoami
 
-            echo "== Current branch =="
-            git branch --show-current
+          echo "== Current folder =="
+          pwd
 
-            echo "== Pull latest code from production branch =="
-            git fetch origin production
-            git checkout production
-            git pull --ff-only origin production
+          echo "== Current branch =="
+          git branch --show-current
 
-            echo "== Install composer dependencies =="
-            composer install --no-dev --optimize-autoloader --no-interaction
+          echo "== Remote =="
+          git remote -v
 
-            echo "== Laravel cache clear =="
-            php artisan optimize:clear
+          echo "== Fetch latest code from production branch =="
+          GIT_TERMINAL_PROMPT=0 git fetch --prune origin production
 
-            echo "== Cache production config =="
-            php artisan config:cache
-            php artisan view:cache
+          echo "== Checkout production branch =="
+          git checkout production
 
-            echo "== Cache route if possible =="
-            php artisan route:cache || true
+          echo "== Apply latest code without second GitHub connection =="
+          git merge --ff-only origin/production
 
-            echo "== Restart queue if used =="
-            php artisan queue:restart || true
+          echo "== Latest commit =="
+          git log -1 --oneline
 
-            echo "== Deploy done =="
+          echo "== Install composer dependencies =="
+          composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-progress
+
+          echo "== Laravel cache clear =="
+          php artisan optimize:clear
+
+          echo "== Cache production config =="
+          php artisan config:cache
+          php artisan view:cache
+
+          echo "== Cache route if possible =="
+          php artisan route:cache || true
+
+          echo "== Restart queue if used =="
+          php artisan queue:restart || true
+
+          echo "== Deploy done =="
           EOF
