@@ -560,6 +560,7 @@ Route::prefix('diskon')->group(function () {
     // --- Praktisi ---
     Route::prefix('praktisi')->group(function () {
         Route::get('/jabker', [PraktisiController::class, 'jabker']);
+        Route::get('/jabatan-kerja', [PraktisiController::class, 'jabatanKerja']);
         Route::get('/{idIzin}/status', [PraktisiController::class, 'status']);
         Route::post('/{idIzin}/jawab', [PraktisiController::class, 'jawab']);
         Route::get('/{idIzin}/ia04b', [PraktisiController::class, 'getIa04b']);
