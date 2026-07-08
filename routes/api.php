@@ -567,6 +567,11 @@ Route::prefix('diskon')->group(function () {
         Route::get('/{idIzin}/ia06', [PraktisiController::class, 'getIa06']);
         Route::get('/{idIzin}/apl01', [PraktisiController::class, 'getApl01']);
         Route::post('/{idIzin}/apl01', [PraktisiController::class, 'submitApl01']);
+        // Post QR + Generate PDF per dokumen KAN (diisi oleh praktisi)
+        Route::post('/{idIzin}/qr/ia04b', [PraktisiController::class, 'qrIa04b']);
+        Route::post('/{idIzin}/qr/ia05', [PraktisiController::class, 'qrIa05']);
+        Route::post('/{idIzin}/qr/ia06', [PraktisiController::class, 'qrIa06']);
+        Route::post('/{idIzin}/qr/ak02', [PraktisiController::class, 'qrAk02']);
     });
 
     // --- QR TTD for KAN Roles ---

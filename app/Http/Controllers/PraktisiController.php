@@ -244,4 +244,33 @@ class PraktisiController extends Controller
             ],
         ]);
     }
+
+    // ──────────────────────────────────────────────
+    //  POST QR + GENERATE PDF per Dokumen KAN
+    //  Diisi oleh praktisi — delegate ke KanAsesmenController
+    // ──────────────────────────────────────────────
+
+    public function qrIa04b(Request $request, $idIzin): JsonResponse
+    {
+        $kan = app(KanAsesmenController::class);
+        return $kan->ttdKanIa04b($request, $idIzin);
+    }
+
+    public function qrIa05(Request $request, $idIzin): JsonResponse
+    {
+        $kan = app(KanAsesmenController::class);
+        return $kan->ttdKanIa05($request, $idIzin);
+    }
+
+    public function qrIa06(Request $request, $idIzin): JsonResponse
+    {
+        $kan = app(KanAsesmenController::class);
+        return $kan->ttdKanIa06($request, $idIzin);
+    }
+
+    public function qrAk02(Request $request, $idIzin): JsonResponse
+    {
+        $kan = app(KanAsesmenController::class);
+        return $kan->ttdKanAk02($request, $idIzin);
+    }
 }

@@ -1187,6 +1187,86 @@
             },
             "description": "Praktisi submit/review APL.01 seorang asesi."
           }
+        },
+        {
+          "name": "Post QR + PDF IA04B",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_jadwal\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/qr/ia04b",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "qr", "ia04b"]
+            },
+            "description": "**Praktisi** posting QR signature + generate PDF untuk dokumen KAN IA04B (FR.IA.04.B — DIT + Rekomendasi).\n\n**Body:** `id_jadwal` (required)\n\nQR disimpan ke `barcodes` (dengan `id_user` = praktisi yang login), PDF di-generate via template `pdf.kan_ia04b` dan di-upload ke storage, URL disimpan ke `bukti_asesmens.url_kan_ia_04b`.\n\nDelegate ke `KanAsesmenController::ttdKanIa04b`."
+          }
+        },
+        {
+          "name": "Post QR + PDF IA05",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_jadwal\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/qr/ia05",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "qr", "ia05"]
+            },
+            "description": "**Praktisi** posting QR signature + generate PDF untuk dokumen KAN IA05 (FR.IA.05 — Pilihan Ganda).\n\n**Body:** `id_jadwal` (required)\n\nDelegate ke `KanAsesmenController::ttdKanIa05`."
+          }
+        },
+        {
+          "name": "Post QR + PDF IA06",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_jadwal\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/qr/ia06",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "qr", "ia06"]
+            },
+            "description": "**Praktisi** posting QR signature + generate PDF untuk dokumen KAN IA06 (FR.IA.06 — Esai).\n\n**Body:** `id_jadwal` (required)\n\nDelegate ke `KanAsesmenController::ttdKanIa06`."
+          }
+        },
+        {
+          "name": "Post QR + PDF AK02",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_jadwal\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/qr/ak02",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "qr", "ak02"]
+            },
+            "description": "**Praktisi** posting QR signature + generate PDF untuk dokumen KAN AK02 (FR.AK.02 — Rekomendasi Keputusan).\n\n**Body:** `id_jadwal` (required)\n\nDelegate ke `KanAsesmenController::ttdKanAk02`."
+          }
         }
       ]
     },
