@@ -10,6 +10,7 @@ use App\Models\Jadwal;
 use App\Models\KanIa4bAnswer;
 use App\Models\KanIa5Answer;
 use App\Models\KanIa6Answer;
+use App\Models\KanPraktisiJabatan;
 use App\Models\KlasifikasiKualifikasi;
 use App\Models\Personal;
 use Carbon\Carbon;
@@ -75,6 +76,35 @@ class PraktisiController extends Controller
                 'jenjang'          => $klasifikasi->jenjang,
                 'status'           => $status,
             ]],
+        ]);
+    }
+
+    // ──────────────────────────────────────────────
+    //  LIST: Jabatan Kerja from kan_praktisi_jabatan
+    // ──────────────────────────────────────────────
+
+    public function jabatanKerja(): JsonResponse
+    {
+        $user = auth()->user();
+
+        $data = KanPraktisiJabatan::with([
+            'jabatanKerja:id_jabatan_kerja,jabatan_kerja',
+        ])
+            ->where('id_user', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id'                => $item->id,
+                    'id_jabatan_kerja'  => $item->id_jabatan_kerja,
+                    'jabatan_kerja'     => $item->jabatanKerja?->jabatan_kerja,
+                    'created_at'        => $item->created_at,
+                ];
+            });
+
+        return response()->json([
+            'message' => 'OK',
+            'data'    => $data,
         ]);
     }
 
@@ -243,5 +273,34 @@ class PraktisiController extends Controller
                 'tanggal'   => Carbon::now()->toDateString(),
             ],
         ]);
+    }
+
+    // ──────────────────────────────────────────────
+    //  POST QR + GENERATE PDF per Dokumen KAN
+    //  Diisi oleh praktisi — delegate ke KanAsesmenController
+    // ──────────────────────────────────────────────
+
+    public function qrIa04b(Request $request, $idIzin): JsonResponse
+    {
+        $kan = app(KanAsesmenController::class);
+        return $kan->ttdKanIa04b($request, $idIzin);
+    }
+
+    public function qrIa05(Request $request, $idIzin): JsonResponse
+    {
+        $kan = app(KanAsesmenController::class);
+        return $kan->ttdKanIa05($request, $idIzin);
+    }
+
+    public function qrIa06(Request $request, $idIzin): JsonResponse
+    {
+        $kan = app(KanAsesmenController::class);
+        return $kan->ttdKanIa06($request, $idIzin);
+    }
+
+    public function qrAk02(Request $request, $idIzin): JsonResponse
+    {
+        $kan = app(KanAsesmenController::class);
+        return $kan->ttdKanAk02($request, $idIzin);
     }
 }

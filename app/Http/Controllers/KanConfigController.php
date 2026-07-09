@@ -603,4 +603,67 @@ class KanConfigController extends Controller
             'data'    => $query->orderBy('created_at', 'desc')->paginate($perPage),
         ]);
     }
+
+    /**
+     * Assign a praktisi user to a jabatan kerja.
+     * POST /api/kan/config/assign-praktisi
+     */
+    public function assignPraktisi(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'id_jabatan_kerja' => 'required|string|exists:jabatan_kerjas,id_jabatan_kerja',
+            'id_user'          => 'required|integer|exists:users,id',
+        ]);
+
+        $exists = KanPraktisiJabatan::where('id_jabatan_kerja', $validated['id_jabatan_kerja'])
+            ->where('id_user', $validated['id_user'])
+            ->exists();
+
+        if ($exists) {
+            return response()->json([
+                'message' => 'Praktisi sudah terdaftar pada jabatan kerja ini.',
+            ], 409);
+        }
+
+        $record = KanPraktisiJabatan::create([
+            'id_jabatan_kerja' => $validated['id_jabatan_kerja'],
+            'id_user'          => $validated['id_user'],
+        ]);
+
+        $record->load([
+            'user:id,name,email,phone,noreg',
+            'jabatanKerja:id_jabatan_kerja,jabatan_kerja',
+        ]);
+
+        return response()->json([
+            'message' => 'Praktisi berhasil ditambahkan ke jabatan kerja.',
+            'data'    => $record,
+        ], 201);
+    }
+
+    /**
+     * Remove a praktisi user from a jabatan kerja.
+     * DELETE /api/kan/config/assign-praktisi
+     */
+    public function removePraktisi(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'id_jabatan_kerja' => 'required|string|exists:jabatan_kerjas,id_jabatan_kerja',
+            'id_user'          => 'required|integer|exists:users,id',
+        ]);
+
+        $deleted = KanPraktisiJabatan::where('id_jabatan_kerja', $validated['id_jabatan_kerja'])
+            ->where('id_user', $validated['id_user'])
+            ->delete();
+
+        if ($deleted === 0) {
+            return response()->json([
+                'message' => 'Data tidak ditemukan.',
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => 'Praktisi berhasil dihapus dari jabatan kerja.',
+        ]);
+    }
 }

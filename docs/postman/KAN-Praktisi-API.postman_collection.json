@@ -134,6 +134,46 @@
             },
             "description": "List user praktisi (asesor, role_id=16) yang terdaftar untuk suatu jabatan kerja.\n\n**Response:**\n```json\n{\n  \"message\": \"OK\",\n  \"data\": [\n    {\n      \"id_jabatan_kerja\": \"...\",\n      \"id_user\": \"...\",\n      \"user\": { \"id\": \"...\", \"name\": \"...\", \"email\": \"...\", \"phone\": \"...\", \"noreg\": \"...\" },\n      \"jabatan_kerja\": { \"id_jabatan_kerja\": \"...\", \"jabatan_kerja\": \"...\" }\n    }\n  ]\n}\n```"
           }
+        },
+        {
+          "name": "Assign Praktisi ke Jabatan Kerja",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_jabatan_kerja\": \"{{id_jabatan_kerja}}\",\n  \"id_user\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/config/assign-praktisi",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "config", "assign-praktisi"]
+            },
+            "description": "Assign seorang praktisi (user) ke suatu jabatan kerja. Insert ke tabel `kan_praktisi_jabatan`.\n\n**Validation:**\n- `id_jabatan_kerja`: required, string, must exist in `jabatan_kerjas`\n- `id_user`: required, integer, must exist in `users`\n\n**Jika sudah terdaftar** → 409 Conflict\n\n**Response (201 Created):**\n```json\n{\n  \"message\": \"Praktisi berhasil ditambahkan ke jabatan kerja.\",\n  \"data\": {\n    \"id\": 1,\n    \"id_jabatan_kerja\": \"SI0112020\",\n    \"id_user\": 42,\n    \"created_at\": \"2026-07-08T00:00:00.000000Z\",\n    \"updated_at\": \"2026-07-08T00:00:00.000000Z\",\n    \"user\": { \"id\": 42, \"name\": \"...\", \"email\": \"...\", \"phone\": \"...\", \"noreg\": \"...\" },\n    \"jabatan_kerja\": { \"id_jabatan_kerja\": \"...\", \"jabatan_kerja\": \"...\" }\n  }\n}\n```"
+          }
+        },
+        {
+          "name": "Remove Praktisi dari Jabatan Kerja",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_jabatan_kerja\": \"{{id_jabatan_kerja}}\",\n  \"id_user\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/config/assign-praktisi",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "config", "assign-praktisi"]
+            },
+            "description": "Hapus assignment praktisi dari suatu jabatan kerja (delete dari tabel `kan_praktisi_jabatan`).\n\n**Validation:**\n- `id_jabatan_kerja`: required, string, must exist in `jabatan_kerjas`\n- `id_user`: required, integer, must exist in `users`\n\n**Jika data tidak ditemukan** → 404 Not Found\n\n**Response (200 OK):**\n```json\n{\n  \"message\": \"Praktisi berhasil dihapus dari jabatan kerja.\"\n}\n```"
+          }
         }
       ]
     },
@@ -1146,6 +1186,86 @@
               "path": ["praktisi", "{{id_izin}}", "apl01"]
             },
             "description": "Praktisi submit/review APL.01 seorang asesi."
+          }
+        },
+        {
+          "name": "Post QR + PDF IA04B",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_jadwal\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/qr/ia04b",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "qr", "ia04b"]
+            },
+            "description": "**Praktisi** posting QR signature + generate PDF untuk dokumen KAN IA04B (FR.IA.04.B — DIT + Rekomendasi).\n\n**Body:** `id_jadwal` (required)\n\nQR disimpan ke `barcodes` (dengan `id_user` = praktisi yang login), PDF di-generate via template `pdf.kan_ia04b` dan di-upload ke storage, URL disimpan ke `bukti_asesmens.url_kan_ia_04b`.\n\nDelegate ke `KanAsesmenController::ttdKanIa04b`."
+          }
+        },
+        {
+          "name": "Post QR + PDF IA05",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_jadwal\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/qr/ia05",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "qr", "ia05"]
+            },
+            "description": "**Praktisi** posting QR signature + generate PDF untuk dokumen KAN IA05 (FR.IA.05 — Pilihan Ganda).\n\n**Body:** `id_jadwal` (required)\n\nDelegate ke `KanAsesmenController::ttdKanIa05`."
+          }
+        },
+        {
+          "name": "Post QR + PDF IA06",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_jadwal\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/qr/ia06",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "qr", "ia06"]
+            },
+            "description": "**Praktisi** posting QR signature + generate PDF untuk dokumen KAN IA06 (FR.IA.06 — Esai).\n\n**Body:** `id_jadwal` (required)\n\nDelegate ke `KanAsesmenController::ttdKanIa06`."
+          }
+        },
+        {
+          "name": "Post QR + PDF AK02",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_jadwal\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/praktisi/{{id_izin}}/qr/ak02",
+              "host": ["{{base_url}}"],
+              "path": ["praktisi", "{{id_izin}}", "qr", "ak02"]
+            },
+            "description": "**Praktisi** posting QR signature + generate PDF untuk dokumen KAN AK02 (FR.AK.02 — Rekomendasi Keputusan).\n\n**Body:** `id_jadwal` (required)\n\nDelegate ke `KanAsesmenController::ttdKanAk02`."
           }
         }
       ]
