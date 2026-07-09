@@ -303,4 +303,134 @@ class PraktisiController extends Controller
         $kan = app(KanAsesmenController::class);
         return $kan->ttdKanAk02($request, $idIzin);
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  KAN PRAKTISI JABATAN FLOW (keyed by kan_praktisi_jabatan.id)
+    //  BNSP endpoints above are NOT modified.
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Check that the authenticated user owns this kan_praktisi_jabatan record.
+     */
+    private function authorizePraktisiJabatan(int $id): KanPraktisiJabatan
+    {
+        $record = KanPraktisiJabatan::findOrFail($id);
+        if ($record->id_user !== auth()->user()->id) {
+            abort(403, 'Forbidden: Anda tidak memiliki akses ke data ini.');
+        }
+        return $record;
+    }
+
+    // ──────────────────────────────────────────────
+    //  GET: IA04B By Jabatan
+    // ──────────────────────────────────────────────
+
+    public function getIa04bByJabatan(int $id): JsonResponse
+    {
+        $this->authorizePraktisiJabatan($id);
+        $kan = app(KanAsesmenController::class);
+        return $kan->getKanIa04bByPraktisi($id);
+    }
+
+    // ──────────────────────────────────────────────
+    //  GET: IA05 By Jabatan
+    // ──────────────────────────────────────────────
+
+    public function getIa05ByJabatan(int $id): JsonResponse
+    {
+        $this->authorizePraktisiJabatan($id);
+        $kan = app(KanAsesmenController::class);
+        return $kan->getKanIa05ByPraktisi($id);
+    }
+
+    // ──────────────────────────────────────────────
+    //  GET: IA06 By Jabatan
+    // ──────────────────────────────────────────────
+
+    public function getIa06ByJabatan(int $id): JsonResponse
+    {
+        $this->authorizePraktisiJabatan($id);
+        $kan = app(KanAsesmenController::class);
+        return $kan->getKanIa06ByPraktisi($id);
+    }
+
+    // ──────────────────────────────────────────────
+    //  GET: AK02 By Jabatan
+    // ──────────────────────────────────────────────
+
+    public function getAk02ByJabatan(int $id): JsonResponse
+    {
+        $this->authorizePraktisiJabatan($id);
+        $kan = app(KanAsesmenController::class);
+        return $kan->getKanAk02ByPraktisi($id);
+    }
+
+    // ──────────────────────────────────────────────
+    //  POST: Submit Jawaban By Jabatan
+    // ──────────────────────────────────────────────
+
+    public function jawabByJabatan(Request $request, int $id): JsonResponse
+    {
+        $this->authorizePraktisiJabatan($id);
+
+        $validated = $request->validate([
+            'type'        => 'required|in:ia04b,ia05,ia06',
+            'dokumen_id'  => 'required|integer',
+            'answers'     => 'required|array',
+            'answers.*.soal_id' => 'required|integer',
+            'answers.*.jawaban' => 'nullable|string',
+        ]);
+
+        $kan = app(KanAsesmenController::class);
+
+        return match ($validated['type']) {
+            'ia04b' => $kan->submitKanIa04bByPraktisi($request, $id),
+            'ia05'  => $kan->submitKanIa05ByPraktisi($request, $id),
+            'ia06'  => $kan->submitKanIa06ByPraktisi($request, $id),
+        };
+    }
+
+    // ──────────────────────────────────────────────
+    //  POST: QR/TTD IA04B By Jabatan
+    // ──────────────────────────────────────────────
+
+    public function qrIa04bByJabatan(Request $request, int $id): JsonResponse
+    {
+        $this->authorizePraktisiJabatan($id);
+        $kan = app(KanAsesmenController::class);
+        return $kan->ttdKanIa04bByPraktisi($request, $id);
+    }
+
+    // ──────────────────────────────────────────────
+    //  POST: QR/TTD IA05 By Jabatan
+    // ──────────────────────────────────────────────
+
+    public function qrIa05ByJabatan(Request $request, int $id): JsonResponse
+    {
+        $this->authorizePraktisiJabatan($id);
+        $kan = app(KanAsesmenController::class);
+        return $kan->ttdKanIa05ByPraktisi($request, $id);
+    }
+
+    // ──────────────────────────────────────────────
+    //  POST: QR/TTD IA06 By Jabatan
+    // ──────────────────────────────────────────────
+
+    public function qrIa06ByJabatan(Request $request, int $id): JsonResponse
+    {
+        $this->authorizePraktisiJabatan($id);
+        $kan = app(KanAsesmenController::class);
+        return $kan->ttdKanIa06ByPraktisi($request, $id);
+    }
+
+    // ──────────────────────────────────────────────
+    //  POST: QR/TTD AK02 By Jabatan
+    // ──────────────────────────────────────────────
+
+    public function qrAk02ByJabatan(Request $request, int $id): JsonResponse
+    {
+        $this->authorizePraktisiJabatan($id);
+        $kan = app(KanAsesmenController::class);
+        return $kan->ttdKanAk02ByPraktisi($request, $id);
+    }
 }

@@ -573,6 +573,19 @@ Route::prefix('diskon')->group(function () {
         Route::post('/{idIzin}/qr/ia05', [PraktisiController::class, 'qrIa05']);
         Route::post('/{idIzin}/qr/ia06', [PraktisiController::class, 'qrIa06']);
         Route::post('/{idIzin}/qr/ak02', [PraktisiController::class, 'qrAk02']);
+
+        // KAN Praktisi Jabatan flow (keyed by kan_praktisi_jabatan.id)
+        Route::prefix('jabatan/{id}')->group(function () {
+            Route::get('/ia04b', [PraktisiController::class, 'getIa04bByJabatan']);
+            Route::get('/ia05',  [PraktisiController::class, 'getIa05ByJabatan']);
+            Route::get('/ia06',  [PraktisiController::class, 'getIa06ByJabatan']);
+            Route::get('/ak02',  [PraktisiController::class, 'getAk02ByJabatan']);
+            Route::post('/jawab', [PraktisiController::class, 'jawabByJabatan']);
+            Route::post('/qr/ia04b', [PraktisiController::class, 'qrIa04bByJabatan']);
+            Route::post('/qr/ia05',  [PraktisiController::class, 'qrIa05ByJabatan']);
+            Route::post('/qr/ia06',  [PraktisiController::class, 'qrIa06ByJabatan']);
+            Route::post('/qr/ak02',  [PraktisiController::class, 'qrAk02ByJabatan']);
+        });
     });
 
     // --- QR TTD for KAN Roles ---
