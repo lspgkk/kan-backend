@@ -10,6 +10,7 @@ class KanAk2Feedback extends Model
 
     protected $fillable = [
         'id_izin',
+        'kan_praktisi_jabatan_id',
         'total_skor_dit',
         'total_skor_pg',
         'total_skor_esai',
@@ -26,4 +27,9 @@ class KanAk2Feedback extends Model
     protected $casts = [
         'is_kompeten' => 'boolean',
     ];
+
+    public function kanPraktisiJabatan()
+    {
+        return $this->belongsTo(KanPraktisiJabatan::class, 'kan_praktisi_jabatan_id', 'id');
+    }
 }

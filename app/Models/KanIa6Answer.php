@@ -10,6 +10,7 @@ class KanIa6Answer extends Model
 
     protected $fillable = [
         'id_izin',
+        'kan_praktisi_jabatan_id',
         'dokumen_id',
         'soal_id',
         'jawaban',
@@ -19,4 +20,9 @@ class KanIa6Answer extends Model
     protected $casts = [
         'skor' => 'integer',
     ];
+
+    public function kanPraktisiJabatan()
+    {
+        return $this->belongsTo(KanPraktisiJabatan::class, 'kan_praktisi_jabatan_id', 'id');
+    }
 }

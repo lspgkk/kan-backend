@@ -10,6 +10,7 @@ class KanIa4bAnswer extends Model
 
     protected $fillable = [
         'id_izin',
+        'kan_praktisi_jabatan_id',
         'dokumen_id',
         'soal_id',
         'jawaban',
@@ -23,4 +24,9 @@ class KanIa4bAnswer extends Model
         'is_rekomendasi' => 'boolean',
         'rekomendasi' => 'boolean',
     ];
+
+    public function kanPraktisiJabatan()
+    {
+        return $this->belongsTo(KanPraktisiJabatan::class, 'kan_praktisi_jabatan_id', 'id');
+    }
 }
