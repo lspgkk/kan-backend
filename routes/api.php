@@ -585,6 +585,7 @@ Route::prefix('diskon')->group(function () {
             Route::post('/qr/ia05',  [PraktisiController::class, 'qrIa05ByJabatan']);
             Route::post('/qr/ia06',  [PraktisiController::class, 'qrIa06ByJabatan']);
             Route::post('/qr/ak02',  [PraktisiController::class, 'qrAk02ByJabatan']);
+            Route::get('/data-dokumen', [PraktisiController::class, 'getDokumenHeaderByJabatan']);
         });
     });
 

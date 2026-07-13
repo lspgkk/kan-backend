@@ -433,4 +433,15 @@ class PraktisiController extends Controller
         $kan = app(KanAsesmenController::class);
         return $kan->ttdKanAk02ByPraktisi($request, $id);
     }
+
+    // ──────────────────────────────────────────────
+    //  GET: Dokumen Header By Jabatan
+    // ──────────────────────────────────────────────
+
+    public function getDokumenHeaderByJabatan(int $id): JsonResponse
+    {
+        $this->authorizePraktisiJabatan($id);
+        $kan = app(KanAsesmenController::class);
+        return $kan->getKanDokumenHeaderByPraktisi($id);
+    }
 }

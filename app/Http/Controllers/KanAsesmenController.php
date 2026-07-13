@@ -1579,6 +1579,19 @@ class KanAsesmenController extends Controller
     }
 
     // ──────────────────────────────────────────────
+    //  GET: Dokumen Header By Praktisi
+    // ──────────────────────────────────────────────
+
+    public function getKanDokumenHeaderByPraktisi(int $praktisiJabatanId): JsonResponse
+    {
+        $data = $this->buildKanDokumenHeaderByPraktisi($praktisiJabatanId);
+        if ($data === null) {
+            return response()->json(['message' => 'Data not found'], 404);
+        }
+        return response()->json(['message' => 'Success', 'data' => $data]);
+    }
+
+    // ──────────────────────────────────────────────
     //  TTD / PDF: KAN IA04B By Praktisi
     // ──────────────────────────────────────────────
 
