@@ -28,6 +28,12 @@
       "value": "",
       "type": "string",
       "description": "ID Jabatan Kerja untuk testing (contoh: SI0112020)"
+    },
+    {
+      "key": "praktisi_jabatan_id",
+      "value": "",
+      "type": "string",
+      "description": "ID dari tabel kan_praktisi_jabatan (primary key) untuk flow KAN by jabatan"
     }
   ],
   "auth": {
@@ -1267,6 +1273,172 @@
             },
             "description": "**Praktisi** posting QR signature + generate PDF untuk dokumen KAN AK02 (FR.AK.02 — Rekomendasi Keputusan).\n\n**Body:** `id_jadwal` (required)\n\nDelegate ke `KanAsesmenController::ttdKanAk02`."
           }
+        },
+        {
+          "name": "📌 KAN Praktisi Jabatan (by kan_praktisi_jabatan.id)",
+          "description": "Endpoint baru untuk flow KAN khusus — menggunakan `kan_praktisi_jabatan.id` sebagai key, bukan `id_izin`. Semua endpoint di bawah menggunakan variable `{{praktisi_jabatan_id}}`.\n\n**Auth:** 🔒 (dengan authorization check — hanya pemilik record yang bisa akses)",
+          "item": [
+            {
+              "name": "Get IA04B by Jabatan",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/praktisi/jabatan/{{praktisi_jabatan_id}}/ia04b",
+                  "host": ["{{base_url}}"],
+                  "path": ["praktisi", "jabatan", "{{praktisi_jabatan_id}}", "ia04b"]
+                },
+                "description": "Get soal + jawaban + barcode untuk dokumen KAN IA04B (FR.IA.04.B — DIT + Rekomendasi) berdasarkan `kan_praktisi_jabatan.id`.\n\n**Response:** `{ barcodes, dokumen, soal_list, rekomendasi, total_skor }`"
+              }
+            },
+            {
+              "name": "Get IA05 by Jabatan",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/praktisi/jabatan/{{praktisi_jabatan_id}}/ia05",
+                  "host": ["{{base_url}}"],
+                  "path": ["praktisi", "jabatan", "{{praktisi_jabatan_id}}", "ia05"]
+                },
+                "description": "Get soal + jawaban + barcode untuk dokumen KAN IA05 (FR.IA.05 — Pilihan Ganda) berdasarkan `kan_praktisi_jabatan.id`.\n\n**Response:** `{ barcodes, dokumen, soal_list, umpan_balik, jumlah_benar, jumlah_salah }`"
+              }
+            },
+            {
+              "name": "Get IA06 by Jabatan",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/praktisi/jabatan/{{praktisi_jabatan_id}}/ia06",
+                  "host": ["{{base_url}}"],
+                  "path": ["praktisi", "jabatan", "{{praktisi_jabatan_id}}", "ia06"]
+                },
+                "description": "Get soal + jawaban + barcode untuk dokumen KAN IA06 (FR.IA.06 — Esai) berdasarkan `kan_praktisi_jabatan.id`.\n\n**Response:** `{ barcodes, dokumen, soal_list, umpan_balik, unit_elemen_kuk, total_skor }`"
+              }
+            },
+            {
+              "name": "Get AK02 by Jabatan",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/praktisi/jabatan/{{praktisi_jabatan_id}}/ak02",
+                  "host": ["{{base_url}}"],
+                  "path": ["praktisi", "jabatan", "{{praktisi_jabatan_id}}", "ak02"]
+                },
+                "description": "Get data AK02 (FR.AK.02 — Rekomendasi Keputusan) berdasarkan `kan_praktisi_jabatan.id`.\n\n**Response:** `{ barcodes, dokumen, unit_kompetensi, total_skor_*, isLulus, isTidakLulus, threshold_passing }`"
+              }
+            },
+            {
+              "name": "Jawab by Jabatan (Submit)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"ia05\",\n  \"dokumen_id\": 1,\n  \"answers\": [\n    {\n      \"soal_id\": 1,\n      \"jawaban\": \"A\",\n      \"skor\": 1\n    }\n  ],\n  \"umpan_balik\": \"Sudah baik\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/praktisi/jabatan/{{praktisi_jabatan_id}}/jawab",
+                  "host": ["{{base_url}}"],
+                  "path": ["praktisi", "jabatan", "{{praktisi_jabatan_id}}", "jawab"]
+                },
+                "description": "Submit jawaban praktisi untuk dokumen KAN (IA04B/IA05/IA06) berdasarkan `kan_praktisi_jabatan.id`.\n\n**Body:**\n- `type`: `ia04b` | `ia05` | `ia06`\n- `dokumen_id`: ID dari `jabatan_dokumens`\n- `answers[]`: array of `{ soal_id, jawaban, skor }`\n- `umpan_balik` (IA05/IA06): optional feedback\n- `unit_elemen_kuk` (IA06): optional\n- `rekomendasi` (IA04B): optional boolean\n\nJawaban disimpan dengan key `kan_praktisi_jabatan_id` (bukan `id_izin`)."
+              }
+            },
+            {
+              "name": "Post QR + PDF IA04B by Jabatan",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/praktisi/jabatan/{{praktisi_jabatan_id}}/qr/ia04b",
+                  "host": ["{{base_url}}"],
+                  "path": ["praktisi", "jabatan", "{{praktisi_jabatan_id}}", "qr", "ia04b"]
+                },
+                "description": "Generate QR signature + PDF untuk dokumen KAN IA04B berdasarkan `kan_praktisi_jabatan.id`.\n\n**Tanpa** body `id_jadwal` (berbeda dengan flow BNSP).\n\n**Catatan:** Header PDF akan kosong untuk field TUK, asesor, tanggal (karena flow KAN belum punya data Jadwal)."
+              }
+            },
+            {
+              "name": "Post QR + PDF IA05 by Jabatan",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/praktisi/jabatan/{{praktisi_jabatan_id}}/qr/ia05",
+                  "host": ["{{base_url}}"],
+                  "path": ["praktisi", "jabatan", "{{praktisi_jabatan_id}}", "qr", "ia05"]
+                },
+                "description": "Generate QR signature + PDF untuk dokumen KAN IA05 berdasarkan `kan_praktisi_jabatan.id`.\n\n**Tanpa** body `id_jadwal`."
+              }
+            },
+            {
+              "name": "Post QR + PDF IA06 by Jabatan",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/praktisi/jabatan/{{praktisi_jabatan_id}}/qr/ia06",
+                  "host": ["{{base_url}}"],
+                  "path": ["praktisi", "jabatan", "{{praktisi_jabatan_id}}", "qr", "ia06"]
+                },
+                "description": "Generate QR signature + PDF untuk dokumen KAN IA06 berdasarkan `kan_praktisi_jabatan.id`.\n\n**Tanpa** body `id_jadwal`."
+              }
+            },
+            {
+              "name": "Post QR + PDF AK02 by Jabatan",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/praktisi/jabatan/{{praktisi_jabatan_id}}/qr/ak02",
+                  "host": ["{{base_url}}"],
+                  "path": ["praktisi", "jabatan", "{{praktisi_jabatan_id}}", "qr", "ak02"]
+                },
+                "description": "Generate QR signature + PDF untuk dokumen KAN AK02 berdasarkan `kan_praktisi_jabatan.id`.\n\n**Tanpa** body `id_jadwal`."
+              }
+            }
+          ]
         }
       ]
     },
