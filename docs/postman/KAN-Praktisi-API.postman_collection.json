@@ -477,14 +477,14 @@
     },
     {
       "name": "📋 KAN Asesmen",
-      "description": "Get dan submit jawaban asesmen KAN per `id_izin` (asesi).\n\nPath parameter `{id}` = `id_izin` (ID pendaftaran asesi).\n\n**Auth:** 🔒",
+      "description": "Get dan submit jawaban asesmen KAN per `kan_praktisi_jabatan.id`.\n\nPath parameter `{id}` = `kan_praktisi_jabatan.id` (primary key dari tabel kan_praktisi_jabatan). Gunakan variable `{{praktisi_jabatan_id}}`.\n\n**Auth:** 🔒",
       "item": [
         {
           "name": "Get IA04B",
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ia04b",
+              "raw": "{{base_url}}/kan/asesmen/{{praktisi_jabatan_id}}/ia04b",
               "host": ["{{base_url}}"],
               "path": ["kan", "asesmen", "{{id_izin}}", "ia04b"]
             },
@@ -503,7 +503,7 @@
               "raw": "{\n  \"answers\": [\n    {\n      \"soal_id\": 1,\n      \"jawaban\": \"Hasil observasi menunjukkan...\",\n      \"skor\": 2\n    },\n    {\n      \"soal_id\": 99,\n      \"is_rekomendasi\": true,\n      \"rekomendasi\": true\n    }\n  ]\n}"
             },
             "url": {
-              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ia04b",
+              "raw": "{{base_url}}/kan/asesmen/{{praktisi_jabatan_id}}/ia04b",
               "host": ["{{base_url}}"],
               "path": ["kan", "asesmen", "{{id_izin}}", "ia04b"]
             },
@@ -515,7 +515,7 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ia05",
+              "raw": "{{base_url}}/kan/asesmen/{{praktisi_jabatan_id}}/ia05",
               "host": ["{{base_url}}"],
               "path": ["kan", "asesmen", "{{id_izin}}", "ia05"]
             },
@@ -534,7 +534,7 @@
               "raw": "{\n  \"answers\": [\n    { \"soal_id\": 1, \"jawaban\": \"C\" },\n    { \"soal_id\": 2, \"jawaban\": \"A\" }\n  ]\n}"
             },
             "url": {
-              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ia05",
+              "raw": "{{base_url}}/kan/asesmen/{{praktisi_jabatan_id}}/ia05",
               "host": ["{{base_url}}"],
               "path": ["kan", "asesmen", "{{id_izin}}", "ia05"]
             },
@@ -546,7 +546,7 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ia06",
+              "raw": "{{base_url}}/kan/asesmen/{{praktisi_jabatan_id}}/ia06",
               "host": ["{{base_url}}"],
               "path": ["kan", "asesmen", "{{id_izin}}", "ia06"]
             },
@@ -565,7 +565,7 @@
               "raw": "{\n  \"answers\": [\n    { \"soal_id\": 1, \"jawaban\": \"Penjelasan esai...\", \"skor\": 2 }\n  ]\n}"
             },
             "url": {
-              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ia06",
+              "raw": "{{base_url}}/kan/asesmen/{{praktisi_jabatan_id}}/ia06",
               "host": ["{{base_url}}"],
               "path": ["kan", "asesmen", "{{id_izin}}", "ia06"]
             },
@@ -577,7 +577,7 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ak02",
+              "raw": "{{base_url}}/kan/asesmen/{{praktisi_jabatan_id}}/ak02",
               "host": ["{{base_url}}"],
               "path": ["kan", "asesmen", "{{id_izin}}", "ak02"]
             },
@@ -596,7 +596,7 @@
               "raw": "{\n  \"units\": [\n    {\n      \"unit_id\": 1,\n      \"kuks\": [\n        { \"kuk_id\": 1, \"observasi\": true, \"portofolio\": false, \"pertanyaan_lisan\": true, \"pertanyaan_tertulis\": false, \"wawancara\": true }\n      ]\n    }\n  ],\n  \"tindak_lanjut\": \"Lanjut ke sertifikasi\",\n  \"komentar\": \"Asesi kompeten di semua unit\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/kan/asesmen/{{id_izin}}/ak02",
+              "raw": "{{base_url}}/kan/asesmen/{{praktisi_jabatan_id}}/ak02",
               "host": ["{{base_url}}"],
               "path": ["kan", "asesmen", "{{id_izin}}", "ak02"]
             },
@@ -607,7 +607,7 @@
     },
     {
       "name": "🖊️ KAN QR (TTD)",
-      "description": "Generate QR code tanda tangan untuk dokumen KAN per `id_izin`.\n\n**Auth:** 🔒",
+      "description": "Generate QR code tanda tangan + PDF untuk dokumen KAN per `kan_praktisi_jabatan.id`. Gunakan variable `{{praktisi_jabatan_id}}`.\n\n**Auth:** 🔒",
       "item": [
         {
           "name": "TTD IA04B",
@@ -621,7 +621,7 @@
               "raw": "{\n  \"ttd\": \"data:image/png;base64,iVBORw0KGgo...\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/kan/qr/{{id_izin}}/ia04b",
+              "raw": "{{base_url}}/kan/qr/{{praktisi_jabatan_id}}/ia04b",
               "host": ["{{base_url}}"],
               "path": ["kan", "qr", "{{id_izin}}", "ia04b"]
             },
@@ -640,7 +640,7 @@
               "raw": "{\n  \"ttd\": \"data:image/png;base64,iVBORw0KGgo...\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/kan/qr/{{id_izin}}/ia05",
+              "raw": "{{base_url}}/kan/qr/{{praktisi_jabatan_id}}/ia05",
               "host": ["{{base_url}}"],
               "path": ["kan", "qr", "{{id_izin}}", "ia05"]
             },
@@ -659,7 +659,7 @@
               "raw": "{\n  \"ttd\": \"data:image/png;base64,iVBORw0KGgo...\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/kan/qr/{{id_izin}}/ia06",
+              "raw": "{{base_url}}/kan/qr/{{praktisi_jabatan_id}}/ia06",
               "host": ["{{base_url}}"],
               "path": ["kan", "qr", "{{id_izin}}", "ia06"]
             },
@@ -678,7 +678,7 @@
               "raw": "{\n  \"ttd\": \"data:image/png;base64,iVBORw0KGgo...\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/kan/qr/{{id_izin}}/ak02",
+              "raw": "{{base_url}}/kan/qr/{{praktisi_jabatan_id}}/ak02",
               "host": ["{{base_url}}"],
               "path": ["kan", "qr", "{{id_izin}}", "ak02"]
             },
@@ -1336,6 +1336,21 @@
                   "path": ["praktisi", "jabatan", "{{praktisi_jabatan_id}}", "ak02"]
                 },
                 "description": "Get data AK02 (FR.AK.02 — Rekomendasi Keputusan) berdasarkan `kan_praktisi_jabatan.id`.\n\n**Response:** `{ barcodes, dokumen, unit_kompetensi, total_skor_*, isLulus, isTidakLulus, threshold_passing }`"
+              }
+            },
+            {
+              "name": "Get Data Dokumen by Jabatan",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/praktisi/jabatan/{{praktisi_jabatan_id}}/data-dokumen",
+                  "host": ["{{base_url}}"],
+                  "path": ["praktisi", "jabatan", "{{praktisi_jabatan_id}}", "data-dokumen"]
+                },
+                "description": "Get header/dokumen profile untuk dokumen KAN berdasarkan `kan_praktisi_jabatan.id`. Return data seperti: jabatan_kerja, nomor_skema, nama_asesi, nama_penyusun, nama_validator, barcode (URL), dll.\n\nMirip dengan endpoint `data-dokumen` di flow asesmen biasa (`/{id}/data-dokumen`).\n\n**Response:**\n```json\n{\n  \"message\": \"Success\",\n  \"data\": {\n    \"jabatan_kerja\": \"...\",\n    \"nomor_skema\": \"...\",\n    \"tuk\": \"\",\n    \"nama_asesi\": \"...\",\n    \"asesor_list\": [],\n    \"jenjang\": 0,\n    \"tanggal\": \"\",\n    \"tanggal_mulai\": \"\",\n    \"tanggal_selesai\": \"\",\n    \"nama_penyusun\": \"...\",\n    \"nama_validator\": \"...\",\n    \"noreg_penyusun\": \"...\",\n    \"noreg_validator\": \"...\",\n    \"tanggal_penyusun\": \"...\",\n    \"tanggal_validator\": \"...\",\n    \"barcode_penyusun\": \"https://...\",\n    \"barcode_validator\": \"https://...\"\n  }\n}\n```"
               }
             },
             {

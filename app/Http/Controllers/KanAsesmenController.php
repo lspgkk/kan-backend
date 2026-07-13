@@ -427,7 +427,7 @@ class KanAsesmenController extends Controller
     //  SUBMIT: KAN IA04B
     // ──────────────────────────────────────────────
 
-    public function submitKanIa04b(Request $request, int $praktisiJabatanId): JsonResponse
+    public function submitKanIa04b(Request $request, $idIzin)
     {
         $validated = $request->validate([
             'dokumen_id'           => 'required|integer',
@@ -441,7 +441,7 @@ class KanAsesmenController extends Controller
         $hasRekomendasi = $request->has('rekomendasi');
         $rekomendasiValue = $hasRekomendasi ? $request->boolean('rekomendasi') : null;
 
-        DB::transaction(function () use ($validated, $praktisiJabatanId, $hasRekomendasi, $rekomendasiValue) {
+        DB::transaction(function () use ($validated, $idIzin, $hasRekomendasi, $rekomendasiValue) {
             foreach ($validated['answers'] as $answer) {
                 $updateData = ['is_rekomendasi' => false];
                 if (array_key_exists('jawaban', $answer)) {
@@ -453,9 +453,9 @@ class KanAsesmenController extends Controller
 
                 KanIa4bAnswer::updateOrCreate(
                     [
-                        'kan_praktisi_jabatan_id' => $praktisiJabatanId,
-                        'dokumen_id'              => $validated['dokumen_id'],
-                        'soal_id'                 => $answer['soal_id'],
+                        'id_izin'    => $idIzin,
+                        'dokumen_id' => $validated['dokumen_id'],
+                        'soal_id'    => $answer['soal_id'],
                     ],
                     $updateData
                 );
@@ -469,9 +469,9 @@ class KanAsesmenController extends Controller
                 if ($rekomSoal) {
                     KanIa4bAnswer::updateOrCreate(
                         [
-                            'kan_praktisi_jabatan_id' => $praktisiJabatanId,
-                            'dokumen_id'              => $validated['dokumen_id'],
-                            'soal_id'                 => $rekomSoal->id,
+                            'id_izin'    => $idIzin,
+                            'dokumen_id' => $validated['dokumen_id'],
+                            'soal_id'    => $rekomSoal->id,
                         ],
                         [
                             'is_rekomendasi' => true,
@@ -489,7 +489,7 @@ class KanAsesmenController extends Controller
     //  SUBMIT: KAN IA05
     // ──────────────────────────────────────────────
 
-    public function submitKanIa05(Request $request, int $praktisiJabatanId): JsonResponse
+    public function submitKanIa05(Request $request, $idIzin)
     {
         $validated = $request->validate([
             'dokumen_id'           => 'required|integer',
@@ -500,7 +500,7 @@ class KanAsesmenController extends Controller
             'umpan_balik'          => 'nullable|string',
         ]);
 
-        DB::transaction(function () use ($validated, $praktisiJabatanId) {
+        DB::transaction(function () use ($validated, $idIzin) {
             foreach ($validated['answers'] as $answer) {
                 $updateData = [];
                 if (array_key_exists('jawaban', $answer)) {
@@ -512,9 +512,9 @@ class KanAsesmenController extends Controller
 
                 KanIa5Answer::updateOrCreate(
                     [
-                        'kan_praktisi_jabatan_id' => $praktisiJabatanId,
-                        'dokumen_id'              => $validated['dokumen_id'],
-                        'soal_id'                 => $answer['soal_id'],
+                        'id_izin'    => $idIzin,
+                        'dokumen_id' => $validated['dokumen_id'],
+                        'soal_id'    => $answer['soal_id'],
                     ],
                     $updateData
                 );
@@ -522,7 +522,7 @@ class KanAsesmenController extends Controller
 
             if (!empty($validated['umpan_balik'])) {
                 KanIa5Feedback::updateOrCreate(
-                    ['kan_praktisi_jabatan_id' => $praktisiJabatanId],
+                    ['id_izin' => $idIzin],
                     ['umpan_balik' => $validated['umpan_balik']]
                 );
             }
@@ -535,7 +535,7 @@ class KanAsesmenController extends Controller
     //  SUBMIT: KAN IA06 (NEW)
     // ──────────────────────────────────────────────
 
-    public function submitKanIa06(Request $request, int $praktisiJabatanId): JsonResponse
+    public function submitKanIa06(Request $request, $idIzin)
     {
         $validated = $request->validate([
             'dokumen_id'           => 'required|integer',
@@ -547,7 +547,7 @@ class KanAsesmenController extends Controller
             'unit_elemen_kuk'      => 'nullable|string',
         ]);
 
-        DB::transaction(function () use ($validated, $praktisiJabatanId) {
+        DB::transaction(function () use ($validated, $idIzin) {
             foreach ($validated['answers'] as $answer) {
                 $updateData = [];
                 if (array_key_exists('jawaban', $answer)) {
@@ -559,16 +559,16 @@ class KanAsesmenController extends Controller
 
                 KanIa6Answer::updateOrCreate(
                     [
-                        'kan_praktisi_jabatan_id' => $praktisiJabatanId,
-                        'dokumen_id'              => $validated['dokumen_id'],
-                        'soal_id'                 => $answer['soal_id'],
+                        'id_izin'    => $idIzin,
+                        'dokumen_id' => $validated['dokumen_id'],
+                        'soal_id'    => $answer['soal_id'],
                     ],
                     $updateData
                 );
             }
 
             KanIa6Feedback::updateOrCreate(
-                ['kan_praktisi_jabatan_id' => $praktisiJabatanId],
+                ['id_izin' => $idIzin],
                 [
                     'umpan_balik'     => $validated['umpan_balik'] ?? null,
                     'unit_elemen_kuk' => $validated['unit_elemen_kuk'] ?? null,
@@ -583,35 +583,78 @@ class KanAsesmenController extends Controller
     //  SUBMIT: KAN AK02
     // ──────────────────────────────────────────────
 
-    public function submitKanAk02(Request $request, int $praktisiJabatanId): JsonResponse
+    public function submitKanAk02(Request $request, $id)
     {
         $validated = $request->validate([
-            'total_skor_dit'  => 'nullable|numeric',
-            'total_skor_pg'   => 'nullable|numeric',
-            'total_skor_esai' => 'nullable|numeric',
-            'is_kompeten'     => 'required|boolean',
-            'tindak_lanjut'   => 'nullable|string',
-            'komentar'        => 'nullable|string',
+            'answers'                           => 'required|array',
+            'answers.*.id_unit_kompetensi'      => 'required|integer',
+            'answers.*.observasi'               => 'nullable|boolean',
+            'answers.*.portofolio'              => 'nullable|boolean',
+            'answers.*.pertanyaan_wawancara'    => 'nullable|boolean',
+            'answers.*.pertanyaan_lisan'        => 'nullable|boolean',
+            'answers.*.pertanyaan_tertulis'     => 'nullable|boolean',
+            'answers.*.proyek_kerja'            => 'nullable|boolean',
+            'answers.*.lainnya'                 => 'nullable|boolean',
+            'total_skor_dit'                    => 'nullable|numeric',
+            'total_skor_pg'                     => 'nullable|numeric',
+            'total_skor_esai'                   => 'nullable|numeric',
+            'is_kompeten'                       => 'required|boolean',
+            'tindak_lanjut'                     => 'nullable|string',
+            'komentar'                          => 'nullable|string',
         ]);
 
-        $record = KanPraktisiJabatan::with('jabatanKerja:id_jabatan_kerja,jenjang_id')
-            ->find($praktisiJabatanId);
+        // Determine threshold based on jenjang
+        $klasifikasi = KlasifikasiKualifikasi::select('jenjang')
+            ->where('id_izin', $id)->first();
+        $threshold = $klasifikasi && $klasifikasi->jenjang <= 6 ? 65 : 70;
 
-        $jenjang = $record?->jabatanKerja?->jenjang_id ?? 0;
-        $threshold = $jenjang <= 6 ? 65 : 70;
+        DB::transaction(function () use ($validated, $id, $threshold) {
+            // Save evidence answers (reuse BNSP table)
+            foreach ($validated['answers'] as $answer) {
+                Ak2Answer::updateOrCreate(
+                    [
+                        'id_izin'            => $id,
+                        'id_unit_kompetensi' => $answer['id_unit_kompetensi'],
+                    ],
+                    [
+                        'observasi'            => $answer['observasi'] ?? false,
+                        'portofolio'           => $answer['portofolio'] ?? false,
+                        'pertanyaan_wawancara' => $answer['pertanyaan_wawancara'] ?? false,
+                        'pertanyaan_lisan'     => $answer['pertanyaan_lisan'] ?? false,
+                        'pertanyaan_tertulis'  => $answer['pertanyaan_tertulis'] ?? false,
+                        'proyek_kerja'         => $answer['proyek_kerja'] ?? false,
+                        'lainnya'              => $answer['lainnya'] ?? false,
+                    ]
+                );
+            }
 
-        KanAk2Feedback::updateOrCreate(
-            ['kan_praktisi_jabatan_id' => $praktisiJabatanId],
-            [
-                'total_skor_dit'    => $validated['total_skor_dit'] ?? null,
-                'total_skor_pg'     => $validated['total_skor_pg'] ?? null,
-                'total_skor_esai'   => $validated['total_skor_esai'] ?? null,
-                'is_kompeten'       => $validated['is_kompeten'],
-                'threshold_passing' => $threshold,
-                'tindak_lanjut'     => $validated['tindak_lanjut'] ?? null,
-                'komentar'          => $validated['komentar'] ?? null,
-            ]
-        );
+            // Compute weighted scores
+            $totalDit  = $validated['total_skor_dit'] ?? 0;
+            $totalPg   = $validated['total_skor_pg'] ?? 0;
+            $totalEsai = $validated['total_skor_esai'] ?? 0;
+
+            $nilaiDit  = $totalDit / 10 * 50;   // IA04B: 50% weight
+            $nilaiPg   = $totalPg / 20 * 30;    // IA05: 30% weight
+            $nilaiEsai = $totalEsai / 10 * 20;  // IA06: 20% weight
+            $skorAkhir = $nilaiDit + $nilaiPg + $nilaiEsai;
+
+            KanAk2Feedback::updateOrCreate(
+                ['id_izin' => $id],
+                [
+                    'total_skor_dit'    => $totalDit,
+                    'total_skor_pg'     => $totalPg,
+                    'total_skor_esai'   => $totalEsai,
+                    'nilai_skor_dit'    => $nilaiDit,
+                    'nilai_skor_pg'     => $nilaiPg,
+                    'nilai_skor_esai'   => $nilaiEsai,
+                    'skor_nilai_akhir'  => $skorAkhir,
+                    'is_kompeten'       => $validated['is_kompeten'],
+                    'threshold_passing' => $threshold,
+                    'tindak_lanjut'     => $validated['tindak_lanjut'] ?? null,
+                    'komentar'          => $validated['komentar'] ?? null,
+                ]
+            );
+        });
 
         return response()->json(['message' => 'KAN AK02 saved']);
     }
@@ -620,36 +663,36 @@ class KanAsesmenController extends Controller
     //  GET METHODS
     // ──────────────────────────────────────────────
 
-    public function getKanIa04b(int $praktisiJabatanId): JsonResponse
+    public function getKanIa04b($id)
     {
-        $data = $this->buildKanIa04bDataByPraktisi($praktisiJabatanId);
+        $data = $this->buildKanIa04bData($id);
         if ($data === null) {
             return response()->json(['message' => 'Data not found'], 404);
         }
         return response()->json(['message' => 'OK', 'data' => $data]);
     }
 
-    public function getKanIa05(int $praktisiJabatanId): JsonResponse
+    public function getKanIa05($id)
     {
-        $data = $this->buildKanIa05DataByPraktisi($praktisiJabatanId);
+        $data = $this->buildKanIa05Data($id);
         if ($data === null) {
             return response()->json(['message' => 'Data not found'], 404);
         }
         return response()->json(['message' => 'OK', 'data' => $data]);
     }
 
-    public function getKanIa06(int $praktisiJabatanId): JsonResponse
+    public function getKanIa06($id)
     {
-        $data = $this->buildKanIa06DataByPraktisi($praktisiJabatanId);
+        $data = $this->buildKanIa06Data($id);
         if ($data === null) {
             return response()->json(['message' => 'Data not found'], 404);
         }
         return response()->json(['message' => 'OK', 'data' => $data]);
     }
 
-    public function getKanAk02(int $praktisiJabatanId): JsonResponse
+    public function getKanAk02($id)
     {
-        $data = $this->buildKanAk02DataByPraktisi($praktisiJabatanId);
+        $data = $this->buildKanAk02Data($id);
         if ($data === null) {
             return response()->json(['message' => 'Data not found'], 404);
         }
@@ -660,24 +703,124 @@ class KanAsesmenController extends Controller
     //  TTD / PDF GENERATION METHODS
     // ──────────────────────────────────────────────
 
-    public function ttdKanIa04b(Request $request, int $praktisiJabatanId)
+    public function ttdKanIa04b(Request $request, $id)
     {
-        return $this->ttdKanIa04bByPraktisi($request, $praktisiJabatanId);
+        $data = $this->generateTtdBarcode($request, 'IA04B', 'ttd_kan_ia04b', $id);
+        $dataDokumen = $this->buildKanIa04bData($id, true);
+        if (!$dataDokumen) abort(404, 'Data not found');
+
+        $dokumenHeader = $this->buildKanDokumenHeader($id);
+        if (!$dokumenHeader) abort(404, 'Dokumen header not found');
+
+        $viewData = array_merge($dataDokumen, $dokumenHeader);
+
+        $pdf = Pdf::loadView('pdf.kan_ia04b', $viewData)->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/kan_ia04b';
+        $filename = 'KAN-IA04B-' . $id . '.pdf';
+        $path = $directory . '/' . $filename;
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_kan_ia_04b' => $fullUrl]
+        );
+
+        return response()->json(['message' => 'Success', 'data' => $data]);
     }
 
-    public function ttdKanIa05(Request $request, int $praktisiJabatanId)
+    public function ttdKanIa05(Request $request, $id)
     {
-        return $this->ttdKanIa05ByPraktisi($request, $praktisiJabatanId);
+        $data = $this->generateTtdBarcode($request, 'IA05', 'ttd_kan_ia05', $id);
+        $dataDokumen = $this->buildKanIa05Data($id, true);
+        if (!$dataDokumen) abort(404, 'Data not found');
+
+        $dokumenHeader = $this->buildKanDokumenHeader($id);
+        if (!$dokumenHeader) abort(404, 'Dokumen header not found');
+
+        $viewData = array_merge($dataDokumen, $dokumenHeader);
+
+        $pdf = Pdf::loadView('pdf.kan_ia05', $viewData)->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/kan_ia05';
+        $filename = 'KAN-IA05-' . $id . '.pdf';
+        $path = $directory . '/' . $filename;
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_kan_ia_05' => $fullUrl]
+        );
+
+        return response()->json(['message' => 'Success', 'data' => $data]);
     }
 
-    public function ttdKanIa06(Request $request, int $praktisiJabatanId)
+    public function ttdKanIa06(Request $request, $id)
     {
-        return $this->ttdKanIa06ByPraktisi($request, $praktisiJabatanId);
+        $data = $this->generateTtdBarcode($request, 'IA06', 'ttd_kan_ia06', $id);
+        $dataDokumen = $this->buildKanIa06Data($id, true);
+        if (!$dataDokumen) abort(404, 'Data not found');
+
+        $dokumenHeader = $this->buildKanDokumenHeader($id);
+        if (!$dokumenHeader) abort(404, 'Dokumen header not found');
+
+        $viewData = array_merge($dataDokumen, $dokumenHeader);
+
+        $pdf = Pdf::loadView('pdf.kan_ia06', $viewData)->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/kan_ia06';
+        $filename = 'KAN-IA06-' . $id . '.pdf';
+        $path = $directory . '/' . $filename;
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_kan_ia_06' => $fullUrl]
+        );
+
+        return response()->json(['message' => 'Success', 'data' => $data]);
     }
 
-    public function ttdKanAk02(Request $request, int $praktisiJabatanId)
+    public function ttdKanAk02(Request $request, $id)
     {
-        return $this->ttdKanAk02ByPraktisi($request, $praktisiJabatanId);
+        $data = $this->generateTtdBarcode($request, 'AK02', 'ttd_kan_ak02', $id);
+        $dataDokumen = $this->buildKanAk02Data($id, true);
+        if (!$dataDokumen) abort(404, 'Data not found');
+
+        $dokumenHeader = $this->buildKanDokumenHeader($id);
+        if (!$dokumenHeader) abort(404, 'Dokumen header not found');
+
+        $viewData = array_merge($dataDokumen, $dokumenHeader);
+
+        $pdf = Pdf::loadView('pdf.kan_ak02', $viewData)->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/kan_ak02';
+        $filename = 'KAN-AK02-' . $id . '.pdf';
+        $path = $directory . '/' . $filename;
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $id],
+            ['url_kan_ak_02' => $fullUrl]
+        );
+
+        return response()->json(['message' => 'Success', 'data' => $data]);
     }
 
     // ──────────────────────────────────────────────
@@ -1154,8 +1297,14 @@ class KanAsesmenController extends Controller
             ];
         }
 
+        // In Praktisi Jabatan flow, the barcode belongs to the praktisi (role 16),
+        // so we look for the first matching role (16 for praktisi, 8 for asesi fallback)
+        $asesiBarcode = $barcodes->firstWhere('id_role', 16)
+            ?? $barcodes->firstWhere('id_role', 8)
+            ?? $barcodes->first();
+
         return [
-            'asesi'   => $map($barcodes->firstWhere('id_role', 8)),
+            'asesi'   => $map($asesiBarcode),
             'asesor1' => null,
             'asesor2' => null,
         ];

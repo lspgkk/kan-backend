@@ -502,21 +502,21 @@ Route::prefix('diskon')->group(function () {
 
     // --- KAN Asesmen (authenticated) ---
     Route::prefix('kan/asesmen')->group(function () {
-        Route::get('/{id}/ia04b', [KanAsesmenController::class, 'getKanIa04b']);
-        Route::post('/{id}/ia04b', [KanAsesmenController::class, 'submitKanIa04b']);
-        Route::get('/{id}/ia05', [KanAsesmenController::class, 'getKanIa05']);
-        Route::post('/{id}/ia05', [KanAsesmenController::class, 'submitKanIa05']);
-        Route::get('/{id}/ia06', [KanAsesmenController::class, 'getKanIa06']);
-        Route::post('/{id}/ia06', [KanAsesmenController::class, 'submitKanIa06']);
-        Route::get('/{id}/ak02', [KanAsesmenController::class, 'getKanAk02']);
-        Route::post('/{id}/ak02', [KanAsesmenController::class, 'submitKanAk02']);
+        Route::get('/{id}/ia04b', [KanAsesmenController::class, 'getKanIa04bByPraktisi']);
+        Route::post('/{id}/ia04b', [KanAsesmenController::class, 'submitKanIa04bByPraktisi']);
+        Route::get('/{id}/ia05', [KanAsesmenController::class, 'getKanIa05ByPraktisi']);
+        Route::post('/{id}/ia05', [KanAsesmenController::class, 'submitKanIa05ByPraktisi']);
+        Route::get('/{id}/ia06', [KanAsesmenController::class, 'getKanIa06ByPraktisi']);
+        Route::post('/{id}/ia06', [KanAsesmenController::class, 'submitKanIa06ByPraktisi']);
+        Route::get('/{id}/ak02', [KanAsesmenController::class, 'getKanAk02ByPraktisi']);
+        Route::post('/{id}/ak02', [KanAsesmenController::class, 'submitKanAk02ByPraktisi']);
     });
 
     Route::prefix('kan/qr')->group(function () {
-        Route::post('/{id}/ia04b', [KanAsesmenController::class, 'ttdKanIa04b']);
-        Route::post('/{id}/ia05', [KanAsesmenController::class, 'ttdKanIa05']);
-        Route::post('/{id}/ia06', [KanAsesmenController::class, 'ttdKanIa06']);
-        Route::post('/{id}/ak02', [KanAsesmenController::class, 'ttdKanAk02']);
+        Route::post('/{id}/ia04b', [KanAsesmenController::class, 'ttdKanIa04bByPraktisi']);
+        Route::post('/{id}/ia05', [KanAsesmenController::class, 'ttdKanIa05ByPraktisi']);
+        Route::post('/{id}/ia06', [KanAsesmenController::class, 'ttdKanIa06ByPraktisi']);
+        Route::post('/{id}/ak02', [KanAsesmenController::class, 'ttdKanAk02ByPraktisi']);
     });
 
     // --- Penyusun ---
