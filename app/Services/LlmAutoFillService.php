@@ -365,6 +365,10 @@ PROMPT;
             'ak06_catatan_asesor1' => $this->buildAk06CatatanAsesor1($context),
             'ak06_catatan_asesor2' => $this->buildAk06CatatanAsesor2($context),
             'ak07_text' => $this->buildAk07Text($context),
+            'kan_esai_benar' => $this->buildKanEsaiBenar($context),
+            'kan_esai_salah' => $this->buildKanEsaiSalah($context),
+            'kan_lisan_benar' => $this->buildKanLisanBenar($context),
+            'kan_lisan_salah' => $this->buildKanLisanSalah($context),
             default => null,
         };
     }
@@ -550,6 +554,57 @@ PROMPT;
              . "\nJelaskan bahwa semua persyaratan telah terpenuhi dan dokumen dinyatakan valid.";
     }
 
+    // ──────────────────────────────────────────────
+    //  KAN PROMPT BUILDERS
+    // ──────────────────────────────────────────────
+
+    private function buildKanEsaiBenar(array $ctx): string
+    {
+        return "Konteks:\n"
+             . $this->context($ctx)
+             . "- Soal Esai: {$ctx['soal']}\n\n"
+             . "Kamu adalah asesi (peserta uji kompetensi) yang sangat kompeten di bidang konstruksi.\n"
+             . "Tulis jawaban esai yang BENAR, profesional, dan teknis untuk soal di atas (maks 255 huruf).\n"
+             . "Gunakan bahasa Indonesia profesional bidang konstruksi. Jawab sebagai asesi yang kompeten.\n"
+             . "Jawab HANYA teks jawaban esai, tanpa pembuka atau penutup.";
+    }
+
+    private function buildKanEsaiSalah(array $ctx): string
+    {
+        return "Konteks:\n"
+             . $this->context($ctx)
+             . "- Soal Esai: {$ctx['soal']}\n\n"
+             . "Kamu adalah asesi (peserta uji kompetensi) yang TIDAK kompeten dan tidak memahami bidang konstruksi.\n"
+             . "Tulis jawaban esai yang SALAH, tidak tepat, atau tidak relevan untuk soal di atas (maks 255 huruf).\n"
+             . "Jawaban harus terlihat seperti dikerjakan oleh orang yang tidak menguasai materi.\n"
+             . "Gunakan bahasa Indonesia yang kurang profesional. Jawab sebagai asesi yang tidak kompeten.\n"
+             . "Jawab HANYA teks jawaban esai, tanpa pembuka atau penutup.";
+    }
+
+    private function buildKanLisanBenar(array $ctx): string
+    {
+        return "Konteks:\n"
+             . $this->context($ctx)
+             . "- Instruksi Kegiatan Terstruktur: {$ctx['soal']}\n\n"
+             . "Kamu adalah asesi (peserta uji kompetensi) yang sangat kompeten di bidang konstruksi.\n"
+             . "Tulis jawaban/uraian kegiatan yang BENAR dan profesional untuk instruksi di atas (maks 255 huruf).\n"
+             . "Jelaskan langkah-langkah teknis yang sesuai dengan standar prosedur konstruksi.\n"
+             . "Gunakan bahasa Indonesia profesional. Jawab sebagai asesi yang kompeten.\n"
+             . "Jawab HANYA teks jawaban, tanpa pembuka atau penutup.";
+    }
+
+    private function buildKanLisanSalah(array $ctx): string
+    {
+        return "Konteks:\n"
+             . $this->context($ctx)
+             . "- Instruksi Kegiatan Terstruktur: {$ctx['soal']}\n\n"
+             . "Kamu adalah asesi (peserta uji kompetensi) yang TIDAK kompeten dan tidak memahami bidang konstruksi.\n"
+             . "Tulis jawaban/uraian kegiatan yang SALAH, tidak tepat, atau tidak relevan untuk instruksi di atas (maks 255 huruf).\n"
+             . "Jawaban harus terlihat seperti dikerjakan oleh orang yang tidak menguasai prosedur kerja.\n"
+             . "Gunakan bahasa Indonesia yang kurang profesional. Jawab sebagai asesi yang tidak kompeten.\n"
+             . "Jawab HANYA teks jawaban, tanpa pembuka atau penutup.";
+    }
+
     private function fallbackText(string $fieldType): string
     {
         $fallbacks = [
@@ -574,6 +629,12 @@ PROMPT;
             'ia04a_persiapan_kegiatan' => 'Asesi perlu mempersiapkan dokumen teknis terkait proyek pekerjaan yang sesuai dengan skema sertifikasi, meliputi gambar kerja, spesifikasi teknis, dan rencana pelaksanaan pekerjaan. Kelengkapan dokumen menjadi prasyarat utama sebelum pelaksanaan kegiatan terstruktur.',
             'ia04a_demonstrasi' => 'Asesi harus mendemonstrasikan penguasaan kompetensi teknis sesuai dengan unit kompetensi yang diujikan, termasuk kemampuan membaca gambar teknis, penerapan Keselamatan dan Kesehatan Kerja (K3), serta penggunaan peralatan kerja yang sesuai dengan prosedur operasional standar.',
             'ia04a_umpan_balik' => 'Asesi berhasil menunjukkan penguasaan kompetensi yang memadai pada kegiatan terstruktur yang dilaksanakan. Kinerja yang diperlihatkan sesuai dengan kriteria unjuk kerja yang ditetapkan. Disarankan untuk terus meningkatkan kompetensi melalui pengalaman lapangan dan pelatihan lanjutan.',
+
+            // KAN fallbacks — used when LLM is unavailable (--no-llm or API timeout)
+            'kan_esai_benar' => 'Berdasarkan analisis teknis dan standar operasional prosedur yang berlaku, pelaksanaan pekerjaan konstruksi harus mengikuti tahapan perencanaan, pelaksanaan, pengawasan, dan serah terima sesuai dokumen kontrak. Setiap tahapan wajib didukung oleh dokumen teknis yang lengkap dan tenaga kerja yang kompeten di bidangnya. Penerapan K3 serta pengendalian mutu menjadi prasyarat utama keberhasilan proyek konstruksi.',
+            'kan_esai_salah' => 'Pekerjaan konstruksi cukup dikerjakan secara manual tanpa perlu perencanaan karena semua tukang sudah berpengalaman. Dokumen teknis tidak terlalu penting dan bisa dibuat setelah pekerjaan selesai. Pengawasan bisa dilakukan oleh siapa saja tanpa keahlian khusus, yang penting bangunan bisa berdiri dan terlihat bagus.',
+            'kan_lisan_benar' => 'Langkah-langkah kegiatan terstruktur yang harus dilakukan meliputi: pertama, identifikasi kebutuhan sumber daya dan peralatan sesuai spesifikasi teknis. Kedua, penyusunan jadwal pelaksanaan dan metode kerja. Ketiga, pelaksanaan pekerjaan dengan pengawasan ketat terhadap mutu dan K3. Keempat, dokumentasi setiap tahapan sebagai bukti pelaksanaan.',
+            'kan_lisan_salah' => 'Kegiatannya tinggal dikerjakan saja sesuai kebiasaan di lapangan, tidak perlu urutan tertentu. Peralatan bisa pakai yang ada saja tanpa perlu dicek dulu kondisinya. Kalau ada masalah nanti bisa diperbaiki sambil jalan, yang penting proyek cepat selesai dan murah biayanya.',
         ];
 
         return $fallbacks[$fieldType] ?? 'Telah diverifikasi dan dinyatakan sesuai.';
