@@ -309,44 +309,12 @@ class PraktisiController extends Controller
     //  BNSP endpoints above are NOT modified.
     // ═══════════════════════════════════════════════════════════════
 
-    /**
-     * Check that the authenticated user owns this kan_praktisi_jabatan record.
-     */
-    private function authorizePraktisiJabatan(int $id): KanPraktisiJabatan
-    {
-        $record = KanPraktisiJabatan::findOrFail($id);
-        $userId = auth()->user()->id;
-
-        // Praktisi owns the record
-        if ($record->id_user === $userId) {
-            return $record;
-        }
-
-        // Allow penyusun, validator, and manajer mutu assigned to this jabatan
-        $config = JabatanConfigA::where('id_jabatan', $record->id_jabatan_kerja)->first();
-        if ($config) {
-            $allowedIds = array_filter([
-                $config->penyusun_id,
-                $config->kan_penyusun_id,
-                $config->validator_id,
-                $config->kan_validator_id,
-                $config->kan_manajer_id,
-            ]);
-            if (in_array($userId, $allowedIds)) {
-                return $record;
-            }
-        }
-
-        abort(403, 'Forbidden: Anda tidak memiliki akses ke data ini.');
-    }
-
     // ──────────────────────────────────────────────
     //  GET: IA04B By Jabatan
     // ──────────────────────────────────────────────
 
     public function getIa04bByJabatan(int $id): JsonResponse
     {
-        $this->authorizePraktisiJabatan($id);
         $kan = app(KanAsesmenController::class);
         return $kan->getKanIa04bByPraktisi($id);
     }
@@ -357,7 +325,6 @@ class PraktisiController extends Controller
 
     public function getIa05ByJabatan(int $id): JsonResponse
     {
-        $this->authorizePraktisiJabatan($id);
         $kan = app(KanAsesmenController::class);
         return $kan->getKanIa05ByPraktisi($id);
     }
@@ -368,7 +335,6 @@ class PraktisiController extends Controller
 
     public function getIa06ByJabatan(int $id): JsonResponse
     {
-        $this->authorizePraktisiJabatan($id);
         $kan = app(KanAsesmenController::class);
         return $kan->getKanIa06ByPraktisi($id);
     }
@@ -379,7 +345,6 @@ class PraktisiController extends Controller
 
     public function getAk02ByJabatan(int $id): JsonResponse
     {
-        $this->authorizePraktisiJabatan($id);
         $kan = app(KanAsesmenController::class);
         return $kan->getKanAk02ByPraktisi($id);
     }
@@ -390,8 +355,6 @@ class PraktisiController extends Controller
 
     public function jawabByJabatan(Request $request, int $id): JsonResponse
     {
-        $this->authorizePraktisiJabatan($id);
-
         $validated = $request->validate([
             'type'        => 'required|in:ia04b,ia05,ia06',
             'dokumen_id'  => 'required|integer',
@@ -415,7 +378,6 @@ class PraktisiController extends Controller
 
     public function qrIa04bByJabatan(Request $request, int $id): JsonResponse
     {
-        $this->authorizePraktisiJabatan($id);
         $kan = app(KanAsesmenController::class);
         return $kan->ttdKanIa04bByPraktisi($request, $id);
     }
@@ -426,7 +388,6 @@ class PraktisiController extends Controller
 
     public function qrIa05ByJabatan(Request $request, int $id): JsonResponse
     {
-        $this->authorizePraktisiJabatan($id);
         $kan = app(KanAsesmenController::class);
         return $kan->ttdKanIa05ByPraktisi($request, $id);
     }
@@ -437,7 +398,6 @@ class PraktisiController extends Controller
 
     public function qrIa06ByJabatan(Request $request, int $id): JsonResponse
     {
-        $this->authorizePraktisiJabatan($id);
         $kan = app(KanAsesmenController::class);
         return $kan->ttdKanIa06ByPraktisi($request, $id);
     }
@@ -448,7 +408,6 @@ class PraktisiController extends Controller
 
     public function qrAk02ByJabatan(Request $request, int $id): JsonResponse
     {
-        $this->authorizePraktisiJabatan($id);
         $kan = app(KanAsesmenController::class);
         return $kan->ttdKanAk02ByPraktisi($request, $id);
     }
@@ -459,7 +418,6 @@ class PraktisiController extends Controller
 
     public function getDokumenHeaderByJabatan(int $id): JsonResponse
     {
-        $this->authorizePraktisiJabatan($id);
         $kan = app(KanAsesmenController::class);
         return $kan->getKanDokumenHeaderByPraktisi($id);
     }

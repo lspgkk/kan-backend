@@ -367,44 +367,45 @@ class GenerateJawabanKan extends Command
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  IA06: ESAI (batch per soal — each praktisi gets unique answer)
-    //  10 praktisi per soal = 10 fields → ~6-8KB prompt → 5-8s each
+    //  IA06: ESAI (batch 3 soals = 30 fields → ~18KB prompt → 15-20s)
     // ═══════════════════════════════════════════════════════════════
 
     private function generateIa06Bulk($dokumen, array $esaiScores, array $praktisiJabatanIds, array $asesorNames, string $skemaName, string $noSkema): int
     {
         $soals = $this->getSoals($dokumen->id, [8]);
+        $chunkSize = 3; // 3 soals × 10 praktisi = 30 fields → ~18KB
+        $soalChunks = array_chunk($esaiScores, $chunkSize, true);
         $rows = [];
 
-        foreach ($esaiScores as $i => $scoreEntry) {
-            if ($i >= count($soals)) break;
-            $soal = $soals[$i];
-
-            // Build fields for this ONE soal — each praktisi gets a unique answer
+        foreach ($soalChunks as $chunk) {
             $fields = [];
-            $fieldKeys = []; // fieldIdx => [kpjId, value]
+            $fieldKeys = []; // fieldIdx => [soalId, kpjId, value, soalIdx]
 
-            foreach (self::PRAKTISI_KEYS as $key) {
-                if (!isset($praktisiJabatanIds[$key])) continue;
-                $value = (int) ($scoreEntry[$key] ?? 0);
-                $fieldType = $value === 1 ? 'kan_esai_benar' : 'kan_esai_salah';
-                $userName = $asesorNames[$key] ?? $key;
+            foreach ($chunk as $i => $scoreEntry) {
+                if ($i >= count($soals)) break 2;
+                $soal = $soals[$i];
 
-                $fieldIdx = count($fields);
-                $fields[] = [$fieldType, [
-                    'nama_asesi' => $userName, 'jabatan_kerja' => $skemaName,
-                    'nomor_skema' => $noSkema, 'asesor' => 'Asesor KAN',
-                    'soal' => $soal->soal ?? '',
-                ]];
-                $fieldKeys[$fieldIdx] = [$praktisiJabatanIds[$key], $value];
+                foreach (self::PRAKTISI_KEYS as $key) {
+                    if (!isset($praktisiJabatanIds[$key])) continue;
+                    $value = (int) ($scoreEntry[$key] ?? 0);
+                    $fieldType = $value === 1 ? 'kan_esai_benar' : 'kan_esai_salah';
+                    $userName = $asesorNames[$key] ?? $key;
+
+                    $fieldIdx = count($fields);
+                    $fields[] = [$fieldType, [
+                        'nama_asesi' => $userName, 'jabatan_kerja' => $skemaName,
+                        'nomor_skema' => $noSkema, 'asesor' => 'Asesor KAN',
+                        'soal' => $soal->soal ?? '',
+                    ]];
+                    $fieldKeys[$fieldIdx] = [$soal->id, $praktisiJabatanIds[$key], $value];
+                }
             }
 
             if (empty($fields)) continue;
 
-            // Batch call per soal (10 fields ~6-8KB → succeeds in 5-8s)
             $llmResults = $this->llm->generateBatchTexts($fields);
 
-            foreach ($fieldKeys as $fieldIdx => [$kpjId, $value]) {
+            foreach ($fieldKeys as $fieldIdx => [$soalId, $kpjId, $value]) {
                 $fieldType = $value === 1 ? 'kan_esai_benar' : 'kan_esai_salah';
                 $resultKey = $fieldType . "_{$fieldIdx}";
                 $jawaban = $llmResults[$resultKey] ?? $this->llm->getFallback($fieldType);
@@ -412,7 +413,7 @@ class GenerateJawabanKan extends Command
                 $rows[] = [
                     'kan_praktisi_jabatan_id' => $kpjId,
                     'dokumen_id'              => $dokumen->id,
-                    'soal_id'                 => $soal->id,
+                    'soal_id'                 => $soalId,
                     'jawaban'                 => $jawaban,
                     'skor'                    => $value === 1 ? random_int(2, 3) : 0,
                     'updated_at'              => $this->timestamp,
@@ -428,44 +429,46 @@ class GenerateJawabanKan extends Command
     }
 
     // ═══════════════════════════════════════════════════════════════
-    //  IA04B: LISAN / DIT (batch per soal — each praktisi gets unique answer)
+    //  IA04B: LISAN / DIT (batch 3 soals = 30 fields → ~21KB prompt → 18-22s)
     // ═══════════════════════════════════════════════════════════════
 
     private function generateIa04bBulk($dokumen, array $lisanScores, array $praktisiJabatanIds, array $asesorNames, string $skemaName, string $noSkema): int
     {
         $soals = $this->getSoals($dokumen->id, [8]);
+        $chunkSize = 3; // 3 soals × 10 praktisi = 30 fields → ~21KB
+        $soalChunks = array_chunk($lisanScores, $chunkSize, true);
         $rows = [];
 
-        foreach ($lisanScores as $i => $scoreEntry) {
-            if ($i >= count($soals)) break;
-            $soal = $soals[$i];
-            $soalText = implode("\n", array_filter([$soal->soal ?? '', $soal->soal1 ?? '', $soal->soal2 ?? '']));
-
-            // Build fields for this ONE soal — each praktisi gets a unique answer
+        foreach ($soalChunks as $chunk) {
             $fields = [];
             $fieldKeys = [];
 
-            foreach (self::PRAKTISI_KEYS as $key) {
-                if (!isset($praktisiJabatanIds[$key])) continue;
-                $value = (int) ($scoreEntry[$key] ?? 0);
-                $fieldType = $value === 1 ? 'kan_lisan_benar' : 'kan_lisan_salah';
-                $userName = $asesorNames[$key] ?? $key;
+            foreach ($chunk as $i => $scoreEntry) {
+                if ($i >= count($soals)) break 2;
+                $soal = $soals[$i];
+                $soalText = implode("\n", array_filter([$soal->soal ?? '', $soal->soal1 ?? '', $soal->soal2 ?? '']));
 
-                $fieldIdx = count($fields);
-                $fields[] = [$fieldType, [
-                    'nama_asesi' => $userName, 'jabatan_kerja' => $skemaName,
-                    'nomor_skema' => $noSkema, 'asesor' => 'Asesor KAN',
-                    'soal' => $soalText ?: ($soal->soal ?? ''),
-                ]];
-                $fieldKeys[$fieldIdx] = [$praktisiJabatanIds[$key], $value];
+                foreach (self::PRAKTISI_KEYS as $key) {
+                    if (!isset($praktisiJabatanIds[$key])) continue;
+                    $value = (int) ($scoreEntry[$key] ?? 0);
+                    $fieldType = $value === 1 ? 'kan_lisan_benar' : 'kan_lisan_salah';
+                    $userName = $asesorNames[$key] ?? $key;
+
+                    $fieldIdx = count($fields);
+                    $fields[] = [$fieldType, [
+                        'nama_asesi' => $userName, 'jabatan_kerja' => $skemaName,
+                        'nomor_skema' => $noSkema, 'asesor' => 'Asesor KAN',
+                        'soal' => $soalText ?: ($soal->soal ?? ''),
+                    ]];
+                    $fieldKeys[$fieldIdx] = [$soal->id, $praktisiJabatanIds[$key], $value];
+                }
             }
 
             if (empty($fields)) continue;
 
-            // Batch call per soal (10 fields ~6-8KB → succeeds in 5-8s)
             $llmResults = $this->llm->generateBatchTexts($fields);
 
-            foreach ($fieldKeys as $fieldIdx => [$kpjId, $value]) {
+            foreach ($fieldKeys as $fieldIdx => [$soalId, $kpjId, $value]) {
                 $fieldType = $value === 1 ? 'kan_lisan_benar' : 'kan_lisan_salah';
                 $resultKey = $fieldType . "_{$fieldIdx}";
                 $jawaban = $llmResults[$resultKey] ?? $this->llm->getFallback($fieldType);
@@ -473,7 +476,7 @@ class GenerateJawabanKan extends Command
                 $rows[] = [
                     'kan_praktisi_jabatan_id' => $kpjId,
                     'dokumen_id'              => $dokumen->id,
-                    'soal_id'                 => $soal->id,
+                    'soal_id'                 => $soalId,
                     'jawaban'                 => $jawaban,
                     'skor'                    => $value === 1 ? random_int(2, 3) : 0,
                     'is_rekomendasi'          => false,
