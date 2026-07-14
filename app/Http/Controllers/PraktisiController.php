@@ -315,10 +315,29 @@ class PraktisiController extends Controller
     private function authorizePraktisiJabatan(int $id): KanPraktisiJabatan
     {
         $record = KanPraktisiJabatan::findOrFail($id);
-        if ($record->id_user !== auth()->user()->id) {
-            abort(403, 'Forbidden: Anda tidak memiliki akses ke data ini.');
+        $userId = auth()->user()->id;
+
+        // Praktisi owns the record
+        if ($record->id_user === $userId) {
+            return $record;
         }
-        return $record;
+
+        // Allow penyusun, validator, and manajer mutu assigned to this jabatan
+        $config = JabatanConfigA::where('id_jabatan', $record->id_jabatan_kerja)->first();
+        if ($config) {
+            $allowedIds = array_filter([
+                $config->penyusun_id,
+                $config->kan_penyusun_id,
+                $config->validator_id,
+                $config->kan_validator_id,
+                $config->kan_manajer_id,
+            ]);
+            if (in_array($userId, $allowedIds)) {
+                return $record;
+            }
+        }
+
+        abort(403, 'Forbidden: Anda tidak memiliki akses ke data ini.');
     }
 
     // ──────────────────────────────────────────────
