@@ -115,7 +115,9 @@
       "Bash(mysql *)",
       "PowerShell(Get-Command *)",
       "Bash(composer install *)",
-      "Bash(python *)"
+      "Bash(python *)",
+      "WebFetch(domain:kan-api.lspgatensi.id)",
+      "Bash(git push *)"
     ]
   }
 }
