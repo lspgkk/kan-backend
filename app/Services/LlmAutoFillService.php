@@ -67,9 +67,8 @@ PROMPT;
      */
     public function generateBatchTexts(array $fields): array
     {
-        // Build prompts
+        // Build mapped fields (prompts are built per-chunk later)
         $mapped = [];
-        $promptParts = [];
         $fieldTypes = [];
         foreach ($fields as $i => [$fieldType, $context]) {
             $fieldTypes[] = $fieldType;
@@ -79,7 +78,6 @@ PROMPT;
                 $mapped["f_{$i}"] = $this->fallbackText($fieldType);
             } else {
                 $mapped["f_{$i}"] = null;
-                $promptParts[] = "[Field {$i}]: {$prompt}";
             }
         }
 
@@ -90,57 +88,73 @@ PROMPT;
             return $this->rekeyResults($mapped, $fields);
         }
 
-        // One batch request
-        $batchPrompt = "Generate ALL of the following assessment texts in Indonesian. "
-                     . "Return ONLY a valid JSON object with the numeric field ID as key, e.g. {\"0\": \"...\", \"1\": \"...\"}.\n\n"
-                     . implode("\n---\n", $promptParts);
+        // Chunk large batches (max 5 fields per API call) to avoid DeepSeek timeout
+        $chunkSize = 3;
+        // Convert "f_0" keys to integer indices
+        $pendingIndices = array_map(fn($k) => (int) str_replace('f_', '', $k), array_keys($pending));
+        $chunks = array_chunk($pendingIndices, $chunkSize);
 
-        $response = $this->callLlm($batchPrompt);
+        logger()->debug("[LLM] generateBatchTexts: splitting " . count($pending) . " fields into " . count($chunks) . " chunks of max {$chunkSize}");
 
-        if ($response) {
-            logger()->debug("[LLM] generateBatchTexts: API response len=" . strlen($response) . " preview=" . substr($response, 0, 150));
-            // Try to parse JSON response
-            $parsed = $this->tryParseJson($response);
-            if ($parsed) {
-                $matchedKeys = 0;
-                foreach ($parsed as $key => $text) {
-                    // LLM might return keys as "0", "1" (numeric) or "f_0", "f_1"
-                    // Normalize: if it's a pure number, prepend "f_"
-                    $normalizedKey = is_numeric($key) ? "f_{$key}" : $key;
+        foreach ($chunks as $chunk) {
+            $chunkPromptParts = [];
+            foreach ($chunk as $idx) {
+                $chunkPromptParts[] = "[Field {$idx}]: " . $this->buildPrompt($fields[$idx][0], $fields[$idx][1]);
+            }
 
-                    // Value might be nested object (LLM sometimes wraps in {"text": "..."})
-                    $value = $text;
-                    if (is_array($value)) {
-                        $value = $value['text'] ?? $value['content'] ?? current($value) ?? '';
+            $batchPrompt = "Generate ALL of the following assessment texts in Indonesian. "
+                         . "Return ONLY a valid JSON object with the numeric field ID as key, e.g. {\"" . $chunk[0] . "\": \"...\", \"" . ($chunk[1] ?? '') . "\": \"...\"}.\n\n"
+                         . implode("\n---\n", $chunkPromptParts);
+
+            $response = $this->callLlm($batchPrompt);
+
+            if ($response) {
+                logger()->debug("[LLM] generateBatchTexts: API response len=" . strlen($response) . " preview=" . substr($response, 0, 150));
+                $parsed = $this->tryParseJson($response);
+                if ($parsed) {
+                    $matchedKeys = 0;
+                    foreach ($parsed as $key => $text) {
+                        $normalizedKey = is_numeric($key) ? "f_{$key}" : $key;
+
+                        $value = $text;
+                        if (is_array($value)) {
+                            $value = $value['text'] ?? $value['content'] ?? current($value) ?? '';
+                        }
+                        if (!is_string($value)) {
+                            $value = (string) $value;
+                        }
+
+                        if (array_key_exists($normalizedKey, $mapped) && is_string($value) && strlen(trim($value)) >= 3) {
+                            $mapped[$normalizedKey] = trim($value);
+                            $matchedKeys++;
+                        }
                     }
-                    if (!is_string($value)) {
-                        $value = (string) $value;
+                    logger()->debug("[LLM] generateBatchTexts: chunk parsed JSON matched {$matchedKeys}/" . count($parsed) . " keys");
+                    if ($matchedKeys === 0 && count($parsed) > 0) {
+                        $sampleKey = array_keys($parsed)[0] ?? 'none';
+                        logger()->warning("[LLM] generateBatchTexts: 0 matched! sample parsed key=" . json_encode($sampleKey));
                     }
-
-                    if (array_key_exists($normalizedKey, $mapped) && strlen(trim($value)) > 5) {
-                        $mapped[$normalizedKey] = trim($value);
-                        $matchedKeys++;
-                    }
-                }
-                logger()->debug("[LLM] generateBatchTexts: parsed JSON matched {$matchedKeys}/" . count($parsed) . " keys");
-                if ($matchedKeys === 0 && count($parsed) > 0) {
-                    $sampleKey = array_keys($parsed)[0] ?? 'none';
-                    $sampleVal = $parsed[$sampleKey] ?? 'none';
-                    logger()->warning("[LLM] generateBatchTexts: 0 matched! sample parsed key=" . json_encode($sampleKey) . " val_type=" . gettype($sampleVal) . " mapped_first_key=" . json_encode(array_keys($mapped)[0] ?? 'none'));
+                } else {
+                    logger()->warning("[LLM] generateBatchTexts: GAGAL parse JSON dari response API");
+                    logger()->warning("[LLM] generateBatchTexts: response (first 1000 chars): " . substr($response, 0, 1000));
                 }
             } else {
-                logger()->warning("[LLM] generateBatchTexts: GAGAL parse JSON dari response API");
-                logger()->warning("[LLM] generateBatchTexts: response (first 1000 chars): " . substr($response, 0, 1000));
+                logger()->warning("[LLM] generateBatchTexts: API call returned null for chunk, semua fields pakai fallback");
             }
-        } else {
-            logger()->warning("[LLM] generateBatchTexts: API call returned null, semua fields pakai fallback");
         }
 
-        // Fill any remaining nulls with fallback
+        // For KAN field types, throw exception instead of using fallback
         foreach ($mapped as $key => $val) {
             if ($val === null) {
                 $idx = (int) str_replace('f_', '', $key);
-                $mapped[$key] = $this->fallbackText($fields[$idx][0] ?? '');
+                $fieldType = $fields[$idx][0] ?? '';
+                if (str_starts_with($fieldType, 'kan_')) {
+                    throw new \RuntimeException(
+                        "LLM gagal generate jawaban untuk field '{$fieldType}' (index {$idx}). " .
+                        "Semua jawaban harus di-generate oleh LLM, tidak boleh fallback."
+                    );
+                }
+                $mapped[$key] = $this->fallbackText($fieldType);
             }
         }
 
@@ -254,15 +268,15 @@ PROMPT;
             }
         }
 
-        $maxRetries = 3;
+        $maxRetries = 5;
         $attempt = 0;
-        $delay = 2000; // ms
+        $delay = 3000; // ms
 
         while ($attempt < $maxRetries) {
             try {
                 logger()->debug("[LLM] API call attempt=" . ($attempt + 1) . " url=" . self::API_URL . " prompt_len=" . strlen($userPrompt));
                 $start = microtime(true);
-                $response = Http::timeout(30)
+                $response = Http::timeout(120)
                     ->withHeaders([
                         'Content-Type' => 'application/json',
                         'Authorization' => 'Bearer ' . self::API_TOKEN,
@@ -574,10 +588,13 @@ PROMPT;
         return "Konteks:\n"
              . $this->context($ctx)
              . "- Soal Esai: {$ctx['soal']}\n\n"
-             . "Kamu adalah asesi (peserta uji kompetensi) yang TIDAK kompeten dan tidak memahami bidang konstruksi.\n"
-             . "Tulis jawaban esai yang SALAH, tidak tepat, atau tidak relevan untuk soal di atas (maks 255 huruf).\n"
-             . "Jawaban harus terlihat seperti dikerjakan oleh orang yang tidak menguasai materi.\n"
-             . "Gunakan bahasa Indonesia yang kurang profesional. Jawab sebagai asesi yang tidak kompeten.\n"
+             . "Kamu adalah asesi (peserta uji kompetensi) yang masih dalam tahap pengembangan kompetensi di bidang konstruksi.\n"
+             . "Tulis jawaban esai yang secara umum masih relevan dengan topik, namun mengandung beberapa kelemahan: "
+             . "konsep yang kurang tepat, urutan kerja yang kurang sistematis, penerapan standar yang belum konsisten, "
+             . "atau pemahaman yang masih dangkal (maks 255 huruf).\n"
+             . "Gunakan bahasa Indonesia yang cukup baik, jangan terlihat seperti orang yang sama sekali tidak tahu.\n"
+             . "Jawaban harus terlihat seperti dikerjakan oleh orang yang tahu sedikit namun belum menguasai sepenuhnya.\n"
+             . "JANGAN membuat jawaban yang terlihat bodoh, sangat ceroboh, atau asal-asalan.\n"
              . "Jawab HANYA teks jawaban esai, tanpa pembuka atau penutup.";
     }
 
@@ -598,10 +615,13 @@ PROMPT;
         return "Konteks:\n"
              . $this->context($ctx)
              . "- Instruksi Kegiatan Terstruktur: {$ctx['soal']}\n\n"
-             . "Kamu adalah asesi (peserta uji kompetensi) yang TIDAK kompeten dan tidak memahami bidang konstruksi.\n"
-             . "Tulis jawaban/uraian kegiatan yang SALAH, tidak tepat, atau tidak relevan untuk instruksi di atas (maks 255 huruf).\n"
-             . "Jawaban harus terlihat seperti dikerjakan oleh orang yang tidak menguasai prosedur kerja.\n"
-             . "Gunakan bahasa Indonesia yang kurang profesional. Jawab sebagai asesi yang tidak kompeten.\n"
+             . "Kamu adalah asesi (peserta uji kompetensi) yang masih dalam tahap pengembangan kompetensi di bidang konstruksi.\n"
+             . "Tulis jawaban/uraian kegiatan yang secara umum masih relevan dengan instruksi, namun mengandung beberapa kelemahan: "
+             . "langkah kerja yang kurang sistematis, pertimbangan teknis yang kurang matang, "
+             . "atau penerapan prosedur yang belum sepenuhnya sesuai standar (maks 255 huruf).\n"
+             . "Gunakan bahasa Indonesia yang cukup baik, jangan terlihat seperti orang yang sama sekali tidak tahu.\n"
+             . "Jawaban harus terlihat seperti dikerjakan oleh orang yang tahu sedikit namun belum menguasai sepenuhnya.\n"
+             . "JANGAN membuat jawaban yang terlihat bodoh, sangat ceroboh, atau asal-asalan.\n"
              . "Jawab HANYA teks jawaban, tanpa pembuka atau penutup.";
     }
 
@@ -630,11 +650,11 @@ PROMPT;
             'ia04a_demonstrasi' => 'Asesi harus mendemonstrasikan penguasaan kompetensi teknis sesuai dengan unit kompetensi yang diujikan, termasuk kemampuan membaca gambar teknis, penerapan Keselamatan dan Kesehatan Kerja (K3), serta penggunaan peralatan kerja yang sesuai dengan prosedur operasional standar.',
             'ia04a_umpan_balik' => 'Asesi berhasil menunjukkan penguasaan kompetensi yang memadai pada kegiatan terstruktur yang dilaksanakan. Kinerja yang diperlihatkan sesuai dengan kriteria unjuk kerja yang ditetapkan. Disarankan untuk terus meningkatkan kompetensi melalui pengalaman lapangan dan pelatihan lanjutan.',
 
-            // KAN fallbacks — used when LLM is unavailable (--no-llm or API timeout)
+            // KAN fallbacks — NOT used when LLM is available (throw exception instead)
             'kan_esai_benar' => 'Berdasarkan analisis teknis dan standar operasional prosedur yang berlaku, pelaksanaan pekerjaan konstruksi harus mengikuti tahapan perencanaan, pelaksanaan, pengawasan, dan serah terima sesuai dokumen kontrak. Setiap tahapan wajib didukung oleh dokumen teknis yang lengkap dan tenaga kerja yang kompeten di bidangnya. Penerapan K3 serta pengendalian mutu menjadi prasyarat utama keberhasilan proyek konstruksi.',
-            'kan_esai_salah' => 'Pekerjaan konstruksi cukup dikerjakan secara manual tanpa perlu perencanaan karena semua tukang sudah berpengalaman. Dokumen teknis tidak terlalu penting dan bisa dibuat setelah pekerjaan selesai. Pengawasan bisa dilakukan oleh siapa saja tanpa keahlian khusus, yang penting bangunan bisa berdiri dan terlihat bagus.',
+            'kan_esai_salah' => 'Pelaksanaan pekerjaan konstruksi pada dasarnya mengikuti alur yang sudah biasa dilakukan di lapangan. Perencanaan bisa disesuaikan nanti jika ada perubahan, dan dokumen teknis cukup dibuat seperlunya saja. Pengawasan dilakukan oleh tim yang ditunjuk, namun tidak semua aspek perlu diperiksa secara ketat karena tenaga kerja sudah cukup berpengalaman.',
             'kan_lisan_benar' => 'Langkah-langkah kegiatan terstruktur yang harus dilakukan meliputi: pertama, identifikasi kebutuhan sumber daya dan peralatan sesuai spesifikasi teknis. Kedua, penyusunan jadwal pelaksanaan dan metode kerja. Ketiga, pelaksanaan pekerjaan dengan pengawasan ketat terhadap mutu dan K3. Keempat, dokumentasi setiap tahapan sebagai bukti pelaksanaan.',
-            'kan_lisan_salah' => 'Kegiatannya tinggal dikerjakan saja sesuai kebiasaan di lapangan, tidak perlu urutan tertentu. Peralatan bisa pakai yang ada saja tanpa perlu dicek dulu kondisinya. Kalau ada masalah nanti bisa diperbaiki sambil jalan, yang penting proyek cepat selesai dan murah biayanya.',
+            'kan_lisan_salah' => 'Kegiatan ini secara umum mengikuti tahapan yang lazim diterapkan di proyek. Sumber daya dan peralatan disesuaikan dengan ketersediaan di lapangan. Penjadwalan dilakukan secara garis besar, dan detailnya bisa disesuaikan sambil berjalan. Dokumentasi dibuat setelah pekerjaan selesai sebagai laporan akhir.',
         ];
 
         return $fallbacks[$fieldType] ?? 'Telah diverifikasi dan dinyatakan sesuai.';

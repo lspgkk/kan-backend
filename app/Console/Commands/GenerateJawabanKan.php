@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Barcode;
 use App\Models\JabatanDokumen;
 use App\Models\JabatanKerja;
 use App\Models\KanIa4bAnswer;
@@ -12,22 +11,14 @@ use App\Models\KanPraktisiJabatan;
 use App\Models\KanSoal;
 use App\Models\User;
 use App\Services\LlmAutoFillService;
-use Carbon\Carbon;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
-use Ramsey\Uuid\Uuid;
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class GenerateJawabanKan extends Command
 {
     protected $signature = 'kan:generate-jawaban
-                            {file : Path ke JSON file}
-                            {--no-llm : Skip LLM API calls, use fallback text directly (much faster)}
-                            {--skip-qr : Skip QR code generation (faster, generate QR separately later)}';
-    protected $description = 'Generate KAN answers (IA04B, IA05, IA06) and QR codes from JSON mapping';
+                            {file : Path ke JSON file}';
+    protected $description = 'Generate KAN answers (IA04B, IA05, IA06) using LLM — all answers must be pure LLM, no fallback';
 
     private const PRAKTISI_KEYS = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10'];
     private const ROLE_PRAKTISI = 16;
@@ -38,7 +29,6 @@ class GenerateJawabanKan extends Command
     ];
 
     private LlmAutoFillService $llm;
-    private bool $noLlm = false;
     private array $jabatanKerjaCache = [];
     private array $userCache = [];
     private array $praktisiJabatanCache = [];
@@ -48,14 +38,6 @@ class GenerateJawabanKan extends Command
     {
         parent::__construct();
         $this->llm = app(LlmAutoFillService::class);
-    }
-
-    private function llmText(string $fieldType, array $ctx): string
-    {
-        if ($this->noLlm) {
-            return $this->llm->getFallback($fieldType);
-        }
-        return $this->llm->generateText($fieldType, $ctx);
     }
 
     public function handle(): int
@@ -74,11 +56,8 @@ class GenerateJawabanKan extends Command
 
         $records = $json['data'];
         $total = count($records);
-        $this->noLlm = $this->option('no-llm');
-        if ($this->noLlm) {
-            $this->warn('--no-llm enabled: skipping LLM API, using fallback text directly.');
-        }
         $this->info("Total records: {$total}");
+        $this->info('Mode: Pure LLM — semua jawaban wajib dari LLM, tanpa fallback.');
 
         $fixedCount = $this->fixJsonTypos($records);
         if ($fixedCount > 0) {
@@ -95,18 +74,17 @@ class GenerateJawabanKan extends Command
 
         $stats = [
             'processed' => 0, 'skipped_skema' => 0, 'skipped_dokumen' => 0,
-            'ia05' => 0, 'ia06' => 0, 'ia04b' => 0, 'qr' => 0, 'errors' => [],
+            'ia05' => 0, 'ia06' => 0, 'ia04b' => 0, 'errors' => [],
         ];
 
         foreach ($records as $idx => $record) {
             $bar->advance();
             try {
-                $result = $this->processRecord($record, $idx);
+                $result = $this->processRecord($record);
                 $stats['processed']++;
                 $stats['ia05']  += $result['ia05'];
                 $stats['ia06']  += $result['ia06'];
                 $stats['ia04b'] += $result['ia04b'];
-                $stats['qr']    += $result['qr'];
                 if (!$result['skema_found']) $stats['skipped_skema']++;
                 if (!$result['dokumen_found']) $stats['skipped_dokumen']++;
             } catch (\Throwable $e) {
@@ -121,13 +99,12 @@ class GenerateJawabanKan extends Command
         $this->newLine(2);
 
         $this->info('═══ HASIL GENERATE ═══');
-        $this->info("Records diproses:     {$stats['processed']}");
+        $this->info("Records diproses:      {$stats['processed']}");
         $this->info("Skema tidak ditemukan: {$stats['skipped_skema']}");
-        $this->info("IA05 answers dibuat:  {$stats['ia05']}");
-        $this->info("IA06 answers dibuat:  {$stats['ia06']}");
-        $this->info("IA04B answers dibuat: {$stats['ia04b']}");
-        $this->info("QR codes dibuat:      {$stats['qr']}");
-        $this->info("Errors:               " . count($stats['errors']));
+        $this->info("IA05 answers dibuat:   {$stats['ia05']}");
+        $this->info("IA06 answers dibuat:   {$stats['ia06']}");
+        $this->info("IA04B answers dibuat:  {$stats['ia04b']}");
+        $this->info("Errors:                " . count($stats['errors']));
 
         if (!empty($stats['errors'])) {
             $this->warn('Detail errors (10 pertama):');
@@ -194,9 +171,9 @@ class GenerateJawabanKan extends Command
     //  PROCESS SINGLE RECORD (bulk upsert per table)
     // ═══════════════════════════════════════════════════════════════
 
-    private function processRecord(array $record, int $idx): array
+    private function processRecord(array $record): array
     {
-        $stats = ['ia05' => 0, 'ia06' => 0, 'ia04b' => 0, 'qr' => 0, 'skema_found' => true, 'dokumen_found' => true];
+        $stats = ['ia05' => 0, 'ia06' => 0, 'ia04b' => 0, 'skema_found' => true, 'dokumen_found' => true];
 
         $skemaName = trim($record['skema'] ?? '');
         $noSkema = $record['no_skema'] ?? '';
@@ -215,19 +192,19 @@ class GenerateJawabanKan extends Command
 
         $asesorNames = $record['asesor_names'] ?? [];
         $scores = $record['scores'] ?? [];
-        $tanggalUji = $record['tanggal_uji_coba_asesmen'] ?? null;
 
         // Resolve praktisi users & kan_praktisi_jabatan
-        $praktisiUsers = [];
         $praktisiJabatanIds = [];
         foreach (self::PRAKTISI_KEYS as $key) {
             $name = trim($asesorNames[$key] ?? '');
             if (empty($name)) continue;
-            $praktisiUsers[$key] = $this->resolvePraktisiUser($name);
-            $praktisiJabatanIds[$key] = $this->findOrCreatePraktisiJabatan($idJabatanKerja, $praktisiUsers[$key]);
+            $praktisiJabatanIds[$key] = $this->findOrCreatePraktisiJabatan(
+                $idJabatanKerja,
+                $this->resolvePraktisiUser($name)
+            );
         }
 
-        // ── Collect data first, then bulk upsert ──
+        // ── Generate answers (pure LLM) ──
 
         // IA05
         if (!empty($dokumens['ia05']) && !empty($scores['Pg'])) {
@@ -244,20 +221,7 @@ class GenerateJawabanKan extends Command
             $stats['ia04b'] += $this->generateIa04bBulk($dokumens['ia04b'], $scores['Lisan'], $praktisiJabatanIds, $asesorNames, $skemaName, $noSkema);
         }
 
-        // QR Codes (skip if --skip-qr)
-        if ($tanggalUji && !$this->option('skip-qr')) {
-            $qrRows = [];
-            foreach ($praktisiJabatanIds as $key => $kpjId) {
-                $userId = $praktisiUsers[$key];
-                foreach (['IA04B', 'IA05', 'IA06'] as $docType) {
-                    $qrRows[] = $this->buildQrRow($userId, $kpjId, $docType, $tanggalUji);
-                }
-            }
-            if (!empty($qrRows)) {
-                Barcode::upsert($qrRows, ['id_user', 'kan_praktisi_jabatan_id', 'jenis_dokumen'], ['url_image', 'url_ttd', 'id_role', 'created_at', 'updated_at']);
-                $stats['qr'] = count($qrRows);
-            }
-        }
+        // Note: QR codes are generated separately via kan:generate-qr command
 
         return $stats;
     }
@@ -490,50 +454,5 @@ class GenerateJawabanKan extends Command
             KanIa4bAnswer::upsert($rows, ['kan_praktisi_jabatan_id', 'dokumen_id', 'soal_id'], ['jawaban', 'skor', 'is_rekomendasi', 'updated_at']);
         }
         return count($rows);
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  QR CODE (build row, upserted in bulk)
-    // ═══════════════════════════════════════════════════════════════
-
-    private function buildQrRow(int $userId, int $kpjId, string $docType, string $tanggalUji): array
-    {
-        $uuid = (string) Uuid::uuid4();
-        $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
-
-        // Check if barcode already exists — skip FTP upload if so
-        $existing = Barcode::where('id_user', $userId)
-            ->where('kan_praktisi_jabatan_id', $kpjId)
-            ->where('jenis_dokumen', $docType)
-            ->first();
-
-        if ($existing && $existing->url_image && $existing->url_ttd) {
-            // Reuse existing image, just update created_at
-            $urlImage = $existing->url_image;
-            $urlTtd = $existing->url_ttd;
-        } else {
-            $filename = 'qr_praktisi_' . Str::uuid() . '.png';
-            $qrImage = QrCode::format('png')->size(300)->margin(1)->generate($urlTtd);
-            $path = "barcodes/{$filename}";
-            Storage::disk('str_moon')->put($path, $qrImage);
-            $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
-        }
-
-        try {
-            $createdAt = Carbon::parse($tanggalUji);
-        } catch (\Throwable) {
-            $createdAt = now();
-        }
-
-        return [
-            'id_user'                 => $userId,
-            'kan_praktisi_jabatan_id' => $kpjId,
-            'jenis_dokumen'           => $docType,
-            'url_image'               => $urlImage,
-            'url_ttd'                 => $urlTtd,
-            'id_role'                 => self::ROLE_PRAKTISI,
-            'created_at'              => $createdAt,
-            'updated_at'              => now(),
-        ];
     }
 }
