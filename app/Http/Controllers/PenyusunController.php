@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Barcode;
 use App\Models\JabatanConfigA;
+use App\Models\JabatanDokumen;
+use App\Models\JabatanKerja;
 use App\Models\KanPraktisiJabatan;
+use App\Models\Referensi;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -237,6 +240,131 @@ class PenyusunController extends Controller
                 'url_image' => $urlImage,
                 'url_ttd'   => $urlTtd,
                 'tanggal'   => Carbon::now()->toDateString(),
+            ],
+        ]);
+    }
+
+    // ──────────────────────────────────────────────
+    //  MAPA01 / MAPA02 Data (per jabker — full content)
+    // ──────────────────────────────────────────────
+
+    public function getMapaData(string $jabkerId, string $jenis): JsonResponse
+    {
+        $docType = $jenis === 'mapa01' ? 'MAPA01' : 'MAPA02';
+
+        $jabatanKerja = JabatanKerja::find($jabkerId);
+        if (!$jabatanKerja) {
+            return response()->json(['message' => 'Jabatan kerja not found'], 404);
+        }
+
+        $config = JabatanConfigA::with([
+            'kanPenyusun:id,name,noreg',
+            'kanValidator:id,name,noreg',
+        ])->where('id_jabatan', $jabkerId)->first();
+
+        $dokumen = JabatanDokumen::with(['kelompoks.units.unit'])
+            ->where('id_jabatan', $jabkerId)
+            ->where('kode', $docType)
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dokumen) {
+            return response()->json(['message' => "$docType not found for this jabker"], 404);
+        }
+
+        // ── Kelompok Kerja ──
+        $kelompokKerja = [
+            'id'             => $dokumen->id,
+            'kode'           => $dokumen->kode,
+            'nama_dokumen'   => $dokumen->nama_dokumen,
+            'kelompok_kerja' => $dokumen->kelompoks->map(fn ($kg) => [
+                'id'    => $kg->id,
+                'nama'  => $kg->nama,
+                'urut'  => $kg->urut,
+                'units' => $kg->units->map(fn ($u) => [
+                    'id_unit'   => $u->id_unit,
+                    'nama_unit' => $u->unit?->nama,
+                    'kode_unit' => $u->unit?->kode,
+                ])->values(),
+            ])->values(),
+        ];
+
+        // ── Referensi ──
+        $referensis = Referensi::with(['kategoriRel', 'kelompokRel', 'subkategoriRel'])
+            ->select(['id', 'nama', 'id_kelompok', 'id_kategori', 'id_subkategori'])
+            ->where('kategori', $docType)
+            ->whereNotNull('id_kelompok')
+            ->get()
+            ->filter(fn ($r) => $r->kelompokRel !== null);
+
+        $dataReferensi = $referensis
+            ->groupBy('id_kelompok')
+            ->values()
+            ->map(function ($kelompokItems) {
+                $kelompok = $kelompokItems->first()->kelompokRel;
+                return [
+                    'kelompok' => [
+                        'id'   => $kelompok->id,
+                        'nama' => $kelompok->nama,
+                        'urut' => $kelompok->urut,
+                        'kategoris' => $kelompokItems
+                            ->groupBy(fn ($i) => $i->id_kategori ?? 'tanpa_kategori')
+                            ->values()
+                            ->map(function ($kategoriItems) {
+                                $kategori = $kategoriItems->first()->kategoriRel;
+                                return [
+                                    'id'           => $kategori?->id,
+                                    'kategori'     => $kategori?->kategori,
+                                    'nama'         => $kategori?->nama,
+                                    'urut'         => $kategori?->urut,
+                                    'id_kelompok'  => $kategori?->id_kelompok,
+                                    'subkategoris' => $kategoriItems
+                                        ->groupBy(fn ($i) => $i->id_subkategori ?? 'tanpa_subkategori')
+                                        ->values()
+                                        ->map(function ($subItems) {
+                                            $sub = $subItems->first()->subkategoriRel;
+                                            return [
+                                                'id'         => $sub?->id,
+                                                'nama'       => $sub?->nama ?? 'Tanpa Subkategori',
+                                                'urut'       => $sub?->urut,
+                                                'referensis' => $subItems->map(fn ($item) => [
+                                                    'id'     => $item->id,
+                                                    'nama'   => $item->nama,
+                                                    'value'  => false,
+                                                    'alasan' => '',
+                                                ])->values(),
+                                            ];
+                                        })->values(),
+                                ];
+                            })->values(),
+                    ],
+                ];
+            });
+
+        return response()->json([
+            'message' => 'OK',
+            'data'    => [
+                'kelompok_kerja' => $kelompokKerja,
+                'referensi_form' => $dataReferensi,
+                'skkni'          => $jabatanKerja->acuan ?? '',
+                'jenjang'        => (string) ($jabatanKerja->jenjang_id ?? ''),
+                'metode'         => '',
+                'barcodes'       => [],
+                // Extra header info for penyusun display
+                'judul'          => $jabatanKerja->jabatan_kerja ?? '',
+                'nomor'          => $config?->kan_no_skema ?? $config?->no_skema ?? '',
+                'penyusun_info'  => $config ? [
+                    'nama'    => $config->kanPenyusun?->name,
+                    'noreg'   => $config->kanPenyusun?->noreg,
+                    'tanggal' => $config->kan_penyusun_tgl,
+                    'barcode' => $config->kan_penyusun_img,
+                ] : null,
+                'validator_info' => $config ? [
+                    'nama'    => $config->kanValidator?->name,
+                    'noreg'   => $config->kanValidator?->noreg,
+                    'tanggal' => $config->kan_validator_tgl,
+                    'barcode' => $config->kan_validator_img,
+                ] : null,
             ],
         ]);
     }
