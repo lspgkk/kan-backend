@@ -78,19 +78,6 @@ class PenyusunController extends Controller
         ]);
     }
 
-        return response()->json([
-            'message' => 'OK',
-            'data'    => [
-                'skema'    => [
-                    'id'            => $config->id_jabatan,
-                    'jabatan_kerja' => $jabatanNama,
-                    'kan_no_skema'  => $config->kan_no_skema,
-                ],
-                'peserta'  => $result,
-            ],
-        ]);
-    }
-
     // ──────────────────────────────────────────────
     //  IA04B: Get & Submit (delegates to KanAsesmenController)
     // ──────────────────────────────────────────────
