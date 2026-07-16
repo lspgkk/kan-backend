@@ -5,11 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\AsesiJadwal;
 use App\Models\Barcode;
 use App\Models\JabatanConfigA;
-use App\Models\JabatanKerja;
 use App\Models\Jadwal;
+use App\Models\KanPraktisiJabatan;
 use App\Models\KlasifikasiKualifikasi;
 use App\Models\Personal;
-use App\Models\Skema;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -20,67 +19,7 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class PenyusunController extends Controller
 {
-    // ──────────────────────────────────────────────
-    //  DASHBOARD: List Jabatan Kerja
-    // ──────────────────────────────────────────────
-
-    public function jabker(): JsonResponse
-    {
-        $jabkers = JabatanKerja::select([
-                'jabatan_kerjas.id_jabatan_kerja',
-                'jabatan_kerjas.jabatan_kerja',
-                'jabatan_kerjas.jenjang_id',
-            ])
-            ->where('lsp_id_klasifikasi', 'SI')
-            ->where('versi', 2)
-            ->get()
-            ->map(function ($jabker) {
-                // Count skema (jabatan_config_a entries) for this jabatan
-                $skemaCount = JabatanConfigA::where('id_jabatan', $jabker->id_jabatan_kerja)
-                    ->whereNotNull('kan_no_skema')
-                    ->count();
-
-                // Determine status: check if there are active asesi for this jabatan
-                $hasActive = KlasifikasiKualifikasi::where('jabatan_kerja', $jabker->id_jabatan_kerja)
-                    ->whereHas('asesiJadwal')
-                    ->exists();
-
-                return [
-                    'id_jabatan_kerja' => $jabker->id_jabatan_kerja,
-                    'jabatan_kerja'    => $jabker->jabatan_kerja,
-                    'jumlah_skema'     => $skemaCount,
-                    'status'           => $hasActive ? 'aktif' : '-',
-                ];
-            });
-
-        return response()->json(['message' => 'OK', 'data' => $jabkers]);
-    }
-
-    // ──────────────────────────────────────────────
-    //  SKEMA: List Skema
-    // ──────────────────────────────────────────────
-
-    public function skema(): JsonResponse
-    {
-        $skemas = JabatanConfigA::with([
-                'jabatan:id_jabatan_kerja,jabatan_kerja',
-            ])
-            ->whereNotNull('kan_no_skema')
-            ->select(['id_jabatan', 'kan_no_skema', 'kan_penyusun_id', 'kan_validator_id'])
-            ->get()
-            ->map(function ($config) {
-                return [
-                    'id'              => $config->id_jabatan,
-                    'id_jabatan'      => $config->id_jabatan,
-                    'jabatan_kerja'   => $config->jabatan?->jabatan_kerja,
-                    'kan_no_skema'    => $config->kan_no_skema,
-                    'penyusun_id'     => $config->kan_penyusun_id,
-                    'validator_id'    => $config->kan_validator_id,
-                ];
-            });
-
-        return response()->json(['message' => 'OK', 'data' => $skemas]);
-    }
+    use KanRoleDashboardTrait;
 
     // ──────────────────────────────────────────────
     //  SKEMA PESERTA: Participants per Skema
@@ -91,7 +30,9 @@ class PenyusunController extends Controller
         $config = JabatanConfigA::with('jabatan:id_jabatan_kerja,jabatan_kerja')
             ->where('id_jabatan', $idSkema)->firstOrFail();
 
-        // Get all id_izin for this jabatan
+        $jabatanNama = $config->jabatan?->jabatan_kerja;
+
+        // Get all participants for this jabatan
         $peserta = KlasifikasiKualifikasi::select([
                 'klasifikasi_kualifikasis.id_izin',
                 'klasifikasi_kualifikasis.jabatan_kerja',
@@ -99,32 +40,62 @@ class PenyusunController extends Controller
             ])
             ->join('personals', 'personals.id_izin', '=', 'klasifikasi_kualifikasis.id_izin')
             ->where('klasifikasi_kualifikasis.jabatan_kerja', $config->id_jabatan)
+            ->get();
+
+        $izinIds = $peserta->pluck('id_izin');
+
+        // Batch load KanPraktisiJabatan ids per user for this jabatan
+        $kanIds = KanPraktisiJabatan::select(['id', 'id_user'])
+            ->where('id_jabatan_kerja', $config->id_jabatan)
             ->get()
-            ->map(function ($p) {
-                // Check progress: find asesi_jadwals entry
-                $asesiJadwal = AsesiJadwal::where('id_izin', $p->id_izin)->first();
+            ->keyBy('id_user');
 
-                $status = 'belum';
-                if ($asesiJadwal) {
-                    $status = $asesiJadwal->is_started ? 'proses' : 'terdaftar';
-                }
+        // Batch load Barcode TTD status per id_izin per document type
+        $barcodes = Barcode::select(['id_izin', 'jenis_dokumen', 'url_image'])
+            ->whereIn('id_izin', $izinIds)
+            ->whereIn('jenis_dokumen', ['IA04B', 'IA05', 'IA06'])
+            ->get()
+            ->groupBy('id_izin');
 
-                return [
-                    'id_izin'  => $p->id_izin,
-                    'nama'     => $p->nama,
-                    'status'   => $status,
-                ];
-            });
+        // Map User.noreg -> id_izin for matching KanPraktisiJabatan
+        $usersByNoreg = \App\Models\User::whereIn('noreg', $izinIds)
+            ->pluck('id', 'noreg');
+
+        $result = $peserta->map(function ($p) use ($barcodes, $jabatanNama, $kanIds, $usersByNoreg) {
+            $userId = $usersByNoreg[$p->id_izin] ?? null;
+            $kanId  = $userId ? ($kanIds[$userId]->id ?? null) : null;
+
+            $docs = $barcodes[$p->id_izin] ?? collect();
+
+            $ia04b = $docs->firstWhere('jenis_dokumen', 'IA04B');
+            $ia05  = $docs->firstWhere('jenis_dokumen', 'IA05');
+            $ia06  = $docs->firstWhere('jenis_dokumen', 'IA06');
+
+            $ia04bStatus = $ia04b && $ia04b->url_image ? 'Terisi' : 'Belum';
+            $ia05Status  = $ia05  && $ia05->url_image  ? 'Terisi' : 'Belum';
+            $ia06Status  = $ia06  && $ia06->url_image  ? 'Terisi' : 'Belum';
+
+            return [
+                'id'             => $kanId,
+                'id_izin'        => $p->id_izin,
+                'nama'           => $p->nama,
+                'jabker'         => $jabatanNama,
+                'ia04b_status'   => $ia04bStatus,
+                'ia05_status'    => $ia05Status,
+                'ia06_status'    => $ia06Status,
+                'selesai'        => $ia06Status === 'Terisi',
+            ];
+        });
 
         return response()->json([
             'message' => 'OK',
             'data'    => [
                 'skema'    => [
                     'id'            => $config->id_jabatan,
-                    'jabatan_kerja' => $config->jabatan?->jabatan_kerja,
+                    'jabatan_kerja' => $jabatanNama,
                     'kan_no_skema'  => $config->kan_no_skema,
                 ],
-                'peserta'  => $peserta,
+                'peserta'  => $result,
             ],
         ]);
     }

@@ -15,65 +15,7 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class ValidatorController extends Controller
 {
-    // ──────────────────────────────────────────────
-    //  DASHBOARD: List Jabatan Kerja
-    // ──────────────────────────────────────────────
-
-    public function jabker(): JsonResponse
-    {
-        $jabkers = \App\Models\JabatanKerja::select([
-                'jabatan_kerjas.id_jabatan_kerja',
-                'jabatan_kerjas.jabatan_kerja',
-                'jabatan_kerjas.jenjang_id',
-            ])
-            ->where('lsp_id_klasifikasi', 'SI')
-            ->where('versi', 2)
-            ->get()
-            ->map(function ($jabker) {
-                $skemaCount = JabatanConfigA::where('id_jabatan', $jabker->id_jabatan_kerja)
-                    ->whereNotNull('kan_no_skema')
-                    ->count();
-
-                $hasActive = KlasifikasiKualifikasi::where('jabatan_kerja', $jabker->id_jabatan_kerja)
-                    ->whereHas('asesiJadwal')
-                    ->exists();
-
-                return [
-                    'id_jabatan_kerja' => $jabker->id_jabatan_kerja,
-                    'jabatan_kerja'    => $jabker->jabatan_kerja,
-                    'jumlah_skema'     => $skemaCount,
-                    'status'           => $hasActive ? 'aktif' : '-',
-                ];
-            });
-
-        return response()->json(['message' => 'OK', 'data' => $jabkers]);
-    }
-
-    // ──────────────────────────────────────────────
-    //  SKEMA: List Skema
-    // ──────────────────────────────────────────────
-
-    public function skema(): JsonResponse
-    {
-        $skemas = JabatanConfigA::with([
-                'jabatan:id_jabatan_kerja,jabatan_kerja',
-            ])
-            ->whereNotNull('kan_no_skema')
-            ->select(['id_jabatan', 'kan_no_skema', 'kan_penyusun_id', 'kan_validator_id'])
-            ->get()
-            ->map(function ($config) {
-                return [
-                    'id'              => $config->id_jabatan,
-                    'id_jabatan'      => $config->id_jabatan,
-                    'jabatan_kerja'   => $config->jabatan?->jabatan_kerja,
-                    'kan_no_skema'    => $config->kan_no_skema,
-                    'penyusun_id'     => $config->kan_penyusun_id,
-                    'validator_id'    => $config->kan_validator_id,
-                ];
-            });
-
-        return response()->json(['message' => 'OK', 'data' => $skemas]);
-    }
+    use KanRoleDashboardTrait;
 
     // ──────────────────────────────────────────────
     //  IA04B: Get & Submit

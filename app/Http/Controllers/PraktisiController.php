@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AsesiJadwal;
 use App\Models\Barcode;
 use App\Models\JabatanConfigA;
+use App\Models\JabatanDokumen;
 use App\Models\JabatanKerja;
 use App\Models\Jadwal;
 use App\Models\KanIa4bAnswer;
@@ -166,6 +167,32 @@ class PraktisiController extends Controller
 
     public function jawab(Request $request, $idIzin): JsonResponse
     {
+        $kan = app(KanAsesmenController::class);
+
+        // Support both frontend format: { ia04b: [...] } and { type, dokumen_id, answers }
+        if ($request->has('ia04b')) {
+            $request->merge(['type' => 'ia04b', 'answers' => $request->input('ia04b')]);
+        } elseif ($request->has('ia05')) {
+            $request->merge(['type' => 'ia05', 'answers' => $request->input('ia05')]);
+        } elseif ($request->has('ia06')) {
+            $request->merge(['type' => 'ia06', 'answers' => $request->input('ia06')]);
+        }
+
+        // Resolve dokumen_id if not provided
+        if (!$request->has('dokumen_id')) {
+            $klasifikasi = KlasifikasiKualifikasi::select('jabatan_kerja')
+                ->where('id_izin', $idIzin)->first();
+            $kodeMap = ['ia04b' => 'FR.IA.04.B', 'ia05' => 'FR.IA.05', 'ia06' => 'FR.IA.06'];
+            $kode = $kodeMap[$request->input('type', 'ia04b')] ?? 'FR.IA.04.B';
+            $dokumen = $klasifikasi
+                ? \App\Models\JabatanDokumen::where('id_jabatan', $klasifikasi->jabatan_kerja)
+                    ->where('kode', $kode)->where('is_active', true)->first()
+                : null;
+            if ($dokumen) {
+                $request->merge(['dokumen_id' => $dokumen->id]);
+            }
+        }
+
         $validated = $request->validate([
             'type'      => 'required|in:ia04b,ia05,ia06',
             'dokumen_id'=> 'required|integer',
@@ -173,9 +200,6 @@ class PraktisiController extends Controller
             'answers.*.soal_id' => 'required|integer',
             'answers.*.jawaban' => 'nullable|string',
         ]);
-
-        // Delegate to KanAsesmenController (jawaban only, no skor)
-        $kan = app(KanAsesmenController::class);
 
         return match ($validated['type']) {
             'ia04b' => $kan->submitKanIa04b($request, $idIzin),

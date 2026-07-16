@@ -1244,13 +1244,32 @@ class KanAsesmenController extends Controller
 
         $ak2Feedback = KanAk2Feedback::where('kan_praktisi_jabatan_id', $praktisiJabatanId)->first();
 
+        // Unit kompetensi for this jabatan
+        $unitKompetensi = \App\Models\UnitKompetensi::select(['id', 'kode', 'nama'])
+            ->where('id_jabatan', $record->id_jabatan_kerja)
+            ->get()
+            ->map(function ($unit) {
+                // Praktisi flow doesn't save individual Ak2Answer evidence,
+                // default all to false
+                $unit->evidence = (object) [
+                    'observasi'             => false,
+                    'portofolio'            => false,
+                    'pertanyaan_wawancara'  => false,
+                    'pertanyaan_lisan'      => false,
+                    'pertanyaan_tertulis'   => false,
+                    'proyek_kerja'          => false,
+                    'lainnya'               => false,
+                ];
+                return $unit;
+            });
+
         $jenjang = $record->jabatanKerja?->jenjang_id ?? 0;
         $threshold = $jenjang <= 6 ? 65 : 70;
 
         return [
             'barcodes'                 => $barcodes,
             'dokumen'                  => $dokumen,
-            'unit_kompetensi'          => collect(),
+            'unit_kompetensi'          => $unitKompetensi,
             'total_skor_dit'           => $ak2Feedback?->total_skor_dit,
             'total_skor_pilihan_ganda' => $ak2Feedback?->total_skor_pg,
             'total_skor_esai'          => $ak2Feedback?->total_skor_esai,
