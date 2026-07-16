@@ -589,6 +589,9 @@ class KanConfigController extends Controller
         // Optional: return all without pagination
         if ($request->boolean('all')) {
             $results = $query->orderBy('created_at', 'desc')->get();
+            $results->each(function ($item) {
+                $item->ttd_status = $this->resolveTtdStatus($item->id);
+            });
             return response()->json([
                 'message' => 'OK',
                 'data'    => $results,
@@ -665,5 +668,25 @@ class KanConfigController extends Controller
         return response()->json([
             'message' => 'Praktisi berhasil dihapus dari jabatan kerja.',
         ]);
+    }
+
+    /**
+     * Resolve TTD status per document type for a praktisi jabatan record.
+     */
+    private function resolveTtdStatus(int $kanPraktisiJabatanId): array
+    {
+        $barcodes = Barcode::where('kan_praktisi_jabatan_id', $kanPraktisiJabatanId)
+            ->whereNotNull('url_image')
+            ->get()
+            ->keyBy('jenis_dokumen');
+
+        $docs = ['IA04B', 'IA05', 'IA06', 'AK02'];
+        $status = [];
+        foreach ($docs as $doc) {
+            $status[$doc] = isset($barcodes[$doc]);
+        }
+        $status['selesai'] = !empty($status['IA06']);
+
+        return $status;
     }
 }

@@ -524,6 +524,10 @@ Route::prefix('diskon')->group(function () {
         Route::get('/jabker', [PenyusunController::class, 'jabker']);
         Route::get('/skema', [PenyusunController::class, 'skema']);
         Route::get('/skema/{id}/peserta', [PenyusunController::class, 'skemaPeserta']);
+        // MAPA TTD (per jabker — id_jabatan_kerja)
+        Route::get('/jabker/{jabkerId}/{jenis}/status', [PenyusunController::class, 'statusMapaTtd'])->where('jenis', 'mapa01|mapa02');
+        Route::post('/jabker/{jabkerId}/{jenis}/ttd', [PenyusunController::class, 'ttdMapaByJabker'])->where('jenis', 'mapa01|mapa02');
+        // IA TTD (by id_izin — legacy)
         Route::get('/{idIzin}/ia04b', [PenyusunController::class, 'getIa04b']);
         Route::post('/{idIzin}/ia04b', [PenyusunController::class, 'submitIa04b']);
         Route::get('/{idIzin}/ia05', [PenyusunController::class, 'getIa05']);

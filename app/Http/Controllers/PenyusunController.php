@@ -2,14 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AsesiJadwal;
 use App\Models\Barcode;
 use App\Models\JabatanConfigA;
-use App\Models\JabatanKerja;
-use App\Models\Jadwal;
-use App\Models\KlasifikasiKualifikasi;
-use App\Models\Personal;
-use App\Models\Skema;
+use App\Models\KanPraktisiJabatan;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -20,67 +15,7 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class PenyusunController extends Controller
 {
-    // ──────────────────────────────────────────────
-    //  DASHBOARD: List Jabatan Kerja
-    // ──────────────────────────────────────────────
-
-    public function jabker(): JsonResponse
-    {
-        $jabkers = JabatanKerja::select([
-                'jabatan_kerjas.id_jabatan_kerja',
-                'jabatan_kerjas.jabatan_kerja',
-                'jabatan_kerjas.jenjang_id',
-            ])
-            ->where('lsp_id_klasifikasi', 'SI')
-            ->where('versi', 2)
-            ->get()
-            ->map(function ($jabker) {
-                // Count skema (jabatan_config_a entries) for this jabatan
-                $skemaCount = JabatanConfigA::where('id_jabatan', $jabker->id_jabatan_kerja)
-                    ->whereNotNull('kan_no_skema')
-                    ->count();
-
-                // Determine status: check if there are active asesi for this jabatan
-                $hasActive = KlasifikasiKualifikasi::where('jabatan_kerja', $jabker->id_jabatan_kerja)
-                    ->whereHas('asesiJadwal')
-                    ->exists();
-
-                return [
-                    'id_jabatan_kerja' => $jabker->id_jabatan_kerja,
-                    'jabatan_kerja'    => $jabker->jabatan_kerja,
-                    'jumlah_skema'     => $skemaCount,
-                    'status'           => $hasActive ? 'aktif' : '-',
-                ];
-            });
-
-        return response()->json(['message' => 'OK', 'data' => $jabkers]);
-    }
-
-    // ──────────────────────────────────────────────
-    //  SKEMA: List Skema
-    // ──────────────────────────────────────────────
-
-    public function skema(): JsonResponse
-    {
-        $skemas = JabatanConfigA::with([
-                'jabatan:id_jabatan_kerja,jabatan_kerja',
-            ])
-            ->whereNotNull('kan_no_skema')
-            ->select(['id_jabatan', 'kan_no_skema', 'kan_penyusun_id', 'kan_validator_id'])
-            ->get()
-            ->map(function ($config) {
-                return [
-                    'id'              => $config->id_jabatan,
-                    'id_jabatan'      => $config->id_jabatan,
-                    'jabatan_kerja'   => $config->jabatan?->jabatan_kerja,
-                    'kan_no_skema'    => $config->kan_no_skema,
-                    'penyusun_id'     => $config->kan_penyusun_id,
-                    'validator_id'    => $config->kan_validator_id,
-                ];
-            });
-
-        return response()->json(['message' => 'OK', 'data' => $skemas]);
-    }
+    use KanRoleDashboardTrait;
 
     // ──────────────────────────────────────────────
     //  SKEMA PESERTA: Participants per Skema
@@ -91,40 +26,54 @@ class PenyusunController extends Controller
         $config = JabatanConfigA::with('jabatan:id_jabatan_kerja,jabatan_kerja')
             ->where('id_jabatan', $idSkema)->firstOrFail();
 
-        // Get all id_izin for this jabatan
-        $peserta = KlasifikasiKualifikasi::select([
-                'klasifikasi_kualifikasis.id_izin',
-                'klasifikasi_kualifikasis.jabatan_kerja',
-                'personals.nama',
-            ])
-            ->join('personals', 'personals.id_izin', '=', 'klasifikasi_kualifikasis.id_izin')
-            ->where('klasifikasi_kualifikasis.jabatan_kerja', $config->id_jabatan)
+        $jabatanNama = $config->jabatan?->jabatan_kerja;
+
+        // Get praktisi from KanPraktisiJabatan (KAN flow)
+        $peserta = KanPraktisiJabatan::with('user:id,name,email,phone,noreg')
+            ->where('id_jabatan_kerja', $config->id_jabatan)
+            ->get();
+
+        $kanIds = $peserta->pluck('id');
+
+        // Batch load Barcode TTD status per kan_praktisi_jabatan_id
+        $barcodes = Barcode::select(['kan_praktisi_jabatan_id', 'jenis_dokumen', 'url_image'])
+            ->whereIn('kan_praktisi_jabatan_id', $kanIds)
+            ->whereIn('jenis_dokumen', ['IA04B', 'IA05', 'IA06'])
             ->get()
-            ->map(function ($p) {
-                // Check progress: find asesi_jadwals entry
-                $asesiJadwal = AsesiJadwal::where('id_izin', $p->id_izin)->first();
+            ->groupBy('kan_praktisi_jabatan_id');
 
-                $status = 'belum';
-                if ($asesiJadwal) {
-                    $status = $asesiJadwal->is_started ? 'proses' : 'terdaftar';
-                }
+        $result = $peserta->map(function ($p) use ($barcodes, $jabatanNama) {
+            $docs = $barcodes[$p->id] ?? collect();
 
-                return [
-                    'id_izin'  => $p->id_izin,
-                    'nama'     => $p->nama,
-                    'status'   => $status,
-                ];
-            });
+            $ia04b = $docs->firstWhere('jenis_dokumen', 'IA04B');
+            $ia05  = $docs->firstWhere('jenis_dokumen', 'IA05');
+            $ia06  = $docs->firstWhere('jenis_dokumen', 'IA06');
+
+            $ia04bStatus = $ia04b && $ia04b->url_image ? 'Terisi' : 'Belum';
+            $ia05Status  = $ia05  && $ia05->url_image  ? 'Terisi' : 'Belum';
+            $ia06Status  = $ia06  && $ia06->url_image  ? 'Terisi' : 'Belum';
+
+            return [
+                'id'             => $p->id,
+                'id_izin'        => $p->user?->noreg ?? '',
+                'nama'           => $p->user?->name ?? '-',
+                'jabker'         => $jabatanNama,
+                'ia04b_status'   => $ia04bStatus,
+                'ia05_status'    => $ia05Status,
+                'ia06_status'    => $ia06Status,
+                'selesai'        => $ia06Status === 'Terisi',
+            ];
+        });
 
         return response()->json([
             'message' => 'OK',
             'data'    => [
                 'skema'    => [
                     'id'            => $config->id_jabatan,
-                    'jabatan_kerja' => $config->jabatan?->jabatan_kerja,
+                    'jabatan_kerja' => $jabatanNama,
                     'kan_no_skema'  => $config->kan_no_skema,
                 ],
-                'peserta'  => $peserta,
+                'peserta'  => $result,
             ],
         ]);
     }
@@ -285,6 +234,79 @@ class PenyusunController extends Controller
         return response()->json([
             'message'  => 'TTD saved',
             'data'     => [
+                'url_image' => $urlImage,
+                'url_ttd'   => $urlTtd,
+                'tanggal'   => Carbon::now()->toDateString(),
+            ],
+        ]);
+    }
+
+    // ──────────────────────────────────────────────
+    //  MAPA01 / MAPA02 TTD (per jabker)
+    // ──────────────────────────────────────────────
+
+    public function ttdMapaByJabker(Request $request, string $jabkerId, string $jenis): JsonResponse
+    {
+        if ($jenis === 'mapa01') {
+            return $this->generateMapaTtd($request, $jabkerId, 'MAPA01_JABKER', 'ttd_mapa01_jabker');
+        }
+        return $this->generateMapaTtd($request, $jabkerId, 'MAPA02_JABKER', 'ttd_mapa02_jabker');
+    }
+
+    public function statusMapaTtd(string $jabkerId, string $jenis): JsonResponse
+    {
+        $docType = $jenis === 'mapa01' ? 'MAPA01_JABKER' : 'MAPA02_JABKER';
+        $user = auth()->user();
+
+        $barcode = Barcode::where('id_izin', $jabkerId)
+            ->where('jenis_dokumen', $docType)
+            ->whereNotNull('url_image')
+            ->first();
+
+        if (!$barcode) {
+            return response()->json(['message' => 'OK', 'data' => ['sudah' => false]]);
+        }
+
+        return response()->json([
+            'message' => 'OK',
+            'data'    => [
+                'sudah'     => true,
+                'url_image' => $barcode->url_image,
+                'tanggal'   => $barcode->created_at ? Carbon::parse($barcode->created_at)->toDateString() : null,
+            ],
+        ]);
+    }
+
+    private function generateMapaTtd(Request $request, string $jabkerId, string $docType, string $prefix): JsonResponse
+    {
+        $user = auth()->user();
+        $uuid = (string) Uuid::uuid4();
+        $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
+        $filename = "{$prefix}_" . Str::uuid() . '.png';
+
+        $qrImage = QrCode::format('png')->size(300)->margin(1)->generate($urlTtd);
+
+        $path = "barcodes/{$filename}";
+        Storage::disk('str_moon')->put($path, $qrImage);
+
+        $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        Barcode::updateOrCreate(
+            [
+                'id_user'       => $user->id,
+                'id_izin'       => $jabkerId,
+                'jenis_dokumen' => $docType,
+            ],
+            [
+                'url_image' => $urlImage,
+                'url_ttd'   => $urlTtd,
+                'id_role'   => $user->role_id,
+            ]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => [
                 'url_image' => $urlImage,
                 'url_ttd'   => $urlTtd,
                 'tanggal'   => Carbon::now()->toDateString(),
