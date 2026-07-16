@@ -37,14 +37,14 @@ trait KanRoleDashboardTrait
             ->pluck('total', 'id_jabatan_kerja');
 
         // Batch completed count (IA06 signed) per jabker
-        $completedCounts = KanPraktisiJabatan::select('kan_praktisi_jabatans.id_jabatan_kerja', DB::raw('count(distinct kan_praktisi_jabatans.id) as selesai'))
+        $completedCounts = KanPraktisiJabatan::select('kan_praktisi_jabatan.id_jabatan_kerja', DB::raw('count(distinct kan_praktisi_jabatan.id) as selesai'))
             ->join('barcodes', function ($join) {
-                $join->on('barcodes.kan_praktisi_jabatan_id', '=', 'kan_praktisi_jabatans.id')
+                $join->on('barcodes.kan_praktisi_jabatan_id', '=', 'kan_praktisi_jabatan.id')
                     ->where('barcodes.jenis_dokumen', 'IA06')
                     ->whereNotNull('barcodes.url_image');
             })
-            ->whereIn('kan_praktisi_jabatans.id_jabatan_kerja', $jabkerIds)
-            ->groupBy('kan_praktisi_jabatans.id_jabatan_kerja')
+            ->whereIn('kan_praktisi_jabatan.id_jabatan_kerja', $jabkerIds)
+            ->groupBy('kan_praktisi_jabatan.id_jabatan_kerja')
             ->pluck('selesai', 'id_jabatan_kerja');
 
         // Batch check active status (has asesi with jadwal)
@@ -90,14 +90,14 @@ trait KanRoleDashboardTrait
             ->pluck('total', 'id_jabatan_kerja');
 
         // Batch completed count (IA06 signed) per id_jabatan
-        $completedCounts = KanPraktisiJabatan::select('kan_praktisi_jabatans.id_jabatan_kerja', DB::raw('count(distinct kan_praktisi_jabatans.id) as selesai'))
+        $completedCounts = KanPraktisiJabatan::select('kan_praktisi_jabatan.id_jabatan_kerja', DB::raw('count(distinct kan_praktisi_jabatan.id) as selesai'))
             ->join('barcodes', function ($join) {
-                $join->on('barcodes.kan_praktisi_jabatan_id', '=', 'kan_praktisi_jabatans.id')
+                $join->on('barcodes.kan_praktisi_jabatan_id', '=', 'kan_praktisi_jabatan.id')
                     ->where('barcodes.jenis_dokumen', 'IA06')
                     ->whereNotNull('barcodes.url_image');
             })
-            ->whereIn('kan_praktisi_jabatans.id_jabatan_kerja', $jabatanIds)
-            ->groupBy('kan_praktisi_jabatans.id_jabatan_kerja')
+            ->whereIn('kan_praktisi_jabatan.id_jabatan_kerja', $jabatanIds)
+            ->groupBy('kan_praktisi_jabatan.id_jabatan_kerja')
             ->pluck('selesai', 'id_jabatan_kerja');
 
         $result = $skemas->map(function ($config) use ($praktisiCounts, $completedCounts) {
