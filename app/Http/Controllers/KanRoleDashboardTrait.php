@@ -19,42 +19,51 @@ trait KanRoleDashboardTrait
                 'jabatan_kerjas.jabatan_kerja',
                 'jabatan_kerjas.jenjang_id',
             ])
-            ->withCount(['jabatanConfigA as jumlah_skema' => function ($q) {
-                $q->whereNotNull('kan_no_skema');
-            }])
+            ->addSelect([
+                'jumlah_skema' => JabatanConfigA::selectRaw('count(*)')
+                    ->whereColumn('id_jabatan', 'jabatan_kerjas.id_jabatan_kerja')
+                    ->whereNotNull('kan_no_skema'),
+            ])
             ->where('lsp_id_klasifikasi', 'SI')
             ->where('versi', 2)
             ->get();
 
-        // Batch load praktisi progress per jabker
         $jabkerIds = $jabkers->pluck('id_jabatan_kerja');
+
+        // Batch praktisi count per jabker
         $praktisiCounts = KanPraktisiJabatan::select('id_jabatan_kerja', DB::raw('count(*) as total'))
             ->whereIn('id_jabatan_kerja', $jabkerIds)
             ->groupBy('id_jabatan_kerja')
             ->pluck('total', 'id_jabatan_kerja');
 
-        // Count completed praktisi (IA06 signed) per jabker
+        // Batch completed count (IA06 signed) per jabker
         $completedCounts = KanPraktisiJabatan::select('kan_praktisi_jabatans.id_jabatan_kerja', DB::raw('count(distinct kan_praktisi_jabatans.id) as selesai'))
-            ->join('barcodes', 'barcodes.kan_praktisi_jabatan_id', '=', 'kan_praktisi_jabatans.id')
+            ->join('barcodes', function ($join) {
+                $join->on('barcodes.kan_praktisi_jabatan_id', '=', 'kan_praktisi_jabatans.id')
+                    ->where('barcodes.jenis_dokumen', 'IA06')
+                    ->whereNotNull('barcodes.url_image');
+            })
             ->whereIn('kan_praktisi_jabatans.id_jabatan_kerja', $jabkerIds)
-            ->where('barcodes.jenis_dokumen', 'IA06')
-            ->whereNotNull('barcodes.url_image')
             ->groupBy('kan_praktisi_jabatans.id_jabatan_kerja')
             ->pluck('selesai', 'id_jabatan_kerja');
 
-        $result = $jabkers->map(function ($jabker) use ($praktisiCounts, $completedCounts) {
+        // Batch check active status (has asesi with jadwal)
+        $activeJabkers = KlasifikasiKualifikasi::select('jabatan_kerja')
+            ->whereIn('jabatan_kerja', $jabkerIds)
+            ->whereHas('asesiJadwal')
+            ->distinct()
+            ->pluck('jabatan_kerja')
+            ->toArray();
+
+        $result = $jabkers->map(function ($jabker) use ($praktisiCounts, $completedCounts, $activeJabkers) {
             $total   = (int) ($praktisiCounts[$jabker->id_jabatan_kerja] ?? 0);
             $selesai = (int) ($completedCounts[$jabker->id_jabatan_kerja] ?? 0);
-
-            $hasActive = KlasifikasiKualifikasi::where('jabatan_kerja', $jabker->id_jabatan_kerja)
-                ->whereHas('asesiJadwal')
-                ->exists();
 
             return [
                 'id_jabatan_kerja' => $jabker->id_jabatan_kerja,
                 'jabatan_kerja'    => $jabker->jabatan_kerja,
                 'jumlah_skema'     => (int) $jabker->jumlah_skema,
-                'status'           => $hasActive ? 'aktif' : '-',
+                'status'           => in_array($jabker->id_jabatan_kerja, $activeJabkers) ? 'aktif' : '-',
                 'total_praktisi'   => $total,
                 'praktisi_selesai' => $selesai,
             ];
@@ -72,18 +81,22 @@ trait KanRoleDashboardTrait
             ->select(['id_jabatan', 'kan_no_skema', 'kan_penyusun_id', 'kan_validator_id'])
             ->get();
 
-        // Batch load praktisi progress per id_jabatan
         $jabatanIds = $skemas->pluck('id_jabatan');
+
+        // Batch praktisi count per id_jabatan
         $praktisiCounts = KanPraktisiJabatan::select('id_jabatan_kerja', DB::raw('count(*) as total'))
             ->whereIn('id_jabatan_kerja', $jabatanIds)
             ->groupBy('id_jabatan_kerja')
             ->pluck('total', 'id_jabatan_kerja');
 
+        // Batch completed count (IA06 signed) per id_jabatan
         $completedCounts = KanPraktisiJabatan::select('kan_praktisi_jabatans.id_jabatan_kerja', DB::raw('count(distinct kan_praktisi_jabatans.id) as selesai'))
-            ->join('barcodes', 'barcodes.kan_praktisi_jabatan_id', '=', 'kan_praktisi_jabatans.id')
+            ->join('barcodes', function ($join) {
+                $join->on('barcodes.kan_praktisi_jabatan_id', '=', 'kan_praktisi_jabatans.id')
+                    ->where('barcodes.jenis_dokumen', 'IA06')
+                    ->whereNotNull('barcodes.url_image');
+            })
             ->whereIn('kan_praktisi_jabatans.id_jabatan_kerja', $jabatanIds)
-            ->where('barcodes.jenis_dokumen', 'IA06')
-            ->whereNotNull('barcodes.url_image')
             ->groupBy('kan_praktisi_jabatans.id_jabatan_kerja')
             ->pluck('selesai', 'id_jabatan_kerja');
 
