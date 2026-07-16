@@ -112,10 +112,12 @@
       "Bash(git commit *)",
       "Bash(python3 *)",
       "PowerShell($attempt = 0; while \\($true\\) { $attempt++; Write-Host \"Attempt $attempt...\"; composer install --prefer-dist 2>&1; if \\($LASTEXITCODE -eq 0\\) { Write-Host \"Success on attempt $attempt!\"; break } else { Write-Host \"Failed, retrying in 2s...\"; Start-Sleep -Seconds 2 } })",
-      "PowerShell(Get-Process *)",
-      "PowerShell(php artisan tinker --execute=\"echo '=== IA04B Indexes ===' . PHP_EOL; echo json_encode\\(DB::select\\('SHOW INDEXES FROM kan_ia4b_answers'\\), JSON_PRETTY_PRINT\\) . PHP_EOL; echo '=== IA05 Indexes ===' . PHP_EOL; echo json_encode\\(DB::select\\('SHOW INDEXES FROM kan_ia5_answers'\\), JSON_PRETTY_PRINT\\) . PHP_EOL; echo '=== IA06 Indexes ===' . PHP_EOL; echo json_encode\\(DB::select\\('SHOW INDEXES FROM kan_ia6_answers'\\), JSON_PRETTY_PRINT\\) . PHP_EOL;\")",
-      "PowerShell(php artisan migrate --path=database/migrations/2026_07_14_000000_dedup_and_add_unique_to_kan_answer_tables.php --force 2>&1)",
-      "PowerShell(Set-Location \"C:\\\\Users\\\\Rafie Pradipta\\\\Documents\\\\Works\\\\LSP Gatensi Karya Konstruksi\\\\Smart Gatensi\\\\kan-backend\"; php artisan tinker --execute \"\\\\$soalId = 241; echo 'Soal 241 — IA06:' . PHP_EOL; \\\\$answers = App\\\\Models\\\\KanIa6Answer::where\\('soal_id', \\\\$soalId\\)->where\\('kan_praktisi_jabatan_id', '>', 0\\)->with\\('kanPraktisiJabatan.user'\\)->limit\\(5\\)->get\\(\\); foreach \\(\\\\$answers as \\\\$a\\) { echo '  ' . \\(\\\\$a->kanPraktisiJabatan?->user?->name ?? 'N/A'\\) . ': skor=' . \\\\$a->skor . ' jawaban=' . substr\\(\\\\$a->jawaban, 0, 80\\) . '...' . PHP_EOL; }\")"
+      "Bash(mysql *)",
+      "PowerShell(Get-Command *)",
+      "Bash(composer install *)",
+      "Bash(python *)",
+      "WebFetch(domain:kan-api.lspgatensi.id)",
+      "Bash(git push *)"
     ]
   }
 }
