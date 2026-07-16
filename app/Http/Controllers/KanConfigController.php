@@ -680,7 +680,7 @@ class KanConfigController extends Controller
             ->get()
             ->keyBy('jenis_dokumen');
 
-        $docs = ['IA04B', 'IA05', 'IA06', 'AK02'];
+        $docs = ['IA04B', 'IA05', 'IA06', 'AK02', 'MAPA01', 'MAPA02'];
         $status = [];
         foreach ($docs as $doc) {
             $status[$doc] = isset($barcodes[$doc]);

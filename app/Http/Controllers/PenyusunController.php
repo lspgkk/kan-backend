@@ -240,4 +240,20 @@ class PenyusunController extends Controller
             ],
         ]);
     }
+
+    // ──────────────────────────────────────────────
+    //  MAPA01 / MAPA02 TTD (KAN flow, by kan_praktisi_jabatan.id)
+    // ──────────────────────────────────────────────
+
+    public function ttdMapa01ByJabatan(Request $request, int $id): JsonResponse
+    {
+        $kan = app(KanAsesmenController::class);
+        return $kan->ttdKanMAPA01ByPraktisi($request, $id);
+    }
+
+    public function ttdMapa02ByJabatan(Request $request, int $id): JsonResponse
+    {
+        $kan = app(KanAsesmenController::class);
+        return $kan->ttdKanMAPA02ByPraktisi($request, $id);
+    }
 }

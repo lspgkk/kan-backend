@@ -1726,4 +1726,20 @@ class KanAsesmenController extends Controller
 
         return response()->json(['message' => 'Success', 'data' => $data]);
     }
+
+    // ──────────────────────────────────────────────
+    //  TTD: KAN MAPA01 & MAPA02 By Praktisi
+    // ──────────────────────────────────────────────
+
+    public function ttdKanMAPA01ByPraktisi(Request $request, int $praktisiJabatanId)
+    {
+        $data = $this->generateTtdBarcodeByPraktisi($request, 'MAPA01', 'ttd_kan_mapa01', $praktisiJabatanId);
+        return response()->json(['message' => 'Success', 'data' => $data]);
+    }
+
+    public function ttdKanMAPA02ByPraktisi(Request $request, int $praktisiJabatanId)
+    {
+        $data = $this->generateTtdBarcodeByPraktisi($request, 'MAPA02', 'ttd_kan_mapa02', $praktisiJabatanId);
+        return response()->json(['message' => 'Success', 'data' => $data]);
+    }
 }
