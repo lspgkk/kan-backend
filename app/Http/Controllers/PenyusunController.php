@@ -242,18 +242,75 @@ class PenyusunController extends Controller
     }
 
     // ──────────────────────────────────────────────
-    //  MAPA01 / MAPA02 TTD (KAN flow, by kan_praktisi_jabatan.id)
+    //  MAPA01 / MAPA02 TTD (per jabker)
     // ──────────────────────────────────────────────
 
-    public function ttdMapa01ByJabatan(Request $request, int $id): JsonResponse
+    public function ttdMapaByJabker(Request $request, string $jabkerId, string $jenis): JsonResponse
     {
-        $kan = app(KanAsesmenController::class);
-        return $kan->ttdKanMAPA01ByPraktisi($request, $id);
+        if ($jenis === 'mapa01') {
+            return $this->generateMapaTtd($request, $jabkerId, 'MAPA01_JABKER', 'ttd_mapa01_jabker');
+        }
+        return $this->generateMapaTtd($request, $jabkerId, 'MAPA02_JABKER', 'ttd_mapa02_jabker');
     }
 
-    public function ttdMapa02ByJabatan(Request $request, int $id): JsonResponse
+    public function statusMapaTtd(string $jabkerId, string $jenis): JsonResponse
     {
-        $kan = app(KanAsesmenController::class);
-        return $kan->ttdKanMAPA02ByPraktisi($request, $id);
+        $docType = $jenis === 'mapa01' ? 'MAPA01_JABKER' : 'MAPA02_JABKER';
+        $user = auth()->user();
+
+        $barcode = Barcode::where('id_izin', $jabkerId)
+            ->where('jenis_dokumen', $docType)
+            ->whereNotNull('url_image')
+            ->first();
+
+        if (!$barcode) {
+            return response()->json(['message' => 'OK', 'data' => ['sudah' => false]]);
+        }
+
+        return response()->json([
+            'message' => 'OK',
+            'data'    => [
+                'sudah'     => true,
+                'url_image' => $barcode->url_image,
+                'tanggal'   => $barcode->created_at ? Carbon::parse($barcode->created_at)->toDateString() : null,
+            ],
+        ]);
+    }
+
+    private function generateMapaTtd(Request $request, string $jabkerId, string $docType, string $prefix): JsonResponse
+    {
+        $user = auth()->user();
+        $uuid = (string) Uuid::uuid4();
+        $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
+        $filename = "{$prefix}_" . Str::uuid() . '.png';
+
+        $qrImage = QrCode::format('png')->size(300)->margin(1)->generate($urlTtd);
+
+        $path = "barcodes/{$filename}";
+        Storage::disk('str_moon')->put($path, $qrImage);
+
+        $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+
+        Barcode::updateOrCreate(
+            [
+                'id_user'       => $user->id,
+                'id_izin'       => $jabkerId,
+                'jenis_dokumen' => $docType,
+            ],
+            [
+                'url_image' => $urlImage,
+                'url_ttd'   => $urlTtd,
+                'id_role'   => $user->role_id,
+            ]
+        );
+
+        return response()->json([
+            'message' => 'Success',
+            'data'    => [
+                'url_image' => $urlImage,
+                'url_ttd'   => $urlTtd,
+                'tanggal'   => Carbon::now()->toDateString(),
+            ],
+        ]);
     }
 }
