@@ -345,6 +345,7 @@ class PenyusunController extends Controller
                 98  => true,  // LSP Gatensi Karya Konstruksi
                 101 => true,  // manajer sertifikasi LSP
                 105 => true,  // standar kompetensi (SKKNI)
+                114 => true,  // peluang kegiatan asesmen terintegrasi
             ];
 
             $referensis = Referensi::with(['kategoriRel', 'kelompokRel', 'subkategoriRel'])
