@@ -261,6 +261,7 @@ class PenyusunController extends Controller
             'kanPenyusun:id,name,noreg',
             'kanValidator:id,name,noreg',
             'kanManajer:id,name,noreg',
+            'manajer:id,name,noreg',
         ])->where('id_jabatan', $jabkerId)->first();
 
         $dokumen = JabatanDokumen::with(['kelompoks.units.unit'])
@@ -446,10 +447,10 @@ class PenyusunController extends Controller
                     'barcode' => $config->kan_validator_img,
                 ] : null,
                 'manajer_info'    => $config ? [
-                    'nama'    => $config->kanManajer?->name,
-                    'noreg'   => $config->kanManajer?->noreg,
-                    'tanggal' => $config->kan_manajer_tgl,
-                    'barcode' => $config->kan_manajer_img,
+                    'nama'    => $config->kanManajer?->name ?? $config->manajer?->name,
+                    'noreg'   => $config->kanManajer?->noreg ?? $config->manajer?->noreg,
+                    'tanggal' => $config->kan_manajer_tgl ?? $config->penyusun_tgl,
+                    'barcode' => $config->kan_manajer_img ?? $config->manajer_img,
                 ] : null,
             ],
         ]);
