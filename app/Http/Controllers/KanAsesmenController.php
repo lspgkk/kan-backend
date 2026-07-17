@@ -1001,7 +1001,7 @@ class KanAsesmenController extends Controller
         $praktisiBarcode = Barcode::where('kan_praktisi_jabatan_id', $praktisiJabatanId)
             ->where('jenis_dokumen', 'IA04B')
             ->first();
-        $ttdDate = $praktisiBarcode?->created_at?->format('d F Y') ?? '';
+        $ttdDate = $praktisiBarcode?->created_at?->locale('id')->translatedFormat('d F Y') ?? '';
 
         return [
             'jabatan_kerja'   => $record->jabatanKerja?->jabatan_kerja ?? '',
