@@ -90,7 +90,6 @@ td.vhead .vtext{position:absolute;top:50%;left:50%;width:280px;transform:transla
         @endforeach
     </table><br>
 
-    <div style="page-break-inside: avoid;">
     {{-- Metode Asesmen table dengan VHEAD --}}
     <table width="100%" cellpadding="5" cellspacing="0" align="center" style="font-size:9pt">
         <tr>
@@ -123,8 +122,7 @@ td.vhead .vtext{position:absolute;top:50%;left:50%;width:280px;transform:transla
             @endphp
             <tr><td style="width:11%">{{ $i + 1 }}. {{ $unit['nama_unit'] }}</td><td style="width:14%">Hasil tanya jawab tentang: {{ $unit['nama_unit'] }}</td><td style="width:3%" align="center">{{ $td3 }}</td><td style="width:3%" align="center">{{ $td4 }}</td><td style="width:3%" align="center">{{ $td5 }}</td><td style="width:11%" align="center">{!! $td6 ?: '&nbsp;' !!}</td><td style="width:11%" align="center">{!! $td7 ?: '&nbsp;' !!}</td><td style="width:11%" align="center">{!! $td8 ?: '&nbsp;' !!}</td><td style="width:12%" align="center">{!! $td9 ?: '&nbsp;' !!}</td><td style="width:10%" align="center">{!! $td10 ?: '&nbsp;' !!}</td><td style="width:11%" align="center">{!! $td11 ?: '&nbsp;' !!}</td></tr>
         @endforeach
-    </table>
-    </div><br>
+    </table><br>
 @endforeach
 
 {{-- SECTION 3: Modifikasi --}}
