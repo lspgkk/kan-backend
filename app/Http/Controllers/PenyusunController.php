@@ -298,9 +298,9 @@ class PenyusunController extends Controller
             // MAPA02: flat structure (matches PraAsesmenController@buildMapa02Data)
             // KAN-specific default instrument patterns (same as buildKanMapa2DataByPraktisi)
             $kanMapa02Defaults = [
-                'FR.IA.04B' => 5,  // DIT
-                'FR.IA.05'  => 4,  // DPT PG
-                'FR.IA.06'  => 3,  // DPT Esai
+                'FR.IA.04B' => 2,  // DIT
+                'FR.IA.05'  => 2,  // DPT PG
+                'FR.IA.06'  => 2,  // DPT Esai
             ];
 
             $referensis = Referensi::select(['id', 'nama', 'kategori', 'isdefault'])

@@ -1666,6 +1666,9 @@ class KanAsesmenController extends Controller
         $path = $directory . '/' . $filename;
         Storage::disk($disk)->put($path, $pdf->output());
 
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        KanPraktisiJabatan::where('id', $praktisiJabatanId)->update(['url_ia04b' => $publicBaseUrl . $path]);
+
         return response()->json(['message' => 'Success', 'data' => $data]);
     }
 
@@ -1691,6 +1694,9 @@ class KanAsesmenController extends Controller
         $filename = 'KAN-IA05-PRAKTISI-' . $praktisiJabatanId . '.pdf';
         $path = $directory . '/' . $filename;
         Storage::disk($disk)->put($path, $pdf->output());
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        KanPraktisiJabatan::where('id', $praktisiJabatanId)->update(['url_ia05' => $publicBaseUrl . $path]);
 
         return response()->json(['message' => 'Success', 'data' => $data]);
     }
@@ -1718,6 +1724,9 @@ class KanAsesmenController extends Controller
         $path = $directory . '/' . $filename;
         Storage::disk($disk)->put($path, $pdf->output());
 
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        KanPraktisiJabatan::where('id', $praktisiJabatanId)->update(['url_ia06' => $publicBaseUrl . $path]);
+
         return response()->json(['message' => 'Success', 'data' => $data]);
     }
 
@@ -1744,7 +1753,114 @@ class KanAsesmenController extends Controller
         $path = $directory . '/' . $filename;
         Storage::disk($disk)->put($path, $pdf->output());
 
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        KanPraktisiJabatan::where('id', $praktisiJabatanId)->update(['url_ak02' => $publicBaseUrl . $path]);
+
         return response()->json(['message' => 'Success', 'data' => $data]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  GENERATE PDF: KAN Documents by Praktisi
+    // ═══════════════════════════════════════════════════════════════
+
+    private const KAN_DOC_TYPES = [
+        ['method' => 'KanIa04b', 'blade' => 'kan_ia04b', 'dir' => 'kan_ia04b', 'code' => 'KAN-IA-04B', 'label' => 'IA04B',  'url_col' => 'url_ia04b'],
+        ['method' => 'KanIa05',  'blade' => 'kan_ia05',  'dir' => 'kan_ia05',  'code' => 'KAN-IA-05',  'label' => 'IA05',   'url_col' => 'url_ia05'],
+        ['method' => 'KanIa06',  'blade' => 'kan_ia06',  'dir' => 'kan_ia06',  'code' => 'KAN-IA-06',  'label' => 'IA06',   'url_col' => 'url_ia06'],
+        ['method' => 'KanAk02',  'blade' => 'kan_ak02',  'dir' => 'kan_ak02',  'code' => 'KAN-AK-02',  'label' => 'AK02',   'url_col' => 'url_ak02'],
+        ['method' => 'KanMapa',  'blade' => 'kan_mapa01', 'dir' => 'kan_mapa',  'code' => 'KAN-MAPA-01', 'label' => 'MAPA01',  'url_col' => 'url_mapa01'],
+        ['method' => 'KanMapa2', 'blade' => 'kan_mapa02', 'dir' => 'kan_mapa2', 'code' => 'KAN-MAPA-02', 'label' => 'MAPA02',  'url_col' => 'url_mapa02'],
+    ];
+
+    /**
+     * POST /kan/asesmen/{id}/generate-pdf
+     * Generate KAN PDF(s) for a praktisi. Accepts optional `doc` query param.
+     *
+     * Query params:
+     *   - doc: ia04b|ia05|ia06|ak02|mapa01|mapa02  (single doc, default = all)
+     */
+    public function generateKanPdfByPraktisi(Request $request, int $praktisiJabatanId): JsonResponse
+    {
+        $record = KanPraktisiJabatan::find($praktisiJabatanId);
+        if (!$record) {
+            return response()->json(['message' => 'Data not found'], 404);
+        }
+
+        $docs = self::KAN_DOC_TYPES;
+
+        // Filter to single doc if requested
+        $docFilter = $request->query('doc');
+        if ($docFilter) {
+            $docs = array_filter($docs, fn($d) => strtolower($d['label']) === strtolower($docFilter));
+            if (empty($docs)) {
+                return response()->json([
+                    'message' => "Invalid doc type. Valid: ia04b, ia05, ia06, ak02, mapa01, mapa02",
+                ], 422);
+            }
+        }
+
+        $disk = 'str_moon';
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $generated = [];
+
+        foreach ($docs as $doc) {
+            try {
+                // Build header
+                $header = $this->buildKanDokumenHeaderByPraktisiForPdf($praktisiJabatanId);
+
+                // Build document data
+                $docData = match ($doc['method']) {
+                    'KanIa04b' => $this->buildKanIa04bDataByPraktisiForPdf($praktisiJabatanId),
+                    'KanIa05'  => $this->buildKanIa05DataByPraktisiForPdf($praktisiJabatanId),
+                    'KanIa06'  => $this->buildKanIa06DataByPraktisiForPdf($praktisiJabatanId),
+                    'KanAk02'  => $this->buildKanAk02DataByPraktisiForPdf($praktisiJabatanId),
+                    'KanMapa'  => $this->buildKanMapaDataByPraktisiForPdf($praktisiJabatanId),
+                    'KanMapa2' => $this->buildKanMapa2DataByPraktisiForPdf($praktisiJabatanId),
+                    default    => null,
+                };
+
+                if ($docData === null || $header === null) {
+                    $generated[$doc['label']] = ['status' => 'skipped', 'reason' => 'Data not ready'];
+                    continue;
+                }
+
+                // MAPA docs use nested header format
+                if (in_array($doc['method'], ['KanMapa', 'KanMapa2'])) {
+                    $viewData = array_merge($docData, ['dokumenHeader' => $header]);
+                    $viewData['skkni'] = $viewData['skkni'] ?? '';
+                    $viewData['kelompok_kerja'] = $viewData['kelompok_kerja'] ?? ['kelompok_kerja' => []];
+                    $viewData['referensi_form'] = $viewData['referensi_form'] ?? [];
+                } else {
+                    $viewData = array_merge($docData, $header);
+                }
+
+                $filename = $doc['code'] . '-PRAKTISI-' . $praktisiJabatanId . '.pdf';
+                $path = "dok_asesmen/{$doc['dir']}/{$filename}";
+
+                $pdf = Pdf::loadView("pdf.{$doc['blade']}", $viewData)->setPaper('A4', 'portrait');
+                Storage::disk($disk)->put($path, $pdf->output());
+
+                $fullUrl = $publicBaseUrl . $path;
+
+                // Save URL to database
+                $record->update([$doc['url_col'] => $fullUrl]);
+
+                $generated[$doc['label']] = [
+                    'status' => 'generated',
+                    'url'    => $fullUrl,
+                ];
+            } catch (\Throwable $e) {
+                $generated[$doc['label']] = [
+                    'status' => 'error',
+                    'error'  => $e->getMessage(),
+                ];
+            }
+        }
+
+        return response()->json([
+            'message' => 'PDF generation complete',
+            'data'    => $generated,
+        ]);
     }
 
     // ═══════════════════════════════════════════════════════════════
