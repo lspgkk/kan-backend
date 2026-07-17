@@ -689,4 +689,49 @@ class KanConfigController extends Controller
 
         return $status;
     }
+
+    /**
+     * List all kan_praktisi_jabatan with optional filter, search & pagination.
+     * GET /api/kan/config/praktisi-jabatan
+     */
+    public function listPraktisiJabatan(Request $request): JsonResponse
+    {
+        $query = KanPraktisiJabatan::with([
+            'user:id,name,email,phone,noreg',
+            'jabatanKerja:id_jabatan_kerja,jabatan_kerja,jenjang_id',
+        ]);
+
+        // Optional filter by id_jabatan_kerja
+        if ($request->has('id_jabatan_kerja')) {
+            $query->where('id_jabatan_kerja', $request->query('id_jabatan_kerja'));
+        }
+
+        // Optional search by nama praktisi (user.name) or nama jabatan (jabatanKerja.jabatan_kerja)
+        if ($request->has('search')) {
+            $searchTerm = $request->query('search');
+            $query->where(function ($q) use ($searchTerm) {
+                $q->whereHas('user', function ($uq) use ($searchTerm) {
+                    $uq->where('name', 'like', "%{$searchTerm}%");
+                })->orWhereHas('jabatanKerja', function ($jq) use ($searchTerm) {
+                    $jq->where('jabatan_kerja', 'like', "%{$searchTerm}%");
+                });
+            });
+        }
+
+        // Optional: return all without pagination
+        if ($request->boolean('all')) {
+            return response()->json([
+                'message' => 'OK',
+                'data'    => $query->orderBy('created_at', 'desc')->get(),
+            ]);
+        }
+
+        $perPage = (int) $request->query('per_page', 10);
+        $perPage = min(max($perPage, 1), 100);
+
+        return response()->json([
+            'message' => 'OK',
+            'data'    => $query->orderBy('created_at', 'desc')->paginate($perPage),
+        ]);
+    }
 }

@@ -496,6 +496,7 @@ Route::prefix('diskon')->group(function () {
         Route::post('/submit', [KanConfigController::class, 'submit']);
         Route::get('/download-users', [KanConfigController::class, 'downloadUsers']);
         Route::get('/praktisi-by-jabatan/{id_jabatan_kerja}', [KanConfigController::class, 'praktisiByJabatan']);
+        Route::get('/praktisi-jabatan', [KanConfigController::class, 'listPraktisiJabatan']);
         Route::post('/assign-praktisi', [KanConfigController::class, 'assignPraktisi']);
         Route::delete('/assign-praktisi', [KanConfigController::class, 'removePraktisi']);
     });
