@@ -122,7 +122,8 @@
       "Bash(composer install *)",
       "Bash(python *)",
       "WebFetch(domain:kan-api.lspgatensi.id)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(git *)"
     ]
   }
 }

@@ -967,20 +967,23 @@ class KanAsesmenController extends Controller
     {
         $record = KanPraktisiJabatan::with([
             'user:id,name,email',
-            'jabatanKerja:id_jabatan_kerja,jabatan_kerja',
+            'jabatanKerja:id_jabatan_kerja,jabatan_kerja,jenjang_id',
         ])->find($praktisiJabatanId);
 
         if (!$record || !$record->user) {
             return null;
         }
 
-        $jabatanConfig = JabatanConfigA::select('kan_no_skema')
+        $jabatanConfig = JabatanConfigA::select([
+            'kan_no_skema', 'kan_manajer_id', 'kan_manajer_tgl', 'kan_manajer_img',
+        ])
             ->where('id_jabatan', $record->id_jabatan_kerja)
             ->first();
 
         $penyusunValidator = JabatanConfigA::with([
             'kanPenyusun:id,name,noreg',
             'kanValidator:id,name,noreg',
+            'kanManajer:id,name,noreg',
         ])
         ->select([
             'kan_penyusun_id', 'kan_penyusun_tgl', 'kan_penyusun_img',
@@ -993,16 +996,23 @@ class KanAsesmenController extends Controller
             ? ($forPdf ? $this->imageUrlToBase64($url) : $url)
             : null;
 
+        // Get the praktisi's TTD date from barcode (for tanggal in header)
+        $praktisiBarcode = Barcode::where('kan_praktisi_jabatan_id', $praktisiJabatanId)
+            ->where('jenis_dokumen', 'IA04B')
+            ->first();
+        $ttdDate = $praktisiBarcode?->created_at?->format('d F Y') ?? '';
+
         return [
             'jabatan_kerja'   => $record->jabatanKerja?->jabatan_kerja ?? '',
             'nomor_skema'     => $jabatanConfig?->kan_no_skema,
-            'tuk'             => '',
+            'tuk'             => 'TUK SEWAKTU GKK',
             'nama_asesi'      => $record->user->name,
             'asesor_list'     => collect(),
-            'jenjang'         => 0,
-            'tanggal'         => '',
-            'tanggal_mulai'   => '',
-            'tanggal_selesai' => '',
+            'jenjang'         => $record->jabatanKerja?->jenjang_id ?? 0,
+            'metode'          => 'observasi',
+            'tanggal'         => $ttdDate,
+            'tanggal_mulai'   => $ttdDate,
+            'tanggal_selesai' => $ttdDate,
             'nama_penyusun'   => $penyusunValidator?->kanPenyusun?->name,
             'nama_validator'  => $penyusunValidator?->kanValidator?->name,
             'noreg_penyusun'  => $penyusunValidator?->kanPenyusun?->noreg,
@@ -1011,6 +1021,9 @@ class KanAsesmenController extends Controller
             'tanggal_validator' => $penyusunValidator?->kan_validator_tgl,
             'barcode_penyusun'  => $mapBarcode($penyusunValidator?->kan_penyusun_img),
             'barcode_validator' => $mapBarcode($penyusunValidator?->kan_validator_img),
+            'nama_manajer'      => $penyusunValidator?->kanManajer?->name,
+            'tanggal_manajer'   => $jabatanConfig?->kan_manajer_tgl,
+            'barcode_manajer'   => $mapBarcode($jabatanConfig?->kan_manajer_img),
         ];
     }
 
@@ -1070,6 +1083,13 @@ class KanAsesmenController extends Controller
                 $q->kuk_kode  = $q->kuk?->kode;
                 return $q;
             });
+
+        // Override soal2 for IA04B to show unit kode
+        $questions->each(function ($q) {
+            if ($q->unit?->kode) {
+                $q->soal2 = 'Kode Unit : ' . $q->unit->kode;
+            }
+        });
 
         $rekomendasi = $questions->firstWhere('tipe', 3);
         $soalList = $questions->where('tipe', '!=', 3)->values();
@@ -1725,5 +1745,147 @@ class KanAsesmenController extends Controller
         Storage::disk($disk)->put($path, $pdf->output());
 
         return response()->json(['message' => 'Success', 'data' => $data]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  PUBLIC WRAPPERS for kan:generate-muk command
+    //  (private builders called with $forPdf=true)
+    // ═══════════════════════════════════════════════════════════════
+
+    public function buildKanDokumenHeaderByPraktisiForPdf(int $kpjId): ?array
+    {
+        return $this->buildKanDokumenHeaderByPraktisi($kpjId, true);
+    }
+
+    public function buildKanIa04bDataByPraktisiForPdf(int $kpjId): ?array
+    {
+        return $this->buildKanIa04bDataByPraktisi($kpjId, true);
+    }
+
+    public function buildKanIa05DataByPraktisiForPdf(int $kpjId): ?array
+    {
+        return $this->buildKanIa05DataByPraktisi($kpjId, true);
+    }
+
+    public function buildKanIa06DataByPraktisiForPdf(int $kpjId): ?array
+    {
+        return $this->buildKanIa06DataByPraktisi($kpjId, true);
+    }
+
+    public function buildKanAk02DataByPraktisiForPdf(int $kpjId): ?array
+    {
+        return $this->buildKanAk02DataByPraktisi($kpjId, true);
+    }
+
+    public function buildKanMapaDataByPraktisiForPdf(int $kpjId): ?array
+    {
+        return $this->buildKanMapaDataByPraktisi($kpjId);
+    }
+
+    public function buildKanMapa2DataByPraktisiForPdf(int $kpjId): ?array
+    {
+        return $this->buildKanMapa2DataByPraktisi($kpjId);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  MAPA02 DATA BUILDER (KAN — by kan_praktisi_jabatan)
+    // ═══════════════════════════════════════════════════════════════
+
+    private function buildKanMapa2DataByPraktisi(int $kpjId): ?array
+    {
+        // Reuse MAPA01 data for kelompok_kerja
+        $mapa01 = $this->buildKanMapaDataByPraktisi($kpjId);
+        if (!$mapa01) return null;
+
+        // Build referensi_form for MAPA02 (simplified for KAN - metode observasi)
+        $refs = [
+            ['nama' => 'Formulir FR.IA.04B - Daftar Instruksi Terstruktur (DIT)', 'isdefault' => true, 'potensi_asesi_index' => 5],
+            ['nama' => 'Formulir FR.IA.05 - Daftar Pertanyaan Tertulis Pilihan Ganda (DPT)', 'isdefault' => true, 'potensi_asesi_index' => 4],
+            ['nama' => 'Formulir FR.IA.06 - Daftar Pertanyaan Tertulis Esai (DPT)', 'isdefault' => true, 'potensi_asesi_index' => 3],
+            ['nama' => 'Formulir Ceklis Observasi (CL)', 'isdefault' => false, 'potensi_asesi_index' => null],
+            ['nama' => 'Formulir Verifikasi Portofolio (CVP)', 'isdefault' => false, 'potensi_asesi_index' => null],
+            ['nama' => 'Formulir Verifikasi Pihak Ketiga (VPK)', 'isdefault' => false, 'potensi_asesi_index' => null],
+            ['nama' => 'Formulir Ceklis Reviu Produk (CRP)', 'isdefault' => false, 'potensi_asesi_index' => null],
+        ];
+
+        $footerNote = '** 1 = Sangat Tidak Sesuai, 2 = Tidak Sesuai, 3 = Sesuai, 4 = Sangat Sesuai, 5 = Sangat Sesuai Sekali';
+
+        return [
+            'kelompok_kerja' => $mapa01['kelompok_kerja'],
+            'referensi_form' => [
+                0 => ['referensis' => [0 => ['nama' => $footerNote]]],
+                1 => ['referensis' => $refs],
+            ],
+        ];
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  MAPA DATA BUILDER (KAN — by kan_praktisi_jabatan)
+    // ═══════════════════════════════════════════════════════════════
+
+    private function buildKanMapaDataByPraktisi(int $kpjId): ?array
+    {
+        $record = KanPraktisiJabatan::with([
+            'user:id,name',
+            'jabatanKerja:id_jabatan_kerja,jabatan_kerja,jenjang_id',
+        ])->find($kpjId);
+
+        if (!$record) return null;
+
+        // Load unit kompetensi for this jabatan
+        $units = \App\Models\UnitKompetensi::where('id_jabatan', $record->id_jabatan_kerja)
+            ->orderBy('kode')->get();
+
+        // Build kelompok_kerja structure (same format as BNSP)
+        $kelompokKerja = [[
+            'nama' => $record->jabatanKerja->jabatan_kerja ?? '',
+            'urut' => 1,
+            'units' => $units->map(fn($u) => [
+                'kode_unit' => $u->kode,
+                'nama_unit' => $u->nama,
+            ])->toArray(),
+        ]];
+
+        $jenjang = $record->jabatanKerja->jenjang_id ?? 0;
+
+        // Load referensi form from DB (same as BNSP MAPA01)
+        $referensiForm = \App\Models\Referensi::whereIn('kategori', ['MAPA01_3', 'MAPA01_2'])
+            ->with('kelompok')
+            ->get()
+            ->groupBy('kategori');
+
+        return [
+            'kelompok_kerja' => ['kelompok_kerja' => $kelompokKerja],
+            'referensi_form' => $referensiForm,
+            'skkni' => '',
+            'jenjang' => $jenjang,
+            'metode' => 'observasi',
+            'asesi' => [
+                'hasil_pelatihan_telusur' => true, 'hasil_pelatihan_tidak_kompetensi' => false,
+                'pekerja_berpengalaman_telusur' => false, 'pekerja_berpengalaman_tidak_telusur' => false, 'otodidak' => false,
+            ],
+            'tujuan' => ['sertifikasi' => true, 'pkt' => false, 'rpl' => false, 'lainnya' => false],
+            'konteks' => [
+                'tempat_kerja_nyata' => true, 'tempat_kerja_simulasi' => false,
+                'tersedia' => true, 'terbatas' => false,
+                'bukti_asesmen_rpl' => false, 'aktivitas_kerja' => false, 'kegiatan_pembelajaran' => false,
+                'lsp_gatensi' => true, 'organisasi_pelatihan' => false, 'asesor_perusahaan' => false,
+            ],
+            'orang_relevan' => [
+                'manajer_sertifikasi_lsp' => true, 'master_assessor_lsp' => false,
+                'manajer_pelatihan_lsp' => false, 'lainnya' => false,
+            ],
+            'tolak_ukur' => [
+                'skkni' => true, 'kriteria_kurikulum' => false, 'spesifikasi_kinerja' => false,
+                'spesifikasi_produk' => false, 'pedoman_khusus' => false,
+            ],
+            'modifikasi_items' => [
+                ['nama' => 'Hasil asesmen disesuaikan dengan kondisi asesi', 'value' => false, 'alasan' => ''],
+                ['nama' => 'Instrumen asesmen disesuaikan dengan konteks pekerjaan', 'value' => false, 'alasan' => ''],
+                ['nama' => 'Metode asesmen disesuaikan dengan kebutuhan khusus', 'value' => false, 'alasan' => ''],
+                ['nama' => 'Waktu pelaksanaan asesmen disesuaikan', 'value' => false, 'alasan' => ''],
+                ['nama' => 'Tempat pelaksanaan asesmen disesuaikan', 'value' => false, 'alasan' => ''],
+            ],
+        ];
     }
 }

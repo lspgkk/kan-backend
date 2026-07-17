@@ -62,21 +62,6 @@
                 <td style="text-align: center;">:</td>
                 <td colspan="2" style="text-transform: uppercase;">{{ $tuk }}</td>
             </tr>
-            @if(count($asesor_list) > 1)
-                @foreach($asesor_list as $idx => $asesor)
-                <tr>
-                    <td>Nama Asesor {{ $idx + 1 }}</td>
-                    <td style="text-align: center;">:</td>
-                    <td colspan="2">{{ strtoupper($asesor->nama) }}</td>
-                </tr>
-                @endforeach
-            @else
-            <tr>
-                <td>Nama Asesor</td>
-                <td style="text-align: center;">:</td>
-                <td colspan="2">{{ strtoupper($asesor_list[0]->nama ?? '') }}</td>
-            </tr>
-            @endif
             <tr>
                 <td>Nama Asesi</td>
                 <td style="text-align: center;">:</td>
@@ -210,21 +195,6 @@
                 <td style="text-align: center;">:</td>
                 <td colspan="2" style="text-transform: uppercase;">{{ $tuk }}</td>
             </tr>
-            @if(count($asesor_list) > 1)
-                @foreach($asesor_list as $idx => $asesor)
-                <tr>
-                    <td>Nama Asesor {{ $idx + 1 }}</td>
-                    <td style="text-align: center;">:</td>
-                    <td colspan="2">{{ strtoupper($asesor->nama) }}</td>
-                </tr>
-                @endforeach
-            @else
-            <tr>
-                <td>Nama Asesor</td>
-                <td style="text-align: center;">:</td>
-                <td colspan="2">{{ strtoupper($asesor_list[0]->nama ?? '') }}</td>
-            </tr>
-            @endif
             <tr>
                 <td>Nama Asesi</td>
                 <td style="text-align: center;">:</td>

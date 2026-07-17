@@ -50,21 +50,6 @@
                 <td>:</td>
                 <td>{{ strtoupper($tuk) }}</td>
             </tr>
-            @if(count($asesor_list) > 1)
-                @foreach($asesor_list as $idx => $asesor)
-                <tr>
-                    <td>Nama Asesor {{ $idx + 1 }}</td>
-                    <td>:</td>
-                    <td>{{ strtoupper($asesor->nama) }}</td>
-                </tr>
-                @endforeach
-            @else
-            <tr>
-                <td>Nama Asesor</td>
-                <td>:</td>
-                <td>{{ strtoupper($asesor_list[0]->nama ?? '') }}</td>
-            </tr>
-            @endif
             <tr>
                 <td>Nama Asesi</td>
                 <td>:</td>

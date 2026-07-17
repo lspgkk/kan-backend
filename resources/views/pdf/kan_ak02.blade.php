@@ -4,12 +4,6 @@
         <meta charset="UTF-8" />
         <title>FR.AK.02 - FRAGEMEN ANTARA ASESOR (KAN)</title>
         <style>
-            @font-face {
-                font-family: "Open Sans";
-                font-style: normal;
-                font-weight: normal;
-                src: url("{{ media_url() }}fonts/cJZKeOuBrn4kERxqtaUH3aCWcynf_cDxXwCLxiixG1c) format('truetype');
-            }
             body {
                 font-family: "Open Sans", Calibri, Candara, Segoe, Segoe UI, Optima, Arial, sans-serif;
                 font-size: 11pt;
@@ -67,21 +61,6 @@
                 <td style="text-align: end;">:</td>
                 <td colspan="2" style="text-transform: uppercase;">{{ $tuk }}</td>
             </tr>
-            @if(count($asesor_list) > 1)
-                @foreach($asesor_list as $idx => $asesor)
-                <tr>
-                    <td>Nama Asesor {{ $idx + 1 }}</td>
-                    <td style="text-align: end;">:</td>
-                    <td colspan="2">{{ strtoupper($asesor->nama) }}@if($asesor->noreg) ({{ $asesor->noreg }})@endif</td>
-                </tr>
-                @endforeach
-            @else
-            <tr>
-                <td>Nama Asesor</td>
-                <td style="text-align: end;">:</td>
-                <td colspan="2">{{ strtoupper($asesor_list[0]->nama ?? '') }}@if($asesor_list[0]->noreg ?? '') ({{ $asesor_list[0]->noreg }})@endif</td>
-            </tr>
-            @endif
             <tr>
                 <td>Nama Asesi</td>
                 <td style="text-align: end;">:</td>
