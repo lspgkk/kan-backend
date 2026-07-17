@@ -4,7 +4,8 @@
 <style>
 body{font-family:"Open Sans",Calibri,Candara,Segoe,"Segoe UI",Optima,Arial,sans-serif;font-size:11pt;margin-top:0}
 .hd-dok{background-color:#c00000;color:#fff}.hd-dok-b{background-color:#e79291;color:#000}
-td{border:.2px solid black}table{border:0 solid black;border-collapse:collapse}
+td{border:.2px solid black}table{border:0 solid black;border-collapse:collapse;page-break-inside:avoid}
+tr{page-break-inside:avoid}
 .noborder{border:0 transparent!important}.no-top-bottom{border-bottom-color:transparent!important;border-top-color:transparent!important}
 .no-bottom{border-bottom-color:transparent!important}.no-top{border-top-color:transparent!important}
 .checkbox{width:12px;height:12px;border:1px solid #000;display:inline-block;text-align:center;line-height:11px;font-size:15px;font-weight:bold;font-family:"DejaVu Sans",sans-serif}
@@ -90,6 +91,7 @@ td.vhead .vtext{position:absolute;top:50%;left:50%;width:280px;transform:transla
         @endforeach
     </table><br>
 
+    <div style="page-break-inside: avoid;">
     {{-- Metode Asesmen table dengan VHEAD --}}
     <table width="100%" cellpadding="5" cellspacing="0" align="center" style="font-size:9pt">
         <tr>
@@ -122,7 +124,8 @@ td.vhead .vtext{position:absolute;top:50%;left:50%;width:280px;transform:transla
             @endphp
             <tr><td style="width:11%">{{ $i + 1 }}. {{ $unit['nama_unit'] }}</td><td style="width:14%">Hasil tanya jawab tentang: {{ $unit['nama_unit'] }}</td><td style="width:3%" align="center">{{ $td3 }}</td><td style="width:3%" align="center">{{ $td4 }}</td><td style="width:3%" align="center">{{ $td5 }}</td><td style="width:11%" align="center">{!! $td6 ?: '&nbsp;' !!}</td><td style="width:11%" align="center">{!! $td7 ?: '&nbsp;' !!}</td><td style="width:11%" align="center">{!! $td8 ?: '&nbsp;' !!}</td><td style="width:12%" align="center">{!! $td9 ?: '&nbsp;' !!}</td><td style="width:10%" align="center">{!! $td10 ?: '&nbsp;' !!}</td><td style="width:11%" align="center">{!! $td11 ?: '&nbsp;' !!}</td></tr>
         @endforeach
-    </table><br>
+    </table>
+    </div><br>
 @endforeach
 
 {{-- SECTION 3: Modifikasi --}}

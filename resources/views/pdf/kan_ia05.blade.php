@@ -12,7 +12,8 @@
             .hd-dok { background-color: #c40000; color: #fff; }
             .hd-dok-b { background-color: #d58a94; color: #000; }
             td { border: 0.2px solid black; padding: 4px 6px; }
-            table { border: 0px solid black; border-collapse: collapse; }
+            table { border: 0px solid black; border-collapse: collapse; page-break-inside: avoid; }
+            tr { page-break-inside: avoid; }
             .noborder { border: 0 transparent !important; }
             .checkbox {
                 width: 12px; height: 12px;
@@ -117,6 +118,7 @@
         <!-- SOAL -->
         @php $no = 1; @endphp
         @foreach($soal_list as $soal)
+        <div style="page-break-inside: avoid;">
         <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 2px solid #000;">
             <tr class="panduan-title">
                 <td style="width: 100px; text-align: center; font-weight: bold; color: #fff;">
@@ -152,6 +154,7 @@
                 <td><span class="radio @if($soal->jawaban_asesi === 'D') checked @endif"></span> d. {{ $soal->jawab_d }}</td>
             </tr>
         </table>
+        </div>
         <br />
         @endforeach
 

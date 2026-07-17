@@ -109,6 +109,11 @@
             }
             table {
     border-collapse: collapse;
+    page-break-inside: avoid;
+}
+
+tr {
+    page-break-inside: avoid;
 }
 
 table > tbody > tr:first-child > td:first-child {
@@ -202,6 +207,7 @@ td {
         </table>
         <br />
 
+        <div style="page-break-inside: avoid;">
         <!-- Tabel Instrumen Asesmen -->
         <table width="100%" cellpadding="5" cellspacing="0" align="center" style="font-size: 11pt;">
             <tr>
@@ -241,6 +247,7 @@ td {
             </tr>
             @endforeach
         </table>
+        </div>
         <br />
         @endforeach
 
