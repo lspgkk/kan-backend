@@ -8,8 +8,8 @@ td{border:.2px solid black}table{border:0 solid black;border-collapse:collapse}
 tr{page-break-inside:avoid}
 .noborder{border:0 transparent!important}.no-top-bottom{border-bottom-color:transparent!important;border-top-color:transparent!important}
 .no-bottom{border-bottom-color:transparent!important}.no-top{border-top-color:transparent!important}
-.checkbox{width:12px;height:12px;border:1px solid #000;display:inline-block;text-align:center;line-height:11px;font-size:15px;font-weight:bold;font-family:"DejaVu Sans",sans-serif}
-.checked::after{content:"✔"}.radio{width:12px;height:12px;border:1px solid #000;border-radius:50%;display:inline-block;text-align:center;line-height:11px;font-size:10px}
+.checkbox{width:12px;height:12px;border:1px solid #000;display:inline-block;text-align:center;line-height:11px;font-size:15px;font-weight:bold;font-family:"DejaVu Sans",sans-serif;margin-right:4px}
+.checked::after{content:"✔"}.radio{width:12px;height:12px;border:1px solid #000;border-radius:50%;display:inline-block;text-align:center;line-height:11px;font-size:10px;margin-right:4px}
 .radio-checked::after{content:"•";font-size:14px}
 td.vhead{position:relative;padding:0;height:280px;vertical-align:middle;text-align:center}
 td.vhead .vtext{position:absolute;top:50%;left:50%;width:280px;transform:translate(-50%,-50%) rotate(-90deg);transform-origin:center;white-space:normal;font-size:9pt}

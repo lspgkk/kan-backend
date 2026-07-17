@@ -22,6 +22,7 @@
                 text-align: center;
                 line-height: 11px;
                 font-size: 10px;
+                margin-right: 4px;
             }
             .checked::after { content: "✔"; font-family: "DejaVu Sans", sans-serif; }
             .radio {
@@ -32,6 +33,7 @@
                 text-align: center;
                 line-height: 10px;
                 font-size: 10px;
+                margin-right: 4px;
             }
             .radio.checked::after { content: "•"; font-size: 14px; }
             .panduan-title {

@@ -22,6 +22,7 @@
                 text-align: center;
                 line-height: 11px;
                 font-size: 10px;
+                margin-right: 4px;
             }
             .checked::after { content: "✔"; font-family: "DejaVu Sans", sans-serif; }
 

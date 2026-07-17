@@ -21,8 +21,19 @@
                 text-align: center;
                 line-height: 11px;
                 font-size: 10px;
+                margin-right: 4px;
             }
             .checked::after { content: "✔"; font-family: "DejaVu Sans", sans-serif; }
+            .radio {
+                width: 12px; height: 12px;
+                border: 1px solid #000;
+                border-radius: 50%;
+                display: inline-block;
+                text-align: center;
+                line-height: 10px;
+                font-size: 10px;
+                margin-right: 4px;
+            }
         </style>
     </head>
     <body>
