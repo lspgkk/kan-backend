@@ -51,7 +51,7 @@ class GenerateQrKan extends Command
         $bar = $this->output->createProgressBar($total);
         $bar->start();
 
-        $stats = ['qr' => 0, 'skipped' => 0, 'errors' => []];
+        $stats = ['qr' => 0, 'skipped' => 0, 'updated' => 0, 'errors' => []];
 
         foreach ($records as $idx => $record) {
             $bar->advance();
@@ -59,6 +59,7 @@ class GenerateQrKan extends Command
                 $result = $this->processQrRecord($record);
                 $stats['qr'] += $result['qr'];
                 $stats['skipped'] += $result['skipped'];
+                $stats['updated'] += $result['updated'] ?? 0;
             } catch (\Throwable $e) {
                 $msg = "Record #{$idx} ({$record['no_skema']}): " . $e->getMessage();
                 $stats['errors'][] = $msg;
@@ -73,6 +74,7 @@ class GenerateQrKan extends Command
         $this->info('═══ HASIL GENERATE QR ═══');
         $this->info("QR dibuat:   {$stats['qr']}");
         $this->info("QR diskip:   {$stats['skipped']}");
+        $this->info("Tgl diupdate: {$stats['updated']}");
         $this->info("Errors:      " . count($stats['errors']));
 
         return 0;
@@ -107,25 +109,49 @@ class GenerateQrKan extends Command
 
         $qrRows = [];
         $skipped = 0;
+        $updated = 0;
         $force = $this->option('force');
+
+        try {
+            $expectedCreatedAt = Carbon::parse($tanggalUji);
+        } catch (\Throwable) {
+            $expectedCreatedAt = now();
+        }
 
         foreach ($praktisiJabatanIds as $key => $kpjId) {
             $userId = $praktisiUsers[$key];
             foreach (self::DOKUMEN_TYPES as $docType) {
-                // Skip if already exists (unless --force)
-                if (!$force) {
-                    $existing = Barcode::where('id_user', $userId)
-                        ->where('kan_praktisi_jabatan_id', $kpjId)
-                        ->where('jenis_dokumen', $docType)
-                        ->whereNotNull('url_image')
-                        ->whereNotNull('url_ttd')
-                        ->exists();
-                    if ($existing) {
-                        $skipped++;
-                        continue;
+                // Cek existing record
+                $existing = Barcode::where('id_user', $userId)
+                    ->where('kan_praktisi_jabatan_id', $kpjId)
+                    ->where('jenis_dokumen', $docType)
+                    ->whereNotNull('url_image')
+                    ->whereNotNull('url_ttd')
+                    ->first();
+
+                if ($existing) {
+                    if ($force) {
+                        // Re-generate QR sepenuhnya (url & image baru)
+                        $qrRows[] = $this->buildQrRow($userId, $kpjId, $docType, $tanggalUji);
+                    } else {
+                        // Update created_at & updated_at jika berbeda dari tanggal_uji_coba_asesmen
+                        // JANGAN regenerate url_image & url_ttd
+                        $currentCreatedDate = Carbon::parse($existing->created_at)->format('Y-m-d');
+                        $currentUpdatedDate = Carbon::parse($existing->updated_at)->format('Y-m-d');
+                        $expectedDate = $expectedCreatedAt->format('Y-m-d');
+                        if ($currentCreatedDate !== $expectedDate || $currentUpdatedDate !== $expectedDate) {
+                            $existing->timestamps = false;
+                            $existing->created_at = $expectedCreatedAt;
+                            $existing->updated_at = $expectedCreatedAt;
+                            $existing->save();
+                            $updated++;
+                        } else {
+                            $skipped++;
+                        }
                     }
+                } else {
+                    $qrRows[] = $this->buildQrRow($userId, $kpjId, $docType, $tanggalUji);
                 }
-                $qrRows[] = $this->buildQrRow($userId, $kpjId, $docType, $tanggalUji);
             }
         }
 
@@ -137,7 +163,7 @@ class GenerateQrKan extends Command
             );
         }
 
-        return ['qr' => count($qrRows), 'skipped' => $skipped];
+        return ['qr' => count($qrRows), 'skipped' => $skipped, 'updated' => $updated];
     }
 
     private function buildQrRow(int $userId, int $kpjId, string $docType, string $tanggalUji): array

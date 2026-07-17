@@ -125,7 +125,8 @@
       "Bash(git push *)",
       "Bash(git *)",
       "PowerShell(git pull *)",
-      "Bash(xxd)"
+      "Bash(xxd)",
+      "PowerShell(php artisan kan:generate-qr \"c:\\\\Users\\\\Rafie Pradipta\\\\Downloads\\\\a1_a10_extract.json\")"
     ]
   }
 }
