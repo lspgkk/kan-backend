@@ -12,7 +12,8 @@
             .hd-dok { background-color: #c40000; color: #fff; }
             .hd-dok-b { background-color: #d58a94; color: #000; }
             td { border: 0.2px solid black; padding: 4px 6px; }
-            table { border: 0px solid black; border-collapse: collapse; }
+            table { border: 0px solid black; border-collapse: collapse; page-break-inside: avoid; }
+            tr { page-break-inside: avoid; }
             .noborder { border: 0 transparent !important; }
             .checkbox {
                 width: 12px; height: 12px;
@@ -21,6 +22,7 @@
                 text-align: center;
                 line-height: 11px;
                 font-size: 10px;
+                margin-right: 4px;
             }
             .checked::after { content: "✔"; font-family: "DejaVu Sans", sans-serif; }
 
@@ -111,6 +113,7 @@
         <!-- SOAL -->
         @php $no = 1; @endphp
         @foreach($soal_list as $soal)
+        <div style="page-break-inside: avoid;">
         <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 2px solid #000;">
             <tr class="panduan-title">
                 <td style="width: 100px; text-align: center; font-weight: bold; color: #fff;">
@@ -126,6 +129,7 @@
                 <td>{{ $soal->soal }}</td>
             </tr>
         </table>
+        </div>
         <br />
         @endforeach
 
@@ -175,7 +179,7 @@
             </tr>
         </table>
         <br />
-
+        <div style="page-break-before: always;"></div>
         <!-- FR.IA.06C LEMBAR JAWABAN -->
         <h2 style="font-size: 14px; font-weight: bold;">FR.IA.06C. LEMBAR JAWABAN PERTANYAAN TERTULIS ESAI</h2>
         <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 2px solid #000;">

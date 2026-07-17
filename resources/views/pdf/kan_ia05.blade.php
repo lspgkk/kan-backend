@@ -12,7 +12,8 @@
             .hd-dok { background-color: #c40000; color: #fff; }
             .hd-dok-b { background-color: #d58a94; color: #000; }
             td { border: 0.2px solid black; padding: 4px 6px; }
-            table { border: 0px solid black; border-collapse: collapse; }
+            table { border: 0px solid black; border-collapse: collapse; page-break-inside: avoid; }
+            tr { page-break-inside: avoid; }
             .noborder { border: 0 transparent !important; }
             .checkbox {
                 width: 12px; height: 12px;
@@ -21,6 +22,7 @@
                 text-align: center;
                 line-height: 11px;
                 font-size: 10px;
+                margin-right: 4px;
             }
             .checked::after { content: "✔"; font-family: "DejaVu Sans", sans-serif; }
             .radio {
@@ -31,6 +33,7 @@
                 text-align: center;
                 line-height: 10px;
                 font-size: 10px;
+                margin-right: 4px;
             }
             .radio.checked::after { content: "•"; font-size: 14px; }
             .panduan-title {
@@ -117,6 +120,7 @@
         <!-- SOAL -->
         @php $no = 1; @endphp
         @foreach($soal_list as $soal)
+        <div style="page-break-inside: avoid;">
         <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 2px solid #000;">
             <tr class="panduan-title">
                 <td style="width: 100px; text-align: center; font-weight: bold; color: #fff;">
@@ -152,6 +156,7 @@
                 <td><span class="radio @if($soal->jawaban_asesi === 'D') checked @endif"></span> d. {{ $soal->jawab_d }}</td>
             </tr>
         </table>
+        </div>
         <br />
         @endforeach
 
@@ -277,15 +282,13 @@
         <!-- REKAPITULASI -->
         <table style="width: 100%; border: 1px solid #000; border-collapse: collapse; text-align: center;">
             <tr style="font-weight: bold; background-color: #c40000; color: #fff;">
-                <td colspan="2" style="text-align: center; padding-right: 20px;">Rekapitulasi Penilaian Pertanyaan Pilihan Ganda</td>
+                <td colspan="2" style="text-align: center; padding-right: 20px;">Rekapitulasi Skor Penilaian Pertanyaan IA06<br/>
+                    <span style="font-weight: normal;">(Penilaian = Jumlah skor seluruh butir soal)</span>
+                </td>
             </tr>
             <tr>
-                <td style="font-weight: bold; text-align: center; background-color: #c40000; color: #fff;">Benar</td>
-                <td style="font-weight: bold; text-align: center; background-color: #c40000; color: #fff;">Salah</td>
-            </tr>
-            <tr>
-                <td style="text-align: center;">{{ $jumlah_benar ?? '_____' }}</td>
-                <td style="text-align: center;">{{ $jumlah_salah ?? '_____' }}</td>
+                <td style="text-align: center; font-weight: bold; width: 50%;">Total Skor Penilaian</td>
+                <td style="text-align: center; width: 50%;">{{ $jumlah_benar ?? 0 }}</td>
             </tr>
         </table>
         <br/><br/>

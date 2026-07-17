@@ -28,6 +28,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use ZipArchive;
 use Illuminate\Support\Str;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Ramsey\Uuid\Uuid;
@@ -1773,42 +1774,26 @@ class KanAsesmenController extends Controller
     ];
 
     /**
-     * POST /kan/asesmen/{id}/generate-pdf
-     * Generate KAN PDF(s) for a praktisi. Accepts optional `doc` query param.
-     *
-     * Query params:
-     *   - doc: ia04b|ia05|ia06|ak02|mapa01|mapa02  (single doc, default = all)
+     * Generate PDF file(s) for a praktisi. Saves to storage + updates DB.
+     * Returns array of ['filename' => ..., 'content' => ..., 'label' => ...].
      */
-    public function generateKanPdfByPraktisi(Request $request, int $praktisiJabatanId): JsonResponse
+    private function generatePdfFiles(int $praktisiJabatanId, ?string $docFilter = null): array
     {
         $record = KanPraktisiJabatan::find($praktisiJabatanId);
-        if (!$record) {
-            return response()->json(['message' => 'Data not found'], 404);
-        }
+        if (!$record) return [];
 
         $docs = self::KAN_DOC_TYPES;
-
-        // Filter to single doc if requested
-        $docFilter = $request->query('doc');
         if ($docFilter) {
             $docs = array_filter($docs, fn($d) => strtolower($d['label']) === strtolower($docFilter));
-            if (empty($docs)) {
-                return response()->json([
-                    'message' => "Invalid doc type. Valid: ia04b, ia05, ia06, ak02, mapa01, mapa02",
-                ], 422);
-            }
         }
 
         $disk = 'str_moon';
         $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
-        $generated = [];
+        $files = [];
 
         foreach ($docs as $doc) {
             try {
-                // Build header
                 $header = $this->buildKanDokumenHeaderByPraktisiForPdf($praktisiJabatanId);
-
-                // Build document data
                 $docData = match ($doc['method']) {
                     'KanIa04b' => $this->buildKanIa04bDataByPraktisiForPdf($praktisiJabatanId),
                     'KanIa05'  => $this->buildKanIa05DataByPraktisiForPdf($praktisiJabatanId),
@@ -1819,12 +1804,8 @@ class KanAsesmenController extends Controller
                     default    => null,
                 };
 
-                if ($docData === null || $header === null) {
-                    $generated[$doc['label']] = ['status' => 'skipped', 'reason' => 'Data not ready'];
-                    continue;
-                }
+                if ($docData === null || $header === null) continue;
 
-                // MAPA docs use nested header format
                 if (in_array($doc['method'], ['KanMapa', 'KanMapa2'])) {
                     $viewData = array_merge($docData, ['dokumenHeader' => $header]);
                     $viewData['skkni'] = $viewData['skkni'] ?? '';
@@ -1838,29 +1819,122 @@ class KanAsesmenController extends Controller
                 $path = "dok_asesmen/{$doc['dir']}/{$filename}";
 
                 $pdf = Pdf::loadView("pdf.{$doc['blade']}", $viewData)->setPaper('A4', 'portrait');
-                Storage::disk($disk)->put($path, $pdf->output());
+                $pdfOutput = $pdf->output();
 
+                Storage::disk($disk)->put($path, $pdfOutput);
                 $fullUrl = $publicBaseUrl . $path;
 
-                // Save URL to database
                 $record->update([$doc['url_col'] => $fullUrl]);
 
-                $generated[$doc['label']] = [
-                    'status' => 'generated',
-                    'url'    => $fullUrl,
+                $files[] = [
+                    'filename' => $filename,
+                    'content'  => $pdfOutput,
+                    'label'    => $doc['label'],
                 ];
             } catch (\Throwable $e) {
-                $generated[$doc['label']] = [
-                    'status' => 'error',
-                    'error'  => $e->getMessage(),
-                ];
+                // skip failed docs
             }
         }
 
-        return response()->json([
-            'message' => 'PDF generation complete',
-            'data'    => $generated,
+        return $files;
+    }
+
+    /**
+     * POST /kan/asesmen/{id}/generate-pdf
+     * Generate KAN PDF(s) for a praktisi, return ZIP download.
+     *
+     * Query params:
+     *   - doc: ia04b|ia05|ia06|ak02|mapa01|mapa02  (single doc, default = all)
+     */
+    public function generateKanPdfByPraktisi(Request $request, int $praktisiJabatanId)
+    {
+        $record = KanPraktisiJabatan::with('user:id,name')->find($praktisiJabatanId);
+        if (!$record) {
+            return response()->json(['message' => 'Data not found'], 404);
+        }
+
+        $docFilter = $request->query('doc');
+        if ($docFilter) {
+            $valid = collect(self::KAN_DOC_TYPES)->first(fn($d) => strtolower($d['label']) === strtolower($docFilter));
+            if (!$valid) {
+                return response()->json([
+                    'message' => "Invalid doc type. Valid: ia04b, ia05, ia06, ak02, mapa01, mapa02",
+                ], 422);
+            }
+        }
+
+        $files = $this->generatePdfFiles($praktisiJabatanId, $docFilter);
+        if (empty($files)) {
+            return response()->json(['message' => 'No PDF generated, data not ready'], 400);
+        }
+
+        $zip = new ZipArchive();
+        $zipName = "dokumen-kan-{$praktisiJabatanId}.zip";
+        $zipPath = tempnam(sys_get_temp_dir(), 'kan_');
+
+        if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
+            return response()->json(['message' => 'Failed to create ZIP'], 500);
+        }
+
+        foreach ($files as $file) {
+            $zip->addFromString($file['filename'], $file['content']);
+        }
+        $zip->close();
+
+        return response()->streamDownload(function () use ($zipPath) {
+            readfile($zipPath);
+            unlink($zipPath);
+        }, $zipName, ['Content-Type' => 'application/zip']);
+    }
+
+    /**
+     * POST /kan/asesmen/bulk-generate-pdf
+     * Generate PDFs for multiple praktisi, return ZIP download.
+     *
+     * Body: { "ids": [1, 2, 3] }
+     */
+    public function generateKanPdfBulk(Request $request)
+    {
+        $validated = $request->validate([
+            'ids'     => 'required|array',
+            'ids.*'   => 'integer|exists:kan_praktisi_jabatan,id',
         ]);
+
+        $zip = new ZipArchive();
+        $zipName = 'dokumen-kan-bulk.zip';
+        $zipPath = tempnam(sys_get_temp_dir(), 'kan_bulk_');
+
+        if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
+            return response()->json(['message' => 'Failed to create ZIP'], 500);
+        }
+
+        $total = 0;
+
+        foreach ($validated['ids'] as $id) {
+            $record = KanPraktisiJabatan::with('user:id,name')->find($id);
+            if (!$record) continue;
+
+            $name = preg_replace('/[^a-zA-Z0-9_-]/', '_', $record->user?->name ?? "praktisi-{$id}");
+            $folder = "{$name}-{$id}/";
+            $files = $this->generatePdfFiles($id);
+
+            foreach ($files as $file) {
+                $zip->addFromString($folder . $file['filename'], $file['content']);
+                $total++;
+            }
+        }
+
+        $zip->close();
+
+        if ($total === 0) {
+            unlink($zipPath);
+            return response()->json(['message' => 'No PDFs generated'], 400);
+        }
+
+        return response()->streamDownload(function () use ($zipPath) {
+            readfile($zipPath);
+            unlink($zipPath);
+        }, $zipName, ['Content-Type' => 'application/zip']);
     }
 
     // ═══════════════════════════════════════════════════════════════
