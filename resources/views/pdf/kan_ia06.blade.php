@@ -179,7 +179,7 @@
             </tr>
         </table>
         <br />
-
+        <div style="page-break-before: always;"></div>
         <!-- FR.IA.06C LEMBAR JAWABAN -->
         <h2 style="font-size: 14px; font-weight: bold;">FR.IA.06C. LEMBAR JAWABAN PERTANYAAN TERTULIS ESAI</h2>
         <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 2px solid #000;">

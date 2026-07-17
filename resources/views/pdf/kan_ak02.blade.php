@@ -11,8 +11,7 @@
             }
             .hd-dok { background-color: #c40000; color: #fff; }
             td { border: 0.2px solid black; }
-            table { border: 0px solid black; border-collapse: collapse; page-break-inside: avoid; }
-            tr { page-break-inside: avoid; }
+            table { border: 0px solid black; border-collapse: collapse; }
             .noborder { border: 0 transparent !important; }
             .checkbox {
                 width: 12px; height: 12px;
