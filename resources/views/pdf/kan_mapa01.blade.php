@@ -4,7 +4,7 @@
 <style>
 body{font-family:"Open Sans",Calibri,Candara,Segoe,"Segoe UI",Optima,Arial,sans-serif;font-size:11pt;margin-top:0}
 .hd-dok{background-color:#c00000;color:#fff}.hd-dok-b{background-color:#e79291;color:#000}
-td{border:.2px solid black}table{border:0 solid black;border-collapse:collapse;page-break-inside:avoid}
+td{border:.2px solid black}table{border:0 solid black;border-collapse:collapse}
 tr{page-break-inside:avoid}
 .noborder{border:0 transparent!important}.no-top-bottom{border-bottom-color:transparent!important;border-top-color:transparent!important}
 .no-bottom{border-bottom-color:transparent!important}.no-top{border-top-color:transparent!important}
@@ -76,6 +76,7 @@ td.vhead .vtext{position:absolute;top:50%;left:50%;width:280px;transform:transla
     <tr><td colspan="3"><span class="checkbox {{ $tolak_ukur['pedoman_khusus']?'checked':'' }}"></span>Pedoman khusus</td></tr>
 </table><br>
 
+<div style="page-break-before: always;"></div>
 {{-- SECTION 2: Rencana Asesmen --}}
 <strong>2. Mempersiapkan Rencana Asesmen</strong><br/>
 
