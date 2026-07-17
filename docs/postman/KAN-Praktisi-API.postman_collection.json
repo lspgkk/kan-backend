@@ -602,6 +602,44 @@
             },
             "description": "Submit AK02 (Rekomendasi Keputusan) untuk seorang asesi.\n\nScoring otomatis: backend menghitung ulang `total_skor_dit`, `total_skor_pg`, `total_skor_esai` dari jawaban yang sudah di-submit, lalu menghitung weighted final score.\n\nThreshold: 65 (jenjang ≤6) atau 70 (jenjang >6).\n\nResponse include `skor_nilai_akhir` dan `is_kompeten`."
           }
+        },
+        {
+          "name": "Submit MAPA01",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"referensi_form\": [\n    {\n      \"kelompok\": {\n        \"id\": 1,\n        \"kategoris\": [{\n          \"id\": 1,\n          \"subkategoris\": [{\n            \"id\": 1,\n            \"referensis\": [\n              { \"id\": 82, \"value\": true, \"alasan\": \"\" },\n              { \"id\": 83, \"value\": false, \"alasan\": \"\" }\n            ]\n          }]\n        }]\n      }\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/asesmen/{{praktisi_jabatan_id}}/mapa01",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "asesmen", "{{praktisi_jabatan_id}}", "mapa01"]
+            },
+            "description": "Submit jawaban MAPA01 (checkboxes aktivitas & proses asesmen) untuk seorang praktisi.\n\nBody: `referensi_form` — nested structure sama seperti response GET dari `/penyusun/jabker/{jabkerId}/mapa01/data`, dengan `value` (boolean) dan `alasan` (string) yang sudah diisi user.\n\n**Catatan:** Untuk GET data MAPA01 template (by id_jabatan_kerja), gunakan endpoint `GET /penyusun/jabker/{jabkerId}/mapa01/data`.\n\n**Response:**\n```json\n{\n  \"message\": \"KAN MAPA01 saved\",\n  \"data\": { \"referensi_count\": 28 }\n}\n```"
+          }
+        },
+        {
+          "name": "Submit MAPA02",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"referensi_form\": [{\n    \"kategori\": \"MAPA02-1\",\n    \"referensis\": [\n      { \"id\": 1, \"potensi_asesi_index\": 5 },\n      { \"id\": 2, \"potensi_asesi_index\": 4 }\n    ]\n  }]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/kan/asesmen/{{praktisi_jabatan_id}}/mapa02",
+              "host": ["{{base_url}}"],
+              "path": ["kan", "asesmen", "{{praktisi_jabatan_id}}", "mapa02"]
+            },
+            "description": "Submit jawaban MAPA02 (instrumen asesmen yang dipilih) untuk seorang praktisi.\n\nBody: `referensi_form` — array dengan `referensis` items yang berisi `potensi_asesi_index` (1–5).\n\n**Catatan:** Untuk GET data MAPA02 template (by id_jabatan_kerja), gunakan endpoint `GET /penyusun/jabker/{jabkerId}/mapa02/data`.\n\n**Response:**\n```json\n{\n  \"message\": \"KAN MAPA02 saved\",\n  \"data\": { \"referensi_count\": 1 }\n}\n```"
+          }
         }
       ]
     },
@@ -1451,6 +1489,76 @@
                   "path": ["praktisi", "jabatan", "{{praktisi_jabatan_id}}", "qr", "ak02"]
                 },
                 "description": "Generate QR signature + PDF untuk dokumen KAN AK02 berdasarkan `kan_praktisi_jabatan.id`.\n\n**Tanpa** body `id_jadwal`."
+              }
+            },
+            {
+              "name": "Get MAPA01 by Jabatan Kerja",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/penyusun/jabker/{{id_jabatan_kerja}}/mapa01/data",
+                  "host": ["{{base_url}}"],
+                  "path": ["penyusun", "jabker", "{{id_jabatan_kerja}}", "mapa01", "data"]
+                },
+                "description": "Get data MAPA01 (Merencanakan Aktivitas dan Proses Asesmen) berdasarkan `id_jabatan_kerja`.\n\nReturn format BNSP (sama seperti PraAsesmenController): `kelompok_kerja`, `referensi_form` (nested kelompok → kategori → subkategori → referensis), `skkni`, `jenjang` (int), `metode`.\n\nPlus extra: `judul`, `nomor`, `penyusun_info`, `validator_info`."
+              }
+            },
+            {
+              "name": "Get MAPA02 by Jabatan Kerja",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/penyusun/jabker/{{id_jabatan_kerja}}/mapa02/data",
+                  "host": ["{{base_url}}"],
+                  "path": ["penyusun", "jabker", "{{id_jabatan_kerja}}", "mapa02", "data"]
+                },
+                "description": "Get data MAPA02 (Pemilihan Instrumen Asesmen) berdasarkan `id_jabatan_kerja`.\n\nReturn format BNSP (sama seperti PraAsesmenController): `kelompok_kerja`, `referensi_form` (flat: [{kategori, referensis: [{id, nama, isdefault, potensi_asesi_index}]}]).\n\nPlus extra: `judul`, `nomor`, `penyusun_info`, `validator_info`."
+              }
+            },
+            {
+              "name": "Submit MAPA01 per Praktisi",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"referensi_form\": [\n    {\n      \"kelompok\": {\n        \"id\": 1,\n        \"kategoris\": [{\n          \"id\": 1,\n          \"subkategoris\": [{\n            \"id\": 1,\n            \"referensis\": [\n              { \"id\": 82, \"value\": true, \"alasan\": \"\" }\n            ]\n          }]\n        }]\n      }\n    }\n  ]\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/kan/asesmen/{{praktisi_jabatan_id}}/mapa01",
+                  "host": ["{{base_url}}"],
+                  "path": ["kan", "asesmen", "{{praktisi_jabatan_id}}", "mapa01"]
+                },
+                "description": "Submit jawaban MAPA01 per `kan_praktisi_jabatan.id`.\n\nBody: `referensi_form` — nested structure dengan `value` dan `alasan`.\n\n**Catatan:** Untuk GET template MAPA01 by `id_jabatan_kerja`, gunakan `GET /penyusun/jabker/{jabkerId}/mapa01/data`."
+              }
+            },
+            {
+              "name": "Submit MAPA02 per Praktisi",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Accept", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"referensi_form\": [{\n    \"kategori\": \"MAPA02-1\",\n    \"referensis\": [\n      { \"id\": 1, \"potensi_asesi_index\": 5 },\n      { \"id\": 2, \"potensi_asesi_index\": 4 }\n    ]\n  }]\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/kan/asesmen/{{praktisi_jabatan_id}}/mapa02",
+                  "host": ["{{base_url}}"],
+                  "path": ["kan", "asesmen", "{{praktisi_jabatan_id}}", "mapa02"]
+                },
+                "description": "Submit jawaban MAPA02 per `kan_praktisi_jabatan.id`.\n\nBody: `referensi_form` — array dengan `potensi_asesi_index` (1–5).\n\n**Catatan:** Untuk GET template MAPA02 by `id_jabatan_kerja`, gunakan `GET /penyusun/jabker/{jabkerId}/mapa02/data`."
               }
             }
           ]

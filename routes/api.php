@@ -510,6 +510,8 @@ Route::prefix('diskon')->group(function () {
         Route::post('/{id}/ia06', [KanAsesmenController::class, 'submitKanIa06ByPraktisi']);
         Route::get('/{id}/ak02', [KanAsesmenController::class, 'getKanAk02ByPraktisi']);
         Route::post('/{id}/ak02', [KanAsesmenController::class, 'submitKanAk02ByPraktisi']);
+        Route::post('/{id}/mapa01', [KanAsesmenController::class, 'submitKanMapaByPraktisi']);
+        Route::post('/{id}/mapa02', [KanAsesmenController::class, 'submitKanMapa2ByPraktisi']);
     });
 
     Route::prefix('kan/qr')->group(function () {

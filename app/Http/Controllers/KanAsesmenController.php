@@ -1779,7 +1779,11 @@ class KanAsesmenController extends Controller
 
     public function buildKanMapaDataByPraktisiForPdf(int $kpjId): ?array
     {
-        return $this->buildKanMapaDataByPraktisi($kpjId);
+        $data = $this->buildKanMapaDataByPraktisi($kpjId);
+        if (!$data) return null;
+
+        // Convert BNSP-format referensi_form to flat arrays for KAN template
+        return array_merge($data, $this->flattenMapaReferensiForm($data['referensi_form'] ?? []));
     }
 
     public function buildKanMapa2DataByPraktisiForPdf(int $kpjId): ?array
@@ -1793,38 +1797,6 @@ class KanAsesmenController extends Controller
 
     private function buildKanMapa2DataByPraktisi(int $kpjId): ?array
     {
-        // Reuse MAPA01 data for kelompok_kerja
-        $mapa01 = $this->buildKanMapaDataByPraktisi($kpjId);
-        if (!$mapa01) return null;
-
-        // Build referensi_form for MAPA02 (simplified for KAN - metode observasi)
-        $refs = [
-            ['nama' => 'Formulir FR.IA.04B - Daftar Instruksi Terstruktur (DIT)', 'isdefault' => true, 'potensi_asesi_index' => 5],
-            ['nama' => 'Formulir FR.IA.05 - Daftar Pertanyaan Tertulis Pilihan Ganda (DPT)', 'isdefault' => true, 'potensi_asesi_index' => 4],
-            ['nama' => 'Formulir FR.IA.06 - Daftar Pertanyaan Tertulis Esai (DPT)', 'isdefault' => true, 'potensi_asesi_index' => 3],
-            ['nama' => 'Formulir Ceklis Observasi (CL)', 'isdefault' => false, 'potensi_asesi_index' => null],
-            ['nama' => 'Formulir Verifikasi Portofolio (CVP)', 'isdefault' => false, 'potensi_asesi_index' => null],
-            ['nama' => 'Formulir Verifikasi Pihak Ketiga (VPK)', 'isdefault' => false, 'potensi_asesi_index' => null],
-            ['nama' => 'Formulir Ceklis Reviu Produk (CRP)', 'isdefault' => false, 'potensi_asesi_index' => null],
-        ];
-
-        $footerNote = '** 1 = Sangat Tidak Sesuai, 2 = Tidak Sesuai, 3 = Sesuai, 4 = Sangat Sesuai, 5 = Sangat Sesuai Sekali';
-
-        return [
-            'kelompok_kerja' => $mapa01['kelompok_kerja'],
-            'referensi_form' => [
-                0 => ['referensis' => [0 => ['nama' => $footerNote]]],
-                1 => ['referensis' => $refs],
-            ],
-        ];
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    //  MAPA DATA BUILDER (KAN — by kan_praktisi_jabatan)
-    // ═══════════════════════════════════════════════════════════════
-
-    private function buildKanMapaDataByPraktisi(int $kpjId): ?array
-    {
         $record = KanPraktisiJabatan::with([
             'user:id,name',
             'jabatanKerja:id_jabatan_kerja,jabatan_kerja,jenjang_id',
@@ -1832,60 +1804,399 @@ class KanAsesmenController extends Controller
 
         if (!$record) return null;
 
-        // Load unit kompetensi for this jabatan
-        $units = \App\Models\UnitKompetensi::where('id_jabatan', $record->id_jabatan_kerja)
-            ->orderBy('kode')->get();
+        // Try JabatanDokumen first (BNSP format)
+        $dokumen = \App\Models\JabatanDokumen::with(['kelompoks.units.unit'])
+            ->where('id_jabatan', $record->id_jabatan_kerja)
+            ->where('kode', 'MAPA02')
+            ->where('is_active', true)
+            ->first();
 
-        // Build kelompok_kerja structure (same format as BNSP)
-        $kelompokKerja = [[
-            'nama' => $record->jabatanKerja->jabatan_kerja ?? '',
-            'urut' => 1,
-            'units' => $units->map(fn($u) => [
-                'kode_unit' => $u->kode,
-                'nama_unit' => $u->nama,
-            ])->toArray(),
-        ]];
+        if ($dokumen) {
+            $kelompokKerja = [
+                'id' => $dokumen->id,
+                'kode' => $dokumen->kode,
+                'nama_dokumen' => $dokumen->nama_dokumen,
+                'kelompok_kerja' => $dokumen->kelompoks->map(function ($kelompok) {
+                    return [
+                        'id' => $kelompok->id,
+                        'nama' => $kelompok->nama,
+                        'urut' => $kelompok->urut,
+                        'units' => $kelompok->units->map(function ($unit) {
+                            return [
+                                'id_unit'   => $unit->id_unit,
+                                'nama_unit' => $unit->unit?->nama,
+                                'kode_unit' => $unit->unit?->kode,
+                            ];
+                        })->values()->toArray(),
+                    ];
+                })->values()->toArray(),
+            ];
+        } else {
+            // Fallback: build from UnitKompetensi
+            $mapa01 = $this->buildKanMapaDataByPraktisi($kpjId);
+            if (!$mapa01) return null;
+            $kelompokKerja = $mapa01['kelompok_kerja'];
+        }
+
+        // Get MAPA01 data to determine potensi asesi index
+        $mapa01Data = $this->buildKanMapaDataByPraktisi($kpjId);
+        $potensiAsesiIndex = 1;
+
+        if ($mapa01Data && isset($mapa01Data['referensi_form'])) {
+            foreach ($mapa01Data['referensi_form'] as $kelompok) {
+                if (($kelompok['kelompok']['id'] ?? 0) == 1) {
+                    foreach ($kelompok['kelompok']['kategoris'] ?? [] as $kategori) {
+                        if (($kategori['id'] ?? 0) == 1) {
+                            foreach ($kategori['subkategoris'][0]['referensis'] ?? [] as $index => $referensi) {
+                                if (!empty($referensi['value'])) {
+                                    $potensiAsesiIndex = $index + 1;
+                                    break 2;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         $jenjang = $record->jabatanKerja->jenjang_id ?? 0;
+        $metode = 'observasi';
 
-        // Load referensi form from DB (same as BNSP MAPA01)
-        $referensiForm = \App\Models\Referensi::whereIn('kategori', ['MAPA01_3', 'MAPA01_2'])
-            ->with('kelompok')
-            ->get()
-            ->groupBy('kategori');
+        // Determine default FR codes based on jenjang & metode (same logic as BNSP)
+        $defaultFrCodes = [];
+        if ($jenjang >= 1 && $jenjang <= 3) {
+            $defaultFrCodes = ['FR.IA.01', 'FR.IA.02', 'FR.IA.03', 'FR.IA.05'];
+        } elseif ($jenjang >= 4 && $jenjang <= 9) {
+            $defaultFrCodes = ['FR.IA.04A', 'FR.IA.04B', 'FR.IA.05'];
+        }
+
+        // Load referensi from DB
+        $referensis = \App\Models\Referensi::select(['id', 'nama', 'kategori', 'isdefault'])
+            ->whereIn('kategori', ['MAPA02-1', 'MAPA02_1'])
+            ->get();
+
+        $dataReferensi = $referensis
+            ->groupBy('kategori')
+            ->map(function ($items, $kategori) use ($potensiAsesiIndex, $defaultFrCodes) {
+                return [
+                    'kategori'   => $kategori,
+                    'referensis' => $items->map(function ($item) use ($potensiAsesiIndex, $kategori, $defaultFrCodes) {
+                        $isdefault = $item->isdefault;
+
+                        if ($kategori === 'MAPA02_1' && !empty($defaultFrCodes)) {
+                            $matched = false;
+                            foreach ($defaultFrCodes as $frCode) {
+                                if (str_contains($item->nama, $frCode)) {
+                                    $matched = true;
+                                    break;
+                                }
+                            }
+                            $isdefault = $matched ? 1 : null;
+                        }
+
+                        return [
+                            'id'         => $item->id,
+                            'nama'       => $item->nama,
+                            'isdefault'  => $isdefault,
+                            'potensi_asesi_index' => $potensiAsesiIndex,
+                        ];
+                    })->values()->toArray(),
+                ];
+            })
+            ->values()
+            ->toArray();
 
         return [
-            'kelompok_kerja' => ['kelompok_kerja' => $kelompokKerja],
-            'referensi_form' => $referensiForm,
-            'skkni' => '',
+            'kelompok_kerja' => $kelompokKerja,
+            'referensi_form' => $dataReferensi,
+        ];
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  MAPA01 DATA BUILDER (KAN — by kan_praktisi_jabatan)
+    //  Returns BNSP-format data (matches PraAsesmenController)
+    // ═══════════════════════════════════════════════════════════════
+
+    private function buildKanMapaDataByPraktisi(int $kpjId): ?array
+    {
+        $record = KanPraktisiJabatan::with([
+            'user:id,name',
+            'jabatanKerja:id_jabatan_kerja,jabatan_kerja,jenjang_id,acuan',
+        ])->find($kpjId);
+
+        if (!$record) return null;
+
+        $idJabatan = $record->id_jabatan_kerja;
+        $jenjang = $record->jabatanKerja->jenjang_id ?? 0;
+
+        // Try JabatanDokumen first (BNSP format)
+        $dokumen = \App\Models\JabatanDokumen::with(['kelompoks.units.unit'])
+            ->where('id_jabatan', $idJabatan)
+            ->where('kode', 'MAPA01')
+            ->where('is_active', true)
+            ->first();
+
+        if ($dokumen) {
+            // ✅ BNSP-format: use JabatanDokumen structure
+            $kelompokKerja = [
+                'id' => $dokumen->id,
+                'kode' => $dokumen->kode,
+                'nama_dokumen' => $dokumen->nama_dokumen,
+                'kelompok_kerja' => $dokumen->kelompoks->map(function ($kelompok) {
+                    return [
+                        'id' => $kelompok->id,
+                        'nama' => $kelompok->nama,
+                        'urut' => $kelompok->urut,
+                        'units' => $kelompok->units->map(function ($unit) {
+                            return [
+                                'id_unit'   => $unit->id_unit,
+                                'nama_unit' => $unit->unit?->nama,
+                                'kode_unit' => $unit->unit?->kode,
+                            ];
+                        })->values()->toArray(),
+                    ];
+                })->values()->toArray(),
+            ];
+
+            // Load referensi with full nested grouping (same as BNSP buildMapa01Data)
+            $referensis = \App\Models\Referensi::with(['kategoriRel', 'kelompokRel', 'subkategoriRel'])
+                ->select(['id', 'nama', 'id_kelompok', 'id_kategori', 'id_subkategori'])
+                ->where('kategori', 'MAPA01')
+                ->whereNotNull('id_kelompok')
+                ->get()
+                ->filter(fn($r) => $r->kelompokRel !== null);
+
+            $dataReferensi = $referensis
+                ->groupBy('id_kelompok')
+                ->values()
+                ->map(function ($kelompokItems) {
+                    $kelompok = $kelompokItems->first()->kelompokRel;
+
+                    return [
+                        'kelompok' => [
+                            'id' => $kelompok->id,
+                            'nama' => $kelompok->nama,
+                            'urut' => $kelompok->urut,
+                            'kategoris' => $kelompokItems
+                                ->groupBy(fn($i) => $i->id_kategori ?? 'tanpa_kategori')
+                                ->values()
+                                ->map(function ($kategoriItems) use ($kelompok) {
+                                    $kategori = $kategoriItems->first()->kategoriRel;
+
+                                    return [
+                                        'id' => $kategori?->id,
+                                        'kategori' => $kategori?->kategori,
+                                        'nama' => $kategori?->nama,
+                                        'urut' => $kategori?->urut,
+                                        'id_kelompok' => $kategori?->id_kelompok,
+                                        'subkategoris' => $kategoriItems
+                                            ->groupBy(fn($i) => $i->id_subkategori ?? 'tanpa_subkategori')
+                                            ->values()
+                                            ->map(function ($subItems) {
+                                                $sub = $subItems->first()->subkategoriRel;
+
+                                                return [
+                                                    'id' => $sub?->id,
+                                                    'nama' => $sub?->nama ?? 'Tanpa Subkategori',
+                                                    'urut' => $sub?->urut,
+                                                    'referensis' => $subItems->map(function ($item) {
+                                                        return [
+                                                            'id' => $item->id,
+                                                            'nama' => $item->nama,
+                                                            'value' => false,
+                                                            'alasan' => '',
+                                                        ];
+                                                    })->values()->toArray(),
+                                                ];
+                                            })->values()->toArray(),
+                                    ];
+                                })->values()->toArray(),
+                        ],
+                    ];
+                })
+                ->values()
+                ->toArray();
+
+            return [
+                'kelompok_kerja' => $kelompokKerja,
+                'referensi_form' => $dataReferensi,
+                'skkni' => $record->jabatanKerja->acuan ?? '',
+                'jenjang' => $jenjang,
+                'metode' => 'observasi',
+            ];
+        }
+
+        // Fallback: build from UnitKompetensi (legacy KAN format)
+        $units = \App\Models\UnitKompetensi::where('id_jabatan', $idJabatan)
+            ->orderBy('kode')->get();
+
+        $kelompokKerja = [
+            'id' => null,
+            'kode' => 'MAPA01',
+            'nama_dokumen' => 'MAPA01',
+            'kelompok_kerja' => [[
+                'id' => null,
+                'nama' => $record->jabatanKerja->jabatan_kerja ?? '',
+                'urut' => 1,
+                'units' => $units->map(fn($u) => [
+                    'id_unit'   => $u->id,
+                    'nama_unit' => $u->nama,
+                    'kode_unit' => $u->kode,
+                ])->toArray(),
+            ]],
+        ];
+
+        return [
+            'kelompok_kerja' => $kelompokKerja,
+            'referensi_form' => [],
+            'skkni' => $record->jabatanKerja->acuan ?? '',
             'jenjang' => $jenjang,
             'metode' => 'observasi',
-            'asesi' => [
-                'hasil_pelatihan_telusur' => true, 'hasil_pelatihan_tidak_kompetensi' => false,
-                'pekerja_berpengalaman_telusur' => false, 'pekerja_berpengalaman_tidak_telusur' => false, 'otodidak' => false,
-            ],
-            'tujuan' => ['sertifikasi' => true, 'pkt' => false, 'rpl' => false, 'lainnya' => false],
-            'konteks' => [
-                'tempat_kerja_nyata' => true, 'tempat_kerja_simulasi' => false,
-                'tersedia' => true, 'terbatas' => false,
-                'bukti_asesmen_rpl' => false, 'aktivitas_kerja' => false, 'kegiatan_pembelajaran' => false,
-                'lsp_gatensi' => true, 'organisasi_pelatihan' => false, 'asesor_perusahaan' => false,
-            ],
-            'orang_relevan' => [
-                'manajer_sertifikasi_lsp' => true, 'master_assessor_lsp' => false,
-                'manajer_pelatihan_lsp' => false, 'lainnya' => false,
-            ],
-            'tolak_ukur' => [
-                'skkni' => true, 'kriteria_kurikulum' => false, 'spesifikasi_kinerja' => false,
-                'spesifikasi_produk' => false, 'pedoman_khusus' => false,
-            ],
-            'modifikasi_items' => [
+        ];
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  HELPER: Convert BNSP referensi_form → flat arrays for PDF
+    // ═══════════════════════════════════════════════════════════════
+
+    private function flattenMapaReferensiForm(array $referensiForm): array
+    {
+        $refMap = collect($referensiForm)
+            ->flatMap(fn($f) => $f['kelompok']['kategoris'] ?? [])
+            ->flatMap(fn($k) => $k['subkategoris'] ?? [])
+            ->flatMap(fn($s) => $s['referensis'] ?? [])
+            ->keyBy('id');
+
+        $asesi = [
+            'hasil_pelatihan_telusur'           => $refMap[82]['value'] ?? false,
+            'hasil_pelatihan_tidak_kompetensi'  => $refMap[83]['value'] ?? false,
+            'pekerja_berpengalaman_telusur'     => $refMap[84]['value'] ?? false,
+            'pekerja_berpengalaman_tidak_telusur'=> $refMap[85]['value'] ?? false,
+            'otodidak'                          => $refMap[86]['value'] ?? false,
+        ];
+
+        $tujuan = [
+            'sertifikasi' => $refMap[87]['value'] ?? false,
+            'pkt'         => $refMap[88]['value'] ?? false,
+            'rpl'         => $refMap[89]['value'] ?? false,
+            'lainnya'     => $refMap[90]['value'] ?? false,
+        ];
+
+        $konteks = [
+            'tempat_kerja_nyata'     => $refMap[91]['value'] ?? false,
+            'tempat_kerja_simulasi'  => $refMap[92]['value'] ?? false,
+            'tersedia'               => $refMap[93]['value'] ?? false,
+            'terbatas'               => $refMap[94]['value'] ?? false,
+            'bukti_asesmen_rpl'      => $refMap[95]['value'] ?? false,
+            'aktivitas_kerja'        => $refMap[96]['value'] ?? false,
+            'kegiatan_pembelajaran'  => $refMap[97]['value'] ?? false,
+            'lsp_gatensi'            => $refMap[98]['value'] ?? false,
+            'organisasi_pelatihan'   => $refMap[99]['value'] ?? false,
+            'asesor_perusahaan'      => $refMap[100]['value'] ?? false,
+        ];
+
+        $orangRelevan = [
+            'manajer_sertifikasi_lsp' => $refMap[101]['value'] ?? false,
+            'master_assessor_lsp'     => $refMap[102]['value'] ?? false,
+            'manajer_pelatihan_lsp'   => $refMap[103]['value'] ?? false,
+            'lainnya'                 => $refMap[104]['value'] ?? false,
+        ];
+
+        $tolakUkur = [
+            'skkni'               => $refMap[105]['value'] ?? false,
+            'kriteria_kurikulum'  => $refMap[106]['value'] ?? false,
+            'spesifikasi_kinerja' => $refMap[107]['value'] ?? false,
+            'spesifikasi_produk'  => $refMap[108]['value'] ?? false,
+            'pedoman_khusus'      => $refMap[109]['value'] ?? false,
+        ];
+
+        // Modifikasi items: extract from kelompok 3 (modifikasi) if available
+        $modifikasiItems = [];
+        foreach ($referensiForm as $kelompok) {
+            if (($kelompok['kelompok']['id'] ?? 0) == 3) {
+                $modifikasiItems = collect(
+                    $kelompok['kelompok']['kategoris'][0]['subkategoris'][0]['referensis'] ?? []
+                )->map(fn($item) => [
+                    'nama'   => $item['nama'],
+                    'value'  => $item['value'] ?? false,
+                    'alasan' => $item['alasan'] ?? '',
+                ])->toArray();
+                break;
+            }
+        }
+
+        // Fallback modifikasi items
+        if (empty($modifikasiItems)) {
+            $modifikasiItems = [
                 ['nama' => 'Hasil asesmen disesuaikan dengan kondisi asesi', 'value' => false, 'alasan' => ''],
                 ['nama' => 'Instrumen asesmen disesuaikan dengan konteks pekerjaan', 'value' => false, 'alasan' => ''],
                 ['nama' => 'Metode asesmen disesuaikan dengan kebutuhan khusus', 'value' => false, 'alasan' => ''],
                 ['nama' => 'Waktu pelaksanaan asesmen disesuaikan', 'value' => false, 'alasan' => ''],
                 ['nama' => 'Tempat pelaksanaan asesmen disesuaikan', 'value' => false, 'alasan' => ''],
-            ],
+            ];
+        }
+
+        return [
+            'asesi'            => $asesi,
+            'tujuan'           => $tujuan,
+            'konteks'          => $konteks,
+            'orang_relevan'    => $orangRelevan,
+            'tolak_ukur'       => $tolakUkur,
+            'modifikasi_items' => $modifikasiItems,
         ];
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  SUBMIT: KAN MAPA01 By Praktisi
+    // ═══════════════════════════════════════════════════════════════
+
+    public function submitKanMapaByPraktisi(Request $request, int $praktisiJabatanId): JsonResponse
+    {
+        $record = KanPraktisiJabatan::find($praktisiJabatanId);
+        if (!$record) {
+            return response()->json(['message' => 'Data not found'], 404);
+        }
+
+        $validated = $request->validate([
+            'referensi_form' => 'required|array',
+        ]);
+
+        // Flatten incoming referensi_form → extract checked values & alasan
+        $refMap = collect($validated['referensi_form'] ?? [])
+            ->flatMap(fn($f) => $f['kelompok']['kategoris'] ?? [])
+            ->flatMap(fn($k) => $k['subkategoris'] ?? [])
+            ->flatMap(fn($s) => $s['referensis'] ?? [])
+            ->keyBy('id');
+
+        // Save to KanMapaAnswer table if needed, for now just validate & return
+        return response()->json([
+            'message' => 'KAN MAPA01 saved',
+            'data' => [
+                'referensi_count' => $refMap->count(),
+            ],
+        ]);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  SUBMIT: KAN MAPA02 By Praktisi
+    // ═══════════════════════════════════════════════════════════════
+
+    public function submitKanMapa2ByPraktisi(Request $request, int $praktisiJabatanId): JsonResponse
+    {
+        $record = KanPraktisiJabatan::find($praktisiJabatanId);
+        if (!$record) {
+            return response()->json(['message' => 'Data not found'], 404);
+        }
+
+        $validated = $request->validate([
+            'referensi_form' => 'required|array',
+        ]);
+
+        return response()->json([
+            'message' => 'KAN MAPA02 saved',
+            'data' => [
+                'referensi_count' => count($validated['referensi_form'] ?? []),
+            ],
+        ]);
     }
 }

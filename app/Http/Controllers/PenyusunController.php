@@ -272,6 +272,8 @@ class PenyusunController extends Controller
             return response()->json(['message' => "$docType not found for this jabker"], 404);
         }
 
+        $jenjang = (int) ($jabatanKerja->jenjang_id ?? 0);
+
         // ── Kelompok Kerja ──
         $kelompokKerja = [
             'id'             => $dokumen->id,
@@ -290,76 +292,148 @@ class PenyusunController extends Controller
         ];
 
         // ── Referensi ──
-        $referensis = Referensi::with(['kategoriRel', 'kelompokRel', 'subkategoriRel'])
-            ->select(['id', 'nama', 'id_kelompok', 'id_kategori', 'id_subkategori'])
-            ->where('kategori', $docType)
-            ->whereNotNull('id_kelompok')
-            ->get()
-            ->filter(fn ($r) => $r->kelompokRel !== null);
+        if ($jenis === 'mapa02') {
+            // MAPA02: flat structure (matches PraAsesmenController@buildMapa02Data)
+            $potensiAsesiIndex = 1; // default — no asesi context at penyusun level
 
-        $dataReferensi = $referensis
-            ->groupBy('id_kelompok')
-            ->values()
-            ->map(function ($kelompokItems) {
-                $kelompok = $kelompokItems->first()->kelompokRel;
-                return [
-                    'kelompok' => [
-                        'id'   => $kelompok->id,
-                        'nama' => $kelompok->nama,
-                        'urut' => $kelompok->urut,
-                        'kategoris' => $kelompokItems
-                            ->groupBy(fn ($i) => $i->id_kategori ?? 'tanpa_kategori')
-                            ->values()
-                            ->map(function ($kategoriItems) {
-                                $kategori = $kategoriItems->first()->kategoriRel;
-                                return [
-                                    'id'           => $kategori?->id,
-                                    'kategori'     => $kategori?->kategori,
-                                    'nama'         => $kategori?->nama,
-                                    'urut'         => $kategori?->urut,
-                                    'id_kelompok'  => $kategori?->id_kelompok,
-                                    'subkategoris' => $kategoriItems
-                                        ->groupBy(fn ($i) => $i->id_subkategori ?? 'tanpa_subkategori')
-                                        ->values()
-                                        ->map(function ($subItems) {
-                                            $sub = $subItems->first()->subkategoriRel;
-                                            return [
-                                                'id'         => $sub?->id,
-                                                'nama'       => $sub?->nama ?? 'Tanpa Subkategori',
-                                                'urut'       => $sub?->urut,
-                                                'referensis' => $subItems->map(fn ($item) => [
-                                                    'id'     => $item->id,
-                                                    'nama'   => $item->nama,
-                                                    'value'  => false,
-                                                    'alasan' => '',
-                                                ])->values(),
-                                            ];
-                                        })->values(),
-                                ];
-                            })->values(),
-                    ],
-                ];
-            });
+            // Determine default FR codes based on jenjang (same logic as PraAsesmen)
+            $defaultFrCodes = [];
+            if ($jenjang >= 1 && $jenjang <= 3) {
+                $defaultFrCodes = ['FR.IA.01', 'FR.IA.02', 'FR.IA.03', 'FR.IA.05'];
+            } elseif ($jenjang >= 4 && $jenjang <= 9) {
+                // Default to observasi at penyusun level (no metode context)
+                $defaultFrCodes = ['FR.IA.04A', 'FR.IA.04B', 'FR.IA.05'];
+            }
+
+            $referensis = Referensi::select(['id', 'nama', 'kategori', 'isdefault'])
+                ->whereIn('kategori', ['MAPA02-1', 'MAPA02_1'])
+                ->get();
+
+            $dataReferensi = $referensis
+                ->groupBy('kategori')
+                ->map(function ($items, $kategori) use ($potensiAsesiIndex, $defaultFrCodes) {
+                    return [
+                        'kategori'   => $kategori,
+                        'referensis' => $items->map(function ($item) use ($potensiAsesiIndex, $kategori, $defaultFrCodes) {
+                            $isdefault = $item->isdefault;
+
+                            if ($kategori === 'MAPA02_1' && !empty($defaultFrCodes)) {
+                                $matched = false;
+                                foreach ($defaultFrCodes as $frCode) {
+                                    if (str_contains($item->nama, $frCode)) {
+                                        $matched = true;
+                                        break;
+                                    }
+                                }
+                                $isdefault = $matched ? 1 : null;
+                            }
+
+                            return [
+                                'id'                  => $item->id,
+                                'nama'                => $item->nama,
+                                'isdefault'           => $isdefault,
+                                'potensi_asesi_index' => $potensiAsesiIndex,
+                            ];
+                        })->values(),
+                    ];
+                })
+                ->values();
+        } else {
+            // MAPA01: nested kelompok→kategori→subkategori→referensis (matches PraAsesmenController@buildMapa01Data)
+            $referensis = Referensi::with(['kategoriRel', 'kelompokRel', 'subkategoriRel'])
+                ->select(['id', 'nama', 'id_kelompok', 'id_kategori', 'id_subkategori'])
+                ->where('kategori', $docType)
+                ->whereNotNull('id_kelompok')
+                ->get()
+                ->filter(fn ($r) => $r->kelompokRel !== null);
+
+            $dataReferensi = $referensis
+                ->groupBy('id_kelompok')
+                ->values()
+                ->map(function ($kelompokItems) use ($kelompokKerja) {
+                    $kelompok = $kelompokItems->first()->kelompokRel;
+                    return [
+                        'kelompok' => [
+                            'id'   => $kelompok->id,
+                            'nama' => $kelompok->nama,
+                            'urut' => $kelompok->urut,
+                            'kategoris' => $kelompokItems
+                                ->groupBy(fn ($i) => $i->id_kategori ?? 'tanpa_kategori')
+                                ->values()
+                                ->map(function ($kategoriItems) {
+                                    $kategori = $kategoriItems->first()->kategoriRel;
+                                    return [
+                                        'id'           => $kategori?->id,
+                                        'kategori'     => $kategori?->kategori,
+                                        'nama'         => $kategori?->nama,
+                                        'urut'         => $kategori?->urut,
+                                        'id_kelompok'  => $kategori?->id_kelompok,
+                                        'subkategoris' => $kategoriItems
+                                            ->groupBy(fn ($i) => $i->id_subkategori ?? 'tanpa_subkategori')
+                                            ->values()
+                                            ->map(function ($subItems) {
+                                                $sub = $subItems->first()->subkategoriRel;
+                                                return [
+                                                    'id'         => $sub?->id,
+                                                    'nama'       => $sub?->nama ?? 'Tanpa Subkategori',
+                                                    'urut'       => $sub?->urut,
+                                                    'referensis' => $subItems->map(fn ($item) => [
+                                                        'id'     => $item->id,
+                                                        'nama'   => $item->nama,
+                                                        'value'  => false,
+                                                        'alasan' => '',
+                                                    ])->values(),
+                                                ];
+                                            })->values(),
+                                    ];
+                                })->values(),
+                        ],
+                    ];
+                });
+
+            // ── Inject alasan (kode unit) ke item kelompok 3 (modifikasi) — same as PraAsesmen ──
+            $unitText = '';
+            foreach ($kelompokKerja['kelompok_kerja'] as $kg) {
+                $unitText .= '<b>' . e($kg['nama']) . ":</b><br>\n";
+                foreach ($kg['units'] as $unit) {
+                    $unitText .= '&nbsp;&nbsp;- ' . e($unit['kode_unit'] ?? '') . "<br>\n";
+                }
+            }
+            $dataReferensi = $dataReferensi->map(function ($kelRef) use ($unitText) {
+                if (isset($kelRef['kelompok']['id']) && $kelRef['kelompok']['id'] == 3) {
+                    foreach ($kelRef['kelompok']['kategoris'] as &$kat) {
+                        foreach ($kat['subkategoris'] as &$sub) {
+                            foreach ($sub['referensis'] as &$ref) {
+                                if (!empty($ref['value'])) {
+                                    $ref['alasan'] = $unitText;
+                                }
+                            }
+                        }
+                    }
+                }
+                return $kelRef;
+            })->values();
+        }
 
         return response()->json([
             'message' => 'OK',
             'data'    => [
-                'kelompok_kerja' => $kelompokKerja,
-                'referensi_form' => $dataReferensi,
-                'skkni'          => $jabatanKerja->acuan ?? '',
-                'jenjang'        => (string) ($jabatanKerja->jenjang_id ?? ''),
-                'metode'         => '',
-                'barcodes'       => [],
+                'kelompok_kerja'  => $kelompokKerja,
+                'referensi_form'  => $dataReferensi,
+                'skkni'           => $jabatanKerja->acuan ?? '',
+                'jenjang'         => $jenjang,
+                'metode'          => null,
+                'barcodes'        => [],
                 // Extra header info for penyusun display
-                'judul'          => $jabatanKerja->jabatan_kerja ?? '',
-                'nomor'          => $config?->kan_no_skema ?? $config?->no_skema ?? '',
-                'penyusun_info'  => $config ? [
+                'judul'           => $jabatanKerja->jabatan_kerja ?? '',
+                'nomor'           => $config?->kan_no_skema ?? $config?->no_skema ?? '',
+                'penyusun_info'   => $config ? [
                     'nama'    => $config->kanPenyusun?->name,
                     'noreg'   => $config->kanPenyusun?->noreg,
                     'tanggal' => $config->kan_penyusun_tgl,
                     'barcode' => $config->kan_penyusun_img,
                 ] : null,
-                'validator_info' => $config ? [
+                'validator_info'  => $config ? [
                     'nama'    => $config->kanValidator?->name,
                     'noreg'   => $config->kanValidator?->noreg,
                     'tanggal' => $config->kan_validator_tgl,

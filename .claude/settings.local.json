@@ -123,7 +123,9 @@
       "Bash(python *)",
       "WebFetch(domain:kan-api.lspgatensi.id)",
       "Bash(git push *)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "PowerShell(git pull *)",
+      "Bash(xxd)"
     ]
   }
 }
