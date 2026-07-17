@@ -5,7 +5,6 @@
 body{font-family:"Open Sans",Calibri,Candara,Segoe,"Segoe UI",Optima,Arial,sans-serif;font-size:11pt;margin-top:0}
 .hd-dok{background-color:#c00000;color:#fff}.hd-dok-b{background-color:#e79291;color:#000}
 td{border:.2px solid black}table{border:0 solid black;border-collapse:collapse}
-tr{page-break-inside:avoid}
 .noborder{border:0 transparent!important}.no-top-bottom{border-bottom-color:transparent!important;border-top-color:transparent!important}
 .no-bottom{border-bottom-color:transparent!important}.no-top{border-top-color:transparent!important}
 .checkbox{width:12px;height:12px;border:1px solid #000;display:inline-block;text-align:center;line-height:11px;font-size:15px;font-weight:bold;font-family:"DejaVu Sans",sans-serif;margin-right:4px}

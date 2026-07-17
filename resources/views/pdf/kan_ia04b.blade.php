@@ -11,8 +11,8 @@
             }
             .hd-dok { background-color: #c40000; color: #fff; }
             td { border: 0.2px solid black; }
-            table { border: 0px solid black; border-collapse: collapse; page-break-inside: avoid; }
-            tr { page-break-inside: avoid; }
+            table { border: 0px solid black; border-collapse: collapse; }
+            .no-break { page-break-inside: avoid; }
             .noborder { border: 0 transparent !important; }
             .checkbox {
                 width: 12px; height: 12px;
@@ -47,7 +47,7 @@
         <br />
 
         <!-- IDENTITAS -->
-        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
+        <div class="no-break"><table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
             <tr>
                 <td rowspan="2" style="width: 30%; vertical-align: top;">Skema Sertifikasi (KKNI/Okupasi/Klaster)</td>
                 <td style="width: 12%;">Judul</td>
@@ -72,11 +72,11 @@
                 <td>:</td>
                 <td>{{ $tanggal }}</td>
             </tr>
-        </table>
+        </table></div>
         <p style="font-size: 12px;">*Coret yang tidak perlu</p>
 
         <!-- PANDUAN BAGI ASESOR -->
-        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
+        <div class="no-break"><table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
             <tr class="hd-dok">
                 <td style="font-weight: bold;">PANDUAN BAGI ASESOR</td>
             </tr>
@@ -97,7 +97,7 @@
                     </ul>
                 </td>
             </tr>
-        </table>
+        </table></div>
         <br />
 
         <!-- MAIN ASSESSMENT TABLE -->
@@ -146,9 +146,11 @@
         </table>
         <br />
 
+        <div style="page-break-before: always;"></div>
+
         <!-- PENYUSUN DAN VALIDATOR -->
         <h2 style="font-size: 14px; font-weight: bold;">PENYUSUN DAN VALIDATOR</h2>
-        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
+        <div class="no-break"><table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
             <tr style="background: #fff; font-weight: bold; text-align: center;">
                 <td style="width: 15%;">Status</td>
                 <td style="width: 8%;">No</td>
@@ -190,11 +192,11 @@
                 <td></td>
                 <td style="height: 50px;"></td>
             </tr>
-        </table>
+        </table></div>
         <br/><br/>
 
         <!-- REKAPITULASI SKOR -->
-        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
+        <div class="no-break"><table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
             <tr class="hd-dok" style="font-weight: bold; text-align: center;">
                 <td colspan="2">Rekapitulasi Skor Penilaian Pertanyaan IA04B<br/>
                     <span style="font-weight: normal;">(Penilaian = Jumlah skor seluruh butir soal)</span>
@@ -204,11 +206,11 @@
                 <td style="font-weight: bold; text-align: center;">Total Skor Penilaian</td>
                 <td style="font-weight: bold; text-align: center; height: 50px;">{{ $total_skor ?? 0 }}</td>
             </tr>
-        </table>
+        </table></div>
         <br/>
 
         <!-- UMPAN BALIK + ASESI TTD -->
-        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
+        <div class="no-break"><table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
             <tr>
                 <td style="font-weight: bold;">Umpan balik untuk asesi:</td>
                 <td>:</td>
@@ -234,12 +236,12 @@
                     @endif
                 </td>
             </tr>
-        </table>
+        </table></div>
 
         <!-- ASESOR TTD -->
         @foreach($asesor_list as $idx => $asesor)
         @php $asesor_key = 'asesor' . ($idx + 1); @endphp
-        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000; border-top: none;">
+        <div class="no-break"><table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000; border-top: none;">
             <tr style="font-weight: bold;">
                 <td colspan="3">Asesor {{ count($asesor_list) > 1 ? ($idx + 1) : '' }} :</td>
             </tr>
@@ -265,7 +267,7 @@
                     @endif
                 </td>
             </tr>
-        </table>
+        </table></div>
         @endforeach
     </body>
 </html>
