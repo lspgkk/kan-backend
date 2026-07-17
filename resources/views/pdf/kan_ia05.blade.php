@@ -282,15 +282,13 @@
         <!-- REKAPITULASI -->
         <table style="width: 100%; border: 1px solid #000; border-collapse: collapse; text-align: center;">
             <tr style="font-weight: bold; background-color: #c40000; color: #fff;">
-                <td colspan="2" style="text-align: center; padding-right: 20px;">Rekapitulasi Penilaian Pertanyaan Pilihan Ganda</td>
+                <td colspan="2" style="text-align: center; padding-right: 20px;">Rekapitulasi Skor Penilaian Pertanyaan IA06<br/>
+                    <span style="font-weight: normal;">(Penilaian = Jumlah skor seluruh butir soal)</span>
+                </td>
             </tr>
             <tr>
-                <td style="font-weight: bold; text-align: center; background-color: #c40000; color: #fff;">Benar</td>
-                <td style="font-weight: bold; text-align: center; background-color: #c40000; color: #fff;">Salah</td>
-            </tr>
-            <tr>
-                <td style="text-align: center;">{{ $jumlah_benar ?? '_____' }}</td>
-                <td style="text-align: center;">{{ $jumlah_salah ?? '_____' }}</td>
+                <td style="text-align: center; font-weight: bold; width: 50%;">Total Skor Penilaian</td>
+                <td style="text-align: center; width: 50%;">{{ $jumlah_benar ?? 0 }}</td>
             </tr>
         </table>
         <br/><br/>
