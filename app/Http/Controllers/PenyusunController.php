@@ -448,7 +448,6 @@ class PenyusunController extends Controller
                 ] : null,
                 'manajer_info'    => $config ? [
                     'nama'    => $config->kanManajer?->name ?? $config->manajer?->name,
-                    'noreg'   => $config->kanManajer?->noreg ?? $config->manajer?->noreg,
                     'tanggal' => $config->kan_manajer_tgl ?? $config->penyusun_tgl,
                     'barcode' => $config->kan_manajer_img ?? $config->manajer_img,
                 ] : null,
