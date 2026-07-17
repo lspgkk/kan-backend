@@ -75,7 +75,6 @@ td.vhead .vtext{position:absolute;top:50%;left:50%;width:280px;transform:transla
     <tr><td colspan="3"><span class="checkbox {{ $tolak_ukur['pedoman_khusus']?'checked':'' }}"></span>Pedoman khusus</td></tr>
 </table><br>
 
-<div style="page-break-before: always;"></div>
 {{-- SECTION 2: Rencana Asesmen --}}
 <strong>2. Mempersiapkan Rencana Asesmen</strong><br/>
 
