@@ -260,6 +260,7 @@ class PenyusunController extends Controller
         $config = JabatanConfigA::with([
             'kanPenyusun:id,name,noreg',
             'kanValidator:id,name,noreg',
+            'kanManajer:id,name,noreg',
         ])->where('id_jabatan', $jabkerId)->first();
 
         $dokumen = JabatanDokumen::with(['kelompoks.units.unit'])
@@ -294,16 +295,12 @@ class PenyusunController extends Controller
         // ── Referensi ──
         if ($jenis === 'mapa02') {
             // MAPA02: flat structure (matches PraAsesmenController@buildMapa02Data)
-            $potensiAsesiIndex = 1; // default — no asesi context at penyusun level
-
-            // Determine default FR codes based on jenjang (same logic as PraAsesmen)
-            $defaultFrCodes = [];
-            if ($jenjang >= 1 && $jenjang <= 3) {
-                $defaultFrCodes = ['FR.IA.01', 'FR.IA.02', 'FR.IA.03', 'FR.IA.05'];
-            } elseif ($jenjang >= 4 && $jenjang <= 9) {
-                // Default to observasi at penyusun level (no metode context)
-                $defaultFrCodes = ['FR.IA.04A', 'FR.IA.04B', 'FR.IA.05'];
-            }
+            // KAN-specific default instrument patterns (same as buildKanMapa2DataByPraktisi)
+            $kanMapa02Defaults = [
+                'FR.IA.04B' => 5,  // DIT
+                'FR.IA.05'  => 4,  // DPT PG
+                'FR.IA.06'  => 3,  // DPT Esai
+            ];
 
             $referensis = Referensi::select(['id', 'nama', 'kategori', 'isdefault'])
                 ->whereIn('kategori', ['MAPA02-1', 'MAPA02_1'])
@@ -311,21 +308,19 @@ class PenyusunController extends Controller
 
             $dataReferensi = $referensis
                 ->groupBy('kategori')
-                ->map(function ($items, $kategori) use ($potensiAsesiIndex, $defaultFrCodes) {
+                ->map(function ($items, $kategori) use ($kanMapa02Defaults) {
                     return [
                         'kategori'   => $kategori,
-                        'referensis' => $items->map(function ($item) use ($potensiAsesiIndex, $kategori, $defaultFrCodes) {
-                            $isdefault = $item->isdefault;
+                        'referensis' => $items->map(function ($item) use ($kategori, $kanMapa02Defaults) {
+                            $isdefault = null;
+                            $potensiAsesiIndex = null;
 
-                            if ($kategori === 'MAPA02_1' && !empty($defaultFrCodes)) {
-                                $matched = false;
-                                foreach ($defaultFrCodes as $frCode) {
-                                    if (str_contains($item->nama, $frCode)) {
-                                        $matched = true;
-                                        break;
-                                    }
+                            foreach ($kanMapa02Defaults as $pattern => $idx) {
+                                if (str_contains($item->nama, $pattern)) {
+                                    $isdefault = 1;
+                                    $potensiAsesiIndex = $idx;
+                                    break;
                                 }
-                                $isdefault = $matched ? 1 : null;
                             }
 
                             return [
@@ -340,6 +335,17 @@ class PenyusunController extends Controller
                 ->values();
         } else {
             // MAPA01: nested kelompok→kategori→subkategori→referensis (matches PraAsesmenController@buildMapa01Data)
+            // Default checked values — same as buildKanMapaDataByPraktisi (KAN observasi defaults)
+            $kanMapa01Defaults = [
+                82  => true,  // hasil pelatihan mampu telusur
+                87  => true,  // sertifikasi
+                91  => true,  // tempat kerja nyata
+                93  => true,  // tersedia
+                98  => true,  // LSP Gatensi Karya Konstruksi
+                101 => true,  // manajer sertifikasi LSP
+                105 => true,  // standar kompetensi (SKKNI)
+            ];
+
             $referensis = Referensi::with(['kategoriRel', 'kelompokRel', 'subkategoriRel'])
                 ->select(['id', 'nama', 'id_kelompok', 'id_kategori', 'id_subkategori'])
                 ->where('kategori', $docType)
@@ -350,7 +356,7 @@ class PenyusunController extends Controller
             $dataReferensi = $referensis
                 ->groupBy('id_kelompok')
                 ->values()
-                ->map(function ($kelompokItems) use ($kelompokKerja) {
+                ->map(function ($kelompokItems) use ($kelompokKerja, $kanMapa01Defaults) {
                     $kelompok = $kelompokItems->first()->kelompokRel;
                     return [
                         'kelompok' => [
@@ -360,7 +366,7 @@ class PenyusunController extends Controller
                             'kategoris' => $kelompokItems
                                 ->groupBy(fn ($i) => $i->id_kategori ?? 'tanpa_kategori')
                                 ->values()
-                                ->map(function ($kategoriItems) {
+                                ->map(function ($kategoriItems) use ($kanMapa01Defaults) {
                                     $kategori = $kategoriItems->first()->kategoriRel;
                                     return [
                                         'id'           => $kategori?->id,
@@ -371,7 +377,7 @@ class PenyusunController extends Controller
                                         'subkategoris' => $kategoriItems
                                             ->groupBy(fn ($i) => $i->id_subkategori ?? 'tanpa_subkategori')
                                             ->values()
-                                            ->map(function ($subItems) {
+                                            ->map(function ($subItems) use ($kanMapa01Defaults) {
                                                 $sub = $subItems->first()->subkategoriRel;
                                                 return [
                                                     'id'         => $sub?->id,
@@ -380,7 +386,7 @@ class PenyusunController extends Controller
                                                     'referensis' => $subItems->map(fn ($item) => [
                                                         'id'     => $item->id,
                                                         'nama'   => $item->nama,
-                                                        'value'  => false,
+                                                        'value'  => $kanMapa01Defaults[$item->id] ?? false,
                                                         'alasan' => '',
                                                     ])->values(),
                                                 ];
@@ -438,6 +444,12 @@ class PenyusunController extends Controller
                     'noreg'   => $config->kanValidator?->noreg,
                     'tanggal' => $config->kan_validator_tgl,
                     'barcode' => $config->kan_validator_img,
+                ] : null,
+                'manajer_info'    => $config ? [
+                    'nama'    => $config->kanManajer?->name,
+                    'noreg'   => $config->kanManajer?->noreg,
+                    'tanggal' => $config->kan_manajer_tgl,
+                    'barcode' => $config->kan_manajer_img,
                 ] : null,
             ],
         ]);
