@@ -128,7 +128,8 @@
       "Bash(xxd)",
       "PowerShell(php artisan kan:generate-qr \"c:\\\\Users\\\\Rafie Pradipta\\\\Downloads\\\\a1_a10_extract.json\")",
       "PowerShell(git fetch *)",
-      "PowerShell(git *)"
+      "PowerShell(git *)",
+      "Bash(tasklist)"
     ]
   }
 }

@@ -2049,16 +2049,9 @@ class KanAsesmenController extends Controller
             }
         }
 
-        $jenjang = $record->jabatanKerja->jenjang_id ?? 0;
-        $metode = 'observasi';
-
-        // Determine default FR codes based on jenjang & metode (same logic as BNSP)
-        $defaultFrCodes = [];
-        if ($jenjang >= 1 && $jenjang <= 3) {
-            $defaultFrCodes = ['FR.IA.01', 'FR.IA.02', 'FR.IA.03', 'FR.IA.05'];
-        } elseif ($jenjang >= 4 && $jenjang <= 9) {
-            $defaultFrCodes = ['FR.IA.04A', 'FR.IA.04B', 'FR.IA.05'];
-        }
+        // KAN always uses observasi method
+        // Default auto-checked instruments: IA.04B, IA.05, IA.06
+        $defaultFrCodes = ['IA.04B', 'IA.05', 'IA.06'];
 
         // Load referensi from DB
         $referensis = \App\Models\Referensi::select(['id', 'nama', 'kategori', 'isdefault'])

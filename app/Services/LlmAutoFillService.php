@@ -88,8 +88,9 @@ PROMPT;
             return $this->rekeyResults($mapped, $fields);
         }
 
-        // Chunk large batches (max 5 fields per API call) to avoid DeepSeek timeout
-        $chunkSize = 3;
+        // Chunk into 10 fields per API call — groups 1 soal's 10 praktisi
+        // for uniqueness while keeping JSON output reliable.
+        $chunkSize = 10;
         // Convert "f_0" keys to integer indices
         $pendingIndices = array_map(fn($k) => (int) str_replace('f_', '', $k), array_keys($pending));
         $chunks = array_chunk($pendingIndices, $chunkSize);
@@ -104,6 +105,10 @@ PROMPT;
 
             $batchPrompt = "Generate ALL of the following assessment texts in Indonesian. "
                          . "Return ONLY a valid JSON object with the numeric field ID as key, e.g. {\"" . $chunk[0] . "\": \"...\", \"" . ($chunk[1] ?? '') . "\": \"...\"}.\n\n"
+                         . "CRITICAL: Setiap field HARUS memiliki teks jawaban yang BENAR-BENAR UNIK dan BERBEDA satu sama lain.\n"
+                         . "Jangan mengulang kalimat, struktur, atau frasa yang sama antar field.\n"
+                         . "Variasikan pilihan kata, urutan kalimat, contoh teknis, dan detail untuk setiap field.\n"
+                         . "Dua field tidak boleh memiliki kemiripan substansial. Ini syarat mutlak.\n\n"
                          . implode("\n---\n", $chunkPromptParts);
 
             $response = $this->callLlm($batchPrompt);
@@ -143,19 +148,41 @@ PROMPT;
             }
         }
 
-        // For KAN field types, throw exception instead of using fallback
+        // Retry any null KAN fields individually (simpler prompts, more reliable)
+        $retried = 0;
         foreach ($mapped as $key => $val) {
-            if ($val === null) {
-                $idx = (int) str_replace('f_', '', $key);
-                $fieldType = $fields[$idx][0] ?? '';
-                if (str_starts_with($fieldType, 'kan_')) {
+            if ($val !== null) continue;
+            $idx = (int) str_replace('f_', '', $key);
+            $fieldType = $fields[$idx][0] ?? '';
+            $context = $fields[$idx][1] ?? [];
+
+            if (str_starts_with($fieldType, 'kan_')) {
+                // Retry up to 3 times with individual (non-batch) call
+                for ($retry = 0; $retry < 3; $retry++) {
+                    $text = $this->generateText($fieldType, $context);
+                    if ($text && strlen(trim($text)) >= 3) {
+                        $mapped[$key] = trim($text);
+                        $retried++;
+                        logger()->debug("[LLM] generateBatchTexts: retry #" . ($retry + 1) . " SUCCESS for field[{$idx}]={$fieldType}");
+                        break;
+                    }
+                    logger()->warning("[LLM] generateBatchTexts: retry #" . ($retry + 1) . " FAILED for field[{$idx}]={$fieldType}");
+                }
+
+                // If all retries failed, throw
+                if ($mapped[$key] === null) {
                     throw new \RuntimeException(
-                        "LLM gagal generate jawaban untuk field '{$fieldType}' (index {$idx}). " .
+                        "LLM gagal generate jawaban untuk field '{$fieldType}' (index {$idx}) setelah 3 retry. " .
                         "Semua jawaban harus di-generate oleh LLM, tidak boleh fallback."
                     );
                 }
+            } else {
                 $mapped[$key] = $this->fallbackText($fieldType);
             }
+        }
+
+        if ($retried > 0) {
+            logger()->debug("[LLM] generateBatchTexts: retried {$retried} fields individually");
         }
 
         return $this->rekeyResults($mapped, $fields);
@@ -179,15 +206,21 @@ PROMPT;
         $text = preg_replace('/^\xEF\xBB\xBF|\x00/', '', $text);
 
         // Try full decode first (fast path for clean responses)
-        // Use JSON_INVALID_UTF8_IGNORE to handle any encoding issues
         $data = json_decode($text, true, 512, JSON_INVALID_UTF8_IGNORE);
         if (is_array($data)) return $data;
 
         // Log why it failed
         logger()->warning("[LLM] tryParseJson: json_decode error=" . json_last_error_msg() . " at position=" . json_last_error());
 
-        // If that fails, try extracting the first top-level JSON object
-        // with a state machine that properly handles strings and escape sequences
+        // ── Auto-repair common LLM JSON errors before retry ──
+        $repaired = $this->repairLlmJson($text);
+        $data = json_decode($repaired, true, 512, JSON_INVALID_UTF8_IGNORE);
+        if (is_array($data)) {
+            logger()->debug("[LLM] tryParseJson: repaired JSON parsed successfully");
+            return $data;
+        }
+
+        // ── State machine: extract first top-level JSON object ──
         $firstBrace = strpos($text, '{');
         if ($firstBrace === false) return null;
 
@@ -234,14 +267,26 @@ PROMPT;
         $data = json_decode($jsonCandidate, true);
         if (is_array($data)) return $data;
 
+        // Try repairing the state-machine candidate too
+        $repairedCandidate = $this->repairLlmJson($jsonCandidate);
+        $data = json_decode($repairedCandidate, true);
+        if (is_array($data)) {
+            logger()->debug("[LLM] tryParseJson: repaired state-machine JSON parsed successfully");
+            return $data;
+        }
+
         logger()->warning("[LLM] tryParseJson: state machine candidate also failed: " . json_last_error_msg());
 
-        // Last resort: regex extraction of all "key": "value" pairs
-        preg_match_all('/"(\d+)"\s*:\s*"((?:[^"\\\\]|\\\\.)*)"/s', $text, $matches);
+        // ── Last resort: regex extraction of all "N" or "N": "value" pairs ──
+        // Handles both well-formed "3": "text" and malformed "3: "text"
+        preg_match_all('/"(\d+)"?\s*:\s*"((?:[^"\\\\]|\\\\.)*)"/s', $text, $matches);
         if (!empty($matches[1])) {
             $result = [];
             foreach ($matches[1] as $idx => $key) {
-                $result[$key] = $matches[2][$idx];
+                $val = $matches[2][$idx];
+                // Unescape common escape sequences
+                $val = str_replace(['\\"', '\\\\', '\\n', '\\t'], ['"', '\\', "\n", "\t"], $val);
+                $result[$key] = $val;
             }
             if (count($result) > 0) {
                 logger()->debug("[LLM] tryParseJson: regex fallback extracted " . count($result) . " keys");
@@ -251,6 +296,30 @@ PROMPT;
 
         logger()->warning("[LLM] tryParseJson: semua metode gagal");
         return null;
+    }
+
+    /**
+     * Repair common JSON formatting errors made by LLMs.
+     */
+    private function repairLlmJson(string $text): string
+    {
+        // 1. Fix malformed numeric keys: "N: → "N": (missing closing quote)
+        $text = preg_replace('/"(\d+):(\s*")/', '"$1":$2', $text);
+
+        // 2. Remove trailing commas before } or ]
+        $text = preg_replace('/,(\s*[}\]])/', '$1', $text);
+
+        // 3. Fix missing comma between consecutive string values
+        //    e.g. "text1" "text2" → "text1", "text2"
+        $text = preg_replace('/"\s*\n\s*"/', '",' . "\n" . '"', $text);
+
+        // 4. Fix double-colons "key":: → "key":
+        $text = preg_replace('/"(\s*):(\s*):/', '"$1:', $text);
+
+        // 5. Fix unescaped newlines/tabs inside string values
+        //    (already handled by JSON_INVALID_UTF8_IGNORE, but belt-and-suspenders)
+
+        return $text;
     }
 
     private function callLlm(string $userPrompt): ?string
@@ -284,7 +353,7 @@ PROMPT;
                     ->post(self::API_URL, [
                         'model' => self::MODEL,
                         'max_tokens' => 8192,
-                        'temperature' => 0.7,
+                        'temperature' => 0.3,
                         'messages' => [
                             ['role' => 'system', 'content' => self::SYSTEM_PROMPT],
                             ['role' => 'user', 'content' => $userPrompt],
@@ -580,6 +649,8 @@ PROMPT;
              . "Kamu adalah asesi (peserta uji kompetensi) yang sangat kompeten di bidang konstruksi.\n"
              . "Tulis jawaban esai yang BENAR, profesional, dan teknis untuk soal di atas (maks 255 huruf).\n"
              . "Gunakan bahasa Indonesia profesional bidang konstruksi. Jawab sebagai asesi yang kompeten.\n"
+             . "PENTING: Jawabanmu harus UNIK dan TIDAK BOLEH SAMA dengan jawaban praktisi/asesi lain untuk soal yang sama.\n"
+             . "Variasikan sudut pandang, contoh, istilah teknis, dan urutan penjelasan.\n"
              . "Jawab HANYA teks jawaban esai, tanpa pembuka atau penutup.";
     }
 
@@ -595,6 +666,8 @@ PROMPT;
              . "Gunakan bahasa Indonesia yang cukup baik, jangan terlihat seperti orang yang sama sekali tidak tahu.\n"
              . "Jawaban harus terlihat seperti dikerjakan oleh orang yang tahu sedikit namun belum menguasai sepenuhnya.\n"
              . "JANGAN membuat jawaban yang terlihat bodoh, sangat ceroboh, atau asal-asalan.\n"
+             . "PENTING: Jenis kelemahan dan cara penulisan harus UNIK dan BERBEDA untuk setiap asesi.\n"
+             . "Jangan gunakan pola kalimat atau argumen yang sama dengan jawaban lain.\n"
              . "Jawab HANYA teks jawaban esai, tanpa pembuka atau penutup.";
     }
 
@@ -607,6 +680,8 @@ PROMPT;
              . "Tulis jawaban/uraian kegiatan yang BENAR dan profesional untuk instruksi di atas (maks 255 huruf).\n"
              . "Jelaskan langkah-langkah teknis yang sesuai dengan standar prosedur konstruksi.\n"
              . "Gunakan bahasa Indonesia profesional. Jawab sebagai asesi yang kompeten.\n"
+             . "PENTING: Jawabanmu harus UNIK dan TIDAK BOLEH SAMA dengan jawaban praktisi/asesi lain untuk instruksi yang sama.\n"
+             . "Variasikan urutan langkah, penekanan aspek teknis, dan terminologi yang digunakan.\n"
              . "Jawab HANYA teks jawaban, tanpa pembuka atau penutup.";
     }
 
@@ -622,6 +697,8 @@ PROMPT;
              . "Gunakan bahasa Indonesia yang cukup baik, jangan terlihat seperti orang yang sama sekali tidak tahu.\n"
              . "Jawaban harus terlihat seperti dikerjakan oleh orang yang tahu sedikit namun belum menguasai sepenuhnya.\n"
              . "JANGAN membuat jawaban yang terlihat bodoh, sangat ceroboh, atau asal-asalan.\n"
+             . "PENTING: Jenis kelemahan dan cara penulisan harus UNIK dan BERBEDA untuk setiap asesi.\n"
+             . "Jangan gunakan pola langkah atau argumen yang sama dengan jawaban lain.\n"
              . "Jawab HANYA teks jawaban, tanpa pembuka atau penutup.";
     }
 

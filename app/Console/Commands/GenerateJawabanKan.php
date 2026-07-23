@@ -204,21 +204,45 @@ class GenerateJawabanKan extends Command
             );
         }
 
-        // ── Generate answers (pure LLM) ──
+        // ── Generate answers (pure LLM) — skip only if fully complete ──
 
         // IA05
         if (!empty($dokumens['ia05']) && !empty($scores['Pg'])) {
-            $stats['ia05'] += $this->generateIa05Bulk($dokumens['ia05'], $scores['Pg'], $praktisiJabatanIds);
+            $expectedCount = count($scores['Pg']) * count($praktisiJabatanIds);
+            $existingIa05 = KanIa5Answer::where('dokumen_id', $dokumens['ia05']->id)
+                ->whereIn('kan_praktisi_jabatan_id', $praktisiJabatanIds)
+                ->count();
+            if ($existingIa05 >= $expectedCount) {
+                $stats['ia05'] += $existingIa05;
+            } else {
+                $stats['ia05'] += $this->generateIa05Bulk($dokumens['ia05'], $scores['Pg'], $praktisiJabatanIds);
+            }
         }
 
         // IA06
         if (!empty($dokumens['ia06']) && !empty($scores['Esai']) && is_array($scores['Esai'])) {
-            $stats['ia06'] += $this->generateIa06Bulk($dokumens['ia06'], $scores['Esai'], $praktisiJabatanIds, $asesorNames, $skemaName, $noSkema);
+            $expectedCount = count($scores['Esai']) * count($praktisiJabatanIds);
+            $existingIa06 = KanIa6Answer::where('dokumen_id', $dokumens['ia06']->id)
+                ->whereIn('kan_praktisi_jabatan_id', $praktisiJabatanIds)
+                ->count();
+            if ($existingIa06 >= $expectedCount) {
+                $stats['ia06'] += $existingIa06;
+            } else {
+                $stats['ia06'] += $this->generateIa06Bulk($dokumens['ia06'], $scores['Esai'], $praktisiJabatanIds, $asesorNames, $skemaName, $noSkema);
+            }
         }
 
         // IA04B
         if (!empty($dokumens['ia04b']) && !empty($scores['Lisan']) && is_array($scores['Lisan'])) {
-            $stats['ia04b'] += $this->generateIa04bBulk($dokumens['ia04b'], $scores['Lisan'], $praktisiJabatanIds, $asesorNames, $skemaName, $noSkema);
+            $expectedCount = count($scores['Lisan']) * count($praktisiJabatanIds);
+            $existingIa04b = KanIa4bAnswer::where('dokumen_id', $dokumens['ia04b']->id)
+                ->whereIn('kan_praktisi_jabatan_id', $praktisiJabatanIds)
+                ->count();
+            if ($existingIa04b >= $expectedCount) {
+                $stats['ia04b'] += $existingIa04b;
+            } else {
+                $stats['ia04b'] += $this->generateIa04bBulk($dokumens['ia04b'], $scores['Lisan'], $praktisiJabatanIds, $asesorNames, $skemaName, $noSkema);
+            }
         }
 
         // Note: QR codes are generated separately via kan:generate-qr command
@@ -337,7 +361,7 @@ class GenerateJawabanKan extends Command
     private function generateIa06Bulk($dokumen, array $esaiScores, array $praktisiJabatanIds, array $asesorNames, string $skemaName, string $noSkema): int
     {
         $soals = $this->getSoals($dokumen->id, [8]);
-        $chunkSize = 3; // 3 soals × 10 praktisi = 30 fields → ~18KB
+        $chunkSize = 5; // 5 soals × 10 praktisi = 50 fields → split into 5 API calls of 10
         $soalChunks = array_chunk($esaiScores, $chunkSize, true);
         $rows = [];
 
