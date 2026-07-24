@@ -1783,7 +1783,6 @@ class KanAsesmenController extends Controller
         ['method' => 'KanIa04b', 'blade' => 'kan_ia04b', 'dir' => 'kan_ia04b', 'code' => 'KAN-IA-04B', 'label' => 'IA04B',  'url_col' => 'url_ia04b'],
         ['method' => 'KanIa05',  'blade' => 'kan_ia05',  'dir' => 'kan_ia05',  'code' => 'KAN-IA-05',  'label' => 'IA05',   'url_col' => 'url_ia05'],
         ['method' => 'KanIa06',  'blade' => 'kan_ia06',  'dir' => 'kan_ia06',  'code' => 'KAN-IA-06',  'label' => 'IA06',   'url_col' => 'url_ia06'],
-        ['method' => 'KanAk02',  'blade' => 'kan_ak02',  'dir' => 'kan_ak02',  'code' => 'KAN-AK-02',  'label' => 'AK02',   'url_col' => 'url_ak02'],
         ['method' => 'KanMapa',  'blade' => 'kan_mapa01', 'dir' => 'kan_mapa',  'code' => 'KAN-MAPA-01', 'label' => 'MAPA01',  'url_col' => 'url_mapa01'],
         ['method' => 'KanMapa2', 'blade' => 'kan_mapa02', 'dir' => 'kan_mapa2', 'code' => 'KAN-MAPA-02', 'label' => 'MAPA02',  'url_col' => 'url_mapa02'],
     ];
@@ -1873,7 +1872,7 @@ class KanAsesmenController extends Controller
             $valid = collect(self::KAN_DOC_TYPES)->first(fn($d) => strtolower($d['label']) === strtolower($docFilter));
             if (!$valid) {
                 return response()->json([
-                    'message' => "Invalid doc type. Valid: ia04b, ia05, ia06, ak02, mapa01, mapa02",
+                    'message' => "Invalid doc type. Valid: ia04b, ia05, ia06, mapa01, mapa02",
                 ], 422);
             }
         }
