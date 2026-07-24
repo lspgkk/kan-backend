@@ -105,8 +105,9 @@ class KanImportController extends Controller
                         'soal1' => $item['lingkup'] ?? null,
                     ];
 
-                    if (!empty($item['kode_unit']) && isset($unitCache[$item['kode_unit']])) {
-                        $data['id_unitkompetensi'] = $unitCache[$item['kode_unit']];
+                    $unitId = $this->resolveUnitKode($item['kode_unit'] ?? '', $unitCache);
+                    if ($unitId) {
+                        $data['id_unitkompetensi'] = $unitId;
                     }
 
                     KanSoal::updateOrCreate(
@@ -230,8 +231,9 @@ class KanImportController extends Controller
                     'soal1'             => $item['lingkup'] ?? null,
                 ];
 
-                if (!empty($item['kode_unit']) && isset($refs['units'][$item['kode_unit']])) {
-                    $data['id_unitkompetensi'] = $refs['units'][$item['kode_unit']];
+                $unitId = $this->resolveUnitKode($item['kode_unit'] ?? '', $refs['units']);
+                if ($unitId) {
+                    $data['id_unitkompetensi'] = $unitId;
                 }
 
                 KanSoal::updateOrCreate(
@@ -442,6 +444,29 @@ class KanImportController extends Controller
                 ->pluck('id', 'kode'),
             'kuks'  => Kuk::pluck('id', 'kode'),
         ];
+    }
+
+    /**
+     * Resolve kode_unit ke id_unitkompetensi.
+     * Handles: multi-kode by \n (ambil kode pertama yg valid), trailing space.
+     */
+    private function resolveUnitKode(string $kodeUnitRaw, $unitCache): ?int
+    {
+        if (empty(trim($kodeUnitRaw))) {
+            return null;
+        }
+
+        // Split by newline — try each code until one is found
+        $codes = explode("\n", trim($kodeUnitRaw));
+        foreach ($codes as $code) {
+            $code = trim($code);
+            if ($code === '') continue;
+            if (isset($unitCache[$code])) {
+                return $unitCache[$code];
+            }
+        }
+
+        return null;
     }
 
     /**
