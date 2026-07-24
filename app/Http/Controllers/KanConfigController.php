@@ -592,9 +592,15 @@ class KanConfigController extends Controller
             $results->each(function ($item) {
                 $item->ttd_status = $this->resolveTtdStatus($item->id);
             });
+
+            // Resolve penyusun & validator from jabatan_config_a
+            $penyusunValidator = $this->resolvePenyusunValidator($idJabatanKerja);
+
             return response()->json([
                 'message' => 'OK',
                 'data'    => $results,
+                'penyusun'  => $penyusunValidator['penyusun'],
+                'validator' => $penyusunValidator['validator'],
             ]);
         }
 
@@ -688,6 +694,28 @@ class KanConfigController extends Controller
         $status['selesai'] = !empty($status['IA06']);
 
         return $status;
+    }
+
+    /**
+     * Resolve penyusun & validator info from jabatan_config_a.
+     */
+    private function resolvePenyusunValidator(string $idJabatanKerja): array
+    {
+        $config = JabatanConfigA::with([
+            'kanPenyusun:id,name,noreg',
+            'kanValidator:id,name,noreg',
+        ])->where('id_jabatan', $idJabatanKerja)->first();
+
+        return [
+            'penyusun' => $config?->kanPenyusun ? [
+                'nama'  => $config->kanPenyusun->name,
+                'noreg' => $config->kanPenyusun->noreg,
+            ] : null,
+            'validator' => $config?->kanValidator ? [
+                'nama'  => $config->kanValidator->name,
+                'noreg' => $config->kanValidator->noreg,
+            ] : null,
+        ];
     }
 
     /**
