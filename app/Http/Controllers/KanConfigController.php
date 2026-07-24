@@ -714,6 +714,9 @@ class KanConfigController extends Controller
             return response()->json(['message' => "Dokumen {$kode} tidak ditemukan untuk jabatan ini"], 404);
         }
 
+        // Build header data (penyusun, validator, manajer, etc.)
+        $header = $this->buildSoalKosongHeader($idJabatan, $jabatanKerja);
+
         $emptyBarcodes = [
             'asesi'   => null,
             'asesor1' => null,
@@ -727,11 +730,54 @@ class KanConfigController extends Controller
         };
 
         $data['barcodes'] = $emptyBarcodes;
+        // Merge header data into response
+        $data = array_merge($data, $header);
 
         return response()->json([
             'message' => 'OK',
             'data'    => $data,
         ]);
+    }
+
+    /**
+     * Build header info (penyusun, validator, manajer, skema, etc.) for soal-kosong.
+     * Mirrors buildKanDokumenHeader / buildKanDokumenHeaderByPraktisi
+     * but keyed by id_jabatan instead of id_izin or praktisi_jabatan_id.
+     */
+    private function buildSoalKosongHeader(string $idJabatan, $jabatanKerja): array
+    {
+        $jabatanConfig = JabatanConfigA::select(['kan_no_skema', 'kan_manajer_id', 'kan_manajer_tgl', 'kan_manajer_img'])
+            ->where('id_jabatan', $idJabatan)
+            ->first();
+
+        $penyusunValidator = JabatanConfigA::with([
+            'kanPenyusun:id,name,noreg',
+            'kanValidator:id,name,noreg',
+            'kanManajer:id,name,noreg',
+        ])
+        ->select([
+            'kan_penyusun_id', 'kan_penyusun_tgl', 'kan_penyusun_img',
+            'kan_validator_id', 'kan_validator_tgl', 'kan_validator_img',
+        ])
+        ->where('id_jabatan', $idJabatan)
+        ->first();
+
+        return [
+            'tuk'               => 'TUK SEWAKTU GKK',
+            'skema'             => $jabatanKerja->jabatan_kerja,
+            'nomor_skema'       => $jabatanConfig?->kan_no_skema,
+            'nama_penyusun'     => $penyusunValidator?->kanPenyusun?->name,
+            'nama_validator'    => $penyusunValidator?->kanValidator?->name,
+            'noreg_penyusun'    => $penyusunValidator?->kanPenyusun?->noreg,
+            'noreg_validator'   => $penyusunValidator?->kanValidator?->noreg,
+            'tanggal_penyusun'  => $penyusunValidator?->kan_penyusun_tgl,
+            'tanggal_validator' => $penyusunValidator?->kan_validator_tgl,
+            'barcode_penyusun'  => $penyusunValidator?->kan_penyusun_img,
+            'barcode_validator' => $penyusunValidator?->kan_validator_img,
+            'nama_manajer'      => $penyusunValidator?->kanManajer?->name,
+            'tanggal_manajer'   => $jabatanConfig?->kan_manajer_tgl,
+            'barcode_manajer'   => $jabatanConfig?->kan_manajer_img,
+        ];
     }
 
     private function buildSoalKosongIa04b($dokumen): array
