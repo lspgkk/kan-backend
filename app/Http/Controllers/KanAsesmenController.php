@@ -1371,17 +1371,32 @@ class KanAsesmenController extends Controller
 
         $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
 
+        $existing = Barcode::where([
+            'id_user'                 => auth()->user()->id,
+            'kan_praktisi_jabatan_id' => $praktisiJabatanId,
+            'jenis_dokumen'           => $docType,
+        ])->first();
+
+        $data = [
+            'url_image' => $urlImage,
+            'url_ttd'   => $urlTtd,
+            'id_role'   => auth()->user()->role_id,
+        ];
+
+        // Preserve created_at from existing barcode (set by kan:generate-qr from tanggal_uji_coba_asesmen)
+        // Only set on initial create, not on update
+        if (!$existing) {
+            $data['created_at'] = now();
+            $data['updated_at'] = now();
+        }
+
         Barcode::updateOrCreate(
             [
                 'id_user'                 => auth()->user()->id,
                 'kan_praktisi_jabatan_id' => $praktisiJabatanId,
                 'jenis_dokumen'           => $docType,
             ],
-            [
-                'url_image' => $urlImage,
-                'url_ttd'   => $urlTtd,
-                'id_role'   => auth()->user()->role_id,
-            ]
+            $data
         );
 
         return ['url_image' => $urlImage, 'url_ttd' => $urlTtd];

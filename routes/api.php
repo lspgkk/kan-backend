@@ -499,6 +499,7 @@ Route::prefix('diskon')->group(function () {
         Route::get('/praktisi-jabatan', [KanConfigController::class, 'listPraktisiJabatan']);
         Route::post('/assign-praktisi', [KanConfigController::class, 'assignPraktisi']);
         Route::delete('/assign-praktisi', [KanConfigController::class, 'removePraktisi']);
+        Route::get('/soal-kosong/{id_jabatan}/{jenis}', [KanConfigController::class, 'soalKosong']);
     });
 
     // --- KAN Asesmen (authenticated) ---

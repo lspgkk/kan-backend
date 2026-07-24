@@ -677,6 +677,70 @@ class KanConfigController extends Controller
     }
 
     /**
+     * Get KAN soal-only (kosong, tanpa jawaban) per jenis dokumen by jabatan.
+     * GET /api/kan/config/soal-kosong/{id_jabatan}/{jenis}
+     * jenis: ia04b | ia05 | ia06
+     */
+    public function soalKosong(string $idJabatan, string $jenis): JsonResponse
+    {
+        $jabatanKerja = JabatanKerja::find($idJabatan);
+        if (!$jabatanKerja) {
+            return response()->json(['message' => 'Jabatan kerja tidak ditemukan'], 404);
+        }
+
+        $kodeMap = [
+            'ia04b' => 'FR.IA.04.B',
+            'ia05'  => 'FR.IA.05',
+            'ia06'  => 'FR.IA.06',
+        ];
+
+        if (!isset($kodeMap[$jenis])) {
+            return response()->json(['message' => 'Jenis tidak valid. Gunakan: ia04b, ia05, ia06'], 400);
+        }
+
+        $kode = $kodeMap[$jenis];
+        $dok = JabatanDokumen::where('id_jabatan', $idJabatan)
+            ->where('kode', $kode)
+            ->where('is_active', true)
+            ->first();
+
+        if (!$dok) {
+            return response()->json(['message' => "Dokumen {$kode} tidak ditemukan untuk jabatan ini"], 404);
+        }
+
+        $tipes = ($kode === 'FR.IA.05') ? [1] : [8];
+        $soals = KanSoal::where('id_dokumen', $dok->id)
+            ->whereIn('tipe', $tipes)
+            ->orderBy('no')
+            ->get()
+            ->map(fn ($s) => [
+                'id'      => $s->id,
+                'no'      => $s->no,
+                'soal'    => $s->soal,
+                'soal1'   => $s->soal1,
+                'tipe'    => $s->tipe,
+                'jawab_a' => $s->jawab_a,
+                'jawab_b' => $s->jawab_b,
+                'jawab_c' => $s->jawab_c,
+                'jawab_d' => $s->jawab_d,
+            ]);
+
+        return response()->json([
+            'message' => 'OK',
+            'data'    => [
+                'tuk'      => 'TUK SEWAKTU GKK',
+                'skema'    => $jabatanKerja->jabatan_kerja,
+                'dokumen'  => [
+                    'id'           => $dok->id,
+                    'kode'         => $dok->kode,
+                    'nama_dokumen' => $dok->nama_dokumen,
+                ],
+                'soal_list' => $soals,
+            ],
+        ]);
+    }
+
+    /**
      * Resolve TTD status per document type for a praktisi jabatan record.
      */
     private function resolveTtdStatus(int $kanPraktisiJabatanId): array
