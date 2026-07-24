@@ -682,6 +682,9 @@ class KanConfigController extends Controller
      * Get KAN soal-only (kosong, tanpa jawaban) per jenis dokumen by jabatan.
      * GET /api/kan/config/soal-kosong/{id_jabatan}/{jenis}
      * jenis: ia04b | ia05 | ia06
+     *
+     * Response format matches /api/praktisi/jabatan/{id}/{jenis}
+     * but with null/empty answers since these are soal kosong.
      */
     public function soalKosong(string $idJabatan, string $jenis): JsonResponse
     {
@@ -701,7 +704,8 @@ class KanConfigController extends Controller
         }
 
         $kode = $kodeMap[$jenis];
-        $dok = JabatanDokumen::where('id_jabatan', $idJabatan)
+        $dok = JabatanDokumen::select(['id', 'nama_dokumen'])
+            ->where('id_jabatan', $idJabatan)
             ->where('kode', $kode)
             ->where('is_active', true)
             ->first();
@@ -710,36 +714,168 @@ class KanConfigController extends Controller
             return response()->json(['message' => "Dokumen {$kode} tidak ditemukan untuk jabatan ini"], 404);
         }
 
-        $tipes = ($kode === 'FR.IA.05') ? [1] : [8];
-        $soals = KanSoal::where('id_dokumen', $dok->id)
-            ->whereIn('tipe', $tipes)
-            ->orderBy('no')
-            ->get()
-            ->map(fn ($s) => [
-                'id'      => $s->id,
-                'no'      => $s->no,
-                'soal'    => $s->soal,
-                'soal1'   => $s->soal1,
-                'tipe'    => $s->tipe,
-                'jawab_a' => $s->jawab_a,
-                'jawab_b' => $s->jawab_b,
-                'jawab_c' => $s->jawab_c,
-                'jawab_d' => $s->jawab_d,
-            ]);
+        $emptyBarcodes = [
+            'asesi'   => null,
+            'asesor1' => null,
+            'asesor2' => null,
+        ];
+
+        $data = match ($kode) {
+            'FR.IA.04.B' => $this->buildSoalKosongIa04b($dok),
+            'FR.IA.05'   => $this->buildSoalKosongIa05($dok),
+            'FR.IA.06'   => $this->buildSoalKosongIa06($dok),
+        };
+
+        $data['barcodes'] = $emptyBarcodes;
 
         return response()->json([
             'message' => 'OK',
-            'data'    => [
-                'tuk'      => 'TUK SEWAKTU GKK',
-                'skema'    => $jabatanKerja->jabatan_kerja,
-                'dokumen'  => [
-                    'id'           => $dok->id,
-                    'kode'         => $dok->kode,
-                    'nama_dokumen' => $dok->nama_dokumen,
-                ],
-                'soal_list' => $soals,
-            ],
+            'data'    => $data,
         ]);
+    }
+
+    private function buildSoalKosongIa04b($dokumen): array
+    {
+        if (!$dokumen) {
+            return [
+                'dokumen'     => null,
+                'soal_list'   => [],
+                'rekomendasi' => null,
+                'total_skor'  => 0,
+            ];
+        }
+
+        $questions = KanSoal::select([
+                'kan_soals.id',
+                'kan_soals.no',
+                'kan_soals.soal',
+                'kan_soals.soal1',
+                'kan_soals.soal2',
+                'kan_soals.tipe',
+                'kan_soals.is_komentar',
+                'kan_soals.id_unitkompetensi',
+                'kan_soals.id_kuk',
+            ])
+            ->with(['unit:id,kode', 'kuk:id,kode'])
+            ->where('kan_soals.id_dokumen', $dokumen->id)
+            ->whereIn('kan_soals.tipe', [3, 8])
+            ->orderBy('kan_soals.no', 'asc')
+            ->get()
+            ->map(function ($q) {
+                $q->jawaban    = null;
+                $q->skor       = null;
+                $q->pencapaian = null;
+                $q->unit_kode  = $q->unit?->kode;
+                $q->kuk_kode   = $q->kuk?->kode;
+                // Override soal2 to show unit kode (matches Praktisi format)
+                if ($q->unit?->kode) {
+                    $q->soal2 = 'Kode Unit : ' . $q->unit->kode;
+                }
+                return $q;
+            });
+
+        $rekomendasi = $questions->firstWhere('tipe', 3);
+        $soalList = $questions->where('tipe', '!=', 3)->values();
+
+        return [
+            'dokumen'     => $dokumen,
+            'soal_list'   => $soalList,
+            'rekomendasi' => $rekomendasi ? [
+                'id'          => $rekomendasi->id,
+                'soal'        => $rekomendasi->soal,
+                'is_komentar' => $rekomendasi->is_komentar,
+                'rekomendasi' => false,
+            ] : null,
+            'total_skor'  => 0,
+        ];
+    }
+
+    private function buildSoalKosongIa05($dokumen): array
+    {
+        if (!$dokumen) {
+            return [
+                'dokumen'      => null,
+                'soal_list'    => [],
+                'umpan_balik'  => null,
+                'jumlah_benar' => 0,
+                'jumlah_salah' => 0,
+            ];
+        }
+
+        $questions = KanSoal::select([
+                'kan_soals.id',
+                'kan_soals.no',
+                'kan_soals.soal',
+                'kan_soals.jawab_a',
+                'kan_soals.jawab_b',
+                'kan_soals.jawab_c',
+                'kan_soals.jawab_d',
+                'kan_soals.jawaban as kunci_jawaban',
+                'kan_soals.id_unitkompetensi',
+                'kan_soals.id_kuk',
+            ])
+            ->with(['unit:id,kode', 'kuk:id,kode'])
+            ->where('kan_soals.id_dokumen', $dokumen->id)
+            ->where('kan_soals.tipe', 1)
+            ->orderBy('kan_soals.no', 'asc')
+            ->get()
+            ->map(function ($q) {
+                $q->jawaban_asesi = null;
+                $q->skor          = null;
+                $q->unit_kode     = $q->unit?->kode;
+                $q->kuk_kode      = $q->kuk?->kode;
+                return $q;
+            });
+
+        return [
+            'dokumen'      => $dokumen,
+            'soal_list'    => $questions,
+            'umpan_balik'  => null,
+            'jumlah_benar' => 0,
+            'jumlah_salah' => 0,
+        ];
+    }
+
+    private function buildSoalKosongIa06($dokumen): array
+    {
+        if (!$dokumen) {
+            return [
+                'dokumen'        => null,
+                'soal_list'      => [],
+                'umpan_balik'    => null,
+                'unit_elemen_kuk'=> null,
+                'total_skor'     => 0,
+            ];
+        }
+
+        $questions = KanSoal::select([
+                'kan_soals.id',
+                'kan_soals.no',
+                'kan_soals.soal',
+                'kan_soals.id_unitkompetensi',
+                'kan_soals.id_kuk',
+            ])
+            ->with(['unit:id,kode', 'kuk:id,kode,nama'])
+            ->where('kan_soals.id_dokumen', $dokumen->id)
+            ->where('kan_soals.tipe', 8)
+            ->orderBy('kan_soals.no', 'asc')
+            ->get()
+            ->map(function ($q) {
+                $q->jawaban    = null;
+                $q->skor       = null;
+                $q->unit_kode  = $q->unit?->kode;
+                $q->kuk_kode   = $q->kuk?->kode;
+                $q->kuk_nama   = $q->kuk?->nama;
+                return $q;
+            });
+
+        return [
+            'dokumen'        => $dokumen,
+            'soal_list'      => $questions,
+            'umpan_balik'    => null,
+            'unit_elemen_kuk'=> null,
+            'total_skor'     => 0,
+        ];
     }
 
     /**
