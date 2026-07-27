@@ -2156,6 +2156,18 @@ class KanAsesmenController extends Controller
             ];
 
             // Load referensi with full nested grouping (same as BNSP buildMapa01Data)
+            // Default checked values for KAN observasi context
+            $kanMapa01Defaults = [
+                82  => true,  // hasil pelatihan mampu telusur
+                87  => true,  // sertifikasi
+                91  => true,  // tempat kerja nyata
+                93  => true,  // tersedia
+                98  => true,  // LSP Gatensi Karya Konstruksi
+                101 => true,  // manajer sertifikasi LSP
+                105 => true,  // standar kompetensi (SKKNI)
+                114 => true,  // peluang kegiatan asesmen terintegrasi
+            ];
+
             $referensis = \App\Models\Referensi::with(['kategoriRel', 'kelompokRel', 'subkategoriRel'])
                 ->select(['id', 'nama', 'id_kelompok', 'id_kategori', 'id_subkategori'])
                 ->where('kategori', 'MAPA01')
@@ -2166,7 +2178,7 @@ class KanAsesmenController extends Controller
             $dataReferensi = $referensis
                 ->groupBy('id_kelompok')
                 ->values()
-                ->map(function ($kelompokItems) {
+                ->map(function ($kelompokItems) use ($kanMapa01Defaults) {
                     $kelompok = $kelompokItems->first()->kelompokRel;
 
                     return [
@@ -2177,7 +2189,7 @@ class KanAsesmenController extends Controller
                             'kategoris' => $kelompokItems
                                 ->groupBy(fn($i) => $i->id_kategori ?? 'tanpa_kategori')
                                 ->values()
-                                ->map(function ($kategoriItems) use ($kelompok) {
+                                ->map(function ($kategoriItems) use ($kelompok, $kanMapa01Defaults) {
                                     $kategori = $kategoriItems->first()->kategoriRel;
 
                                     return [
@@ -2189,18 +2201,18 @@ class KanAsesmenController extends Controller
                                         'subkategoris' => $kategoriItems
                                             ->groupBy(fn($i) => $i->id_subkategori ?? 'tanpa_subkategori')
                                             ->values()
-                                            ->map(function ($subItems) {
+                                            ->map(function ($subItems) use ($kanMapa01Defaults) {
                                                 $sub = $subItems->first()->subkategoriRel;
 
                                                 return [
                                                     'id' => $sub?->id,
                                                     'nama' => $sub?->nama ?? 'Tanpa Subkategori',
                                                     'urut' => $sub?->urut,
-                                                    'referensis' => $subItems->map(function ($item) {
+                                                    'referensis' => $subItems->map(function ($item) use ($kanMapa01Defaults) {
                                                         return [
                                                             'id' => $item->id,
                                                             'nama' => $item->nama,
-                                                            'value' => false,
+                                                            'value' => $kanMapa01Defaults[$item->id] ?? false,
                                                             'alasan' => '',
                                                         ];
                                                     })->values()->toArray(),
@@ -2213,6 +2225,29 @@ class KanAsesmenController extends Controller
                 })
                 ->values()
                 ->toArray();
+
+            // ── Inject alasan (kode unit) ke item yang checked di kelompok 3 ──
+            $unitText = '';
+            foreach ($kelompokKerja['kelompok_kerja'] as $kg) {
+                $unitText .= '<b>' . e($kg['nama']) . ":</b><br>\n";
+                foreach ($kg['units'] as $unit) {
+                    $unitText .= '&nbsp;&nbsp;- ' . e($unit['kode_unit'] ?? '') . "<br>\n";
+                }
+            }
+            $dataReferensi = collect($dataReferensi)->map(function ($kelRef) use ($unitText) {
+                if (isset($kelRef['kelompok']['id']) && $kelRef['kelompok']['id'] == 3) {
+                    foreach ($kelRef['kelompok']['kategoris'] as &$kat) {
+                        foreach ($kat['subkategoris'] as &$sub) {
+                            foreach ($sub['referensis'] as &$ref) {
+                                if (!empty($ref['value'])) {
+                                    $ref['alasan'] = $unitText;
+                                }
+                            }
+                        }
+                    }
+                }
+                return $kelRef;
+            })->values()->toArray();
 
             return [
                 'kelompok_kerja' => $kelompokKerja,
