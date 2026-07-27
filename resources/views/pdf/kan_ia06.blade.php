@@ -12,7 +12,8 @@
             .hd-dok { background-color: #c40000; color: #fff; }
             .hd-dok-b { background-color: #d58a94; color: #000; }
             td { border: 0.2px solid black; padding: 4px 6px; }
-            table { border: 0px solid black; border-collapse: collapse; }
+            table { border: 0px solid black; border-collapse: collapse; page-break-inside: avoid; }
+            tr { page-break-inside: avoid; }
             .noborder { border: 0 transparent !important; }
             .checkbox {
                 width: 12px; height: 12px;
@@ -212,7 +213,7 @@
         <p style="font-size: 12px;">*Coret yang tidak perlu</p>
 
         <!-- LEMBAR JAWABAN TABLE -->
-        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
+        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000; page-break-inside: auto;">
             <tr class="hd-dok" style="font-weight: bold; text-align: center;">
                 <td rowspan="2">KUK</td>
                 <td rowspan="2" colspan="2">JAWABAN SOAL ESAI</td>
@@ -227,7 +228,7 @@
 
             @php $no2 = 1; @endphp
             @foreach($soal_list as $soal)
-            <tr style="text-align: center;">
+            <tr style="text-align: center; page-break-inside: auto;">
                 <td style="width: 20%; font-weight: bold;" class="hd-dok-b">{{ $soal->unit_kode }}<br/>{{ $soal->kuk_kode }}</td>
                 <td style="width: 5%;">{{ $no2++ }}</td>
                 <td style="width: 50%; text-align: left;">
