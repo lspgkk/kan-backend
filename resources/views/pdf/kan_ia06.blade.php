@@ -134,6 +134,7 @@
         @endforeach
 
         <!-- PENYUSUN DAN VALIDATOR -->
+        <div style="page-break-inside: avoid;">
         <h2 style="font-size: 14px; font-weight: bold;">PENYUSUN DAN VALIDATOR</h2>
         <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
             <tr style="background: #fff; font-weight: bold; text-align: center;">
@@ -178,6 +179,7 @@
                 <td style="height: 50px;"></td>
             </tr>
         </table>
+        </div>
         <br />
         <div style="page-break-before: always;"></div>
         <!-- FR.IA.06C LEMBAR JAWABAN -->
