@@ -134,6 +134,7 @@
         @endforeach
 
         <!-- PENYUSUN DAN VALIDATOR -->
+        <div style="page-break-inside: avoid;">
         <h2 style="font-size: 14px; font-weight: bold;">PENYUSUN DAN VALIDATOR</h2>
         <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
             <tr style="background: #fff; font-weight: bold; text-align: center;">
@@ -178,6 +179,7 @@
                 <td style="height: 50px;"></td>
             </tr>
         </table>
+        </div>
         <br />
         <div style="page-break-before: always;"></div>
         <!-- FR.IA.06C LEMBAR JAWABAN -->
@@ -213,7 +215,7 @@
         <p style="font-size: 12px;">*Coret yang tidak perlu</p>
 
         <!-- LEMBAR JAWABAN TABLE -->
-        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
+        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000; page-break-inside: auto;">
             <tr class="hd-dok" style="font-weight: bold; text-align: center;">
                 <td rowspan="2">KUK</td>
                 <td rowspan="2" colspan="2">JAWABAN SOAL ESAI</td>
@@ -228,7 +230,7 @@
 
             @php $no2 = 1; @endphp
             @foreach($soal_list as $soal)
-            <tr style="text-align: center;">
+            <tr style="text-align: center; page-break-inside: auto;">
                 <td style="width: 20%; font-weight: bold;" class="hd-dok-b">{{ $soal->unit_kode }}<br/>{{ $soal->kuk_kode }}</td>
                 <td style="width: 5%;">{{ $no2++ }}</td>
                 <td style="width: 50%; text-align: left;">
