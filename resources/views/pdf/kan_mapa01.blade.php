@@ -30,10 +30,9 @@ td.vhead .vtext{position:absolute;top:50%;left:50%;width:280px;transform:transla
 
 {{-- SKEMA HEADER --}}
 <table width="100%" cellpadding="5" cellspacing="0" align="center">
-    <tr><td style="width:30%" rowspan="2">Skema Sertifikasi (<s>KKNI</s>/Okupasi/<s>Klaster</s>)</td><td style="width:15%">Judul</td><td style="width:3%">:</td><td style="width:52%">{{ $dokumenHeader['jabatan_kerja'] }}</td></tr>
-    @if(strlen($dokumenHeader['jabatan_kerja']) < 44)<br/>@endif
+    <tr><td style="width:30%" rowspan="2">Skema Sertifikasi<br />(<s>KKNI</s>/Okupasi/<s>Klaster</s>)</td><td style="width:15%">Judul</td><td style="width:3%">:</td><td style="width:52%">{{ $dokumenHeader['jabatan_kerja'] }}</td></tr>
     <tr><td>Nomor</td><td>:</td><td>{{ $dokumenHeader['nomor_skema'] }}</td></tr>
-</table><br><br>
+</table><br />
 
 {{-- SECTION 1: Pendekatan Asesmen --}}
 <strong>1. Pendekatan Asesmen</strong><br/>
