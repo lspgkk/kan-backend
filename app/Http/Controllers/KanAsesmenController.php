@@ -989,6 +989,7 @@ class KanAsesmenController extends Controller
         ->select([
             'kan_penyusun_id', 'kan_penyusun_tgl', 'kan_penyusun_img',
             'kan_validator_id', 'kan_validator_tgl', 'kan_validator_img',
+            'kan_manajer_id', 'kan_manajer_tgl', 'kan_manajer_img',
         ])
         ->where('id_jabatan', $record->id_jabatan_kerja)
         ->first();
@@ -1023,8 +1024,8 @@ class KanAsesmenController extends Controller
             'barcode_penyusun'  => $mapBarcode($penyusunValidator?->kan_penyusun_img),
             'barcode_validator' => $mapBarcode($penyusunValidator?->kan_validator_img),
             'nama_manajer'      => $penyusunValidator?->kanManajer?->name,
-            'tanggal_manajer'   => $jabatanConfig?->kan_manajer_tgl,
-            'barcode_manajer'   => $mapBarcode($jabatanConfig?->kan_manajer_img),
+            'tanggal_manajer'   => $penyusunValidator?->kan_manajer_tgl,
+            'barcode_manajer'   => $mapBarcode($penyusunValidator?->kan_manajer_img),
         ];
     }
 
