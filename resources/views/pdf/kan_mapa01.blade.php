@@ -4,7 +4,7 @@
 <style>
 body{font-family:"Open Sans",Calibri,Candara,Segoe,"Segoe UI",Optima,Arial,sans-serif;font-size:11pt;margin-top:0}
 .hd-dok{background-color:#c00000;color:#fff}.hd-dok-b{background-color:#e79291;color:#000}
-td{border:.2px solid black}table{border:0 solid black;border-collapse:collapse}
+td{border:.2px solid black}table{border:0 solid black;border-collapse:collapse;page-break-inside:avoid}
 .noborder{border:0 transparent!important}.no-top-bottom{border-bottom-color:transparent!important;border-top-color:transparent!important}
 .no-bottom{border-bottom-color:transparent!important}.no-top{border-top-color:transparent!important}
 .checkbox{width:12px;height:12px;border:1px solid #000;display:inline-block;text-align:center;line-height:11px;font-size:15px;font-weight:bold;font-family:"DejaVu Sans",sans-serif;margin-right:4px}
@@ -31,12 +31,13 @@ td.vhead .vtext{position:absolute;top:50%;left:50%;width:280px;transform:transla
 {{-- SKEMA HEADER --}}
 <table width="100%" cellpadding="5" cellspacing="0" align="center">
     <tr><td style="width:30%" rowspan="2">Skema Sertifikasi (<s>KKNI</s>/Okupasi/<s>Klaster</s>)</td><td style="width:15%">Judul</td><td style="width:3%">:</td><td style="width:52%">{{ $dokumenHeader['jabatan_kerja'] }}</td></tr>
+    @if(strlen($dokumenHeader['jabatan_kerja']) < 44)<br/>@endif
     <tr><td>Nomor</td><td>:</td><td>{{ $dokumenHeader['nomor_skema'] }}</td></tr>
-</table><br>
+</table><br><br>
 
 {{-- SECTION 1: Pendekatan Asesmen --}}
 <strong>1. Pendekatan Asesmen</strong><br/>
-<table width="100%" cellpadding="5" cellspacing="0" align="center">
+<table width="100%" cellpadding="5" cellspacing="0" align="center" style="page-break-inside:auto">
     <tr><td class="hd-dok" colspan="5" style="font-weight:bold">1.1. Asesi</td></tr>
     <tr><td rowspan="21" style="width:5%;vertical-align:top">1.1.</td><td rowspan="5" style="width:20%;vertical-align:top">Asesi</td><td colspan="3"><span class="checkbox {{ $asesi['hasil_pelatihan_telusur']?'checked':'' }}"></span>Hasil pelatihan dan/atau pendidikan, dimana kurikulum dan fasilitas praktek mampu telusur terhadap standar kompetensi.</td></tr>
     <tr><td colspan="3"><span class="checkbox {{ $asesi['hasil_pelatihan_tidak_kompetensi']?'checked':'' }}"></span>Hasil pelatihan dan/atau pendidikan, dimana kurikulum belum berbasis kompetensi.</td></tr>
