@@ -988,7 +988,7 @@ class KanAsesmenController extends Controller
             'manajer:id,name,noreg',
         ])
         ->select([
-            'id',
+            'id_jabatan',
             'kan_penyusun_id', 'kan_penyusun_tgl', 'kan_penyusun_img',
             'kan_validator_id', 'kan_validator_tgl', 'kan_validator_img',
             'kan_manajer_id', 'kan_manajer_tgl', 'kan_manajer_img',
