@@ -208,7 +208,7 @@
         <br />
 
         <!-- FR.05.C LEMBAR JAWABAN -->
-        <h2 style="font-size: 14px; font-weight: bold;">FR.05.C. LEMBAR JAWABAN PERTANYAAN TERTULIS PILIHAN GANDA</h2>
+        <h2 style="font-size: 14px; font-weight: bold; page-break-before: always;">FR.05.C. LEMBAR JAWABAN PERTANYAAN TERTULIS PILIHAN GANDA</h2>
         <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 2px solid #000;">
             <tr>
                 <td rowspan="2" style="width: 30%;">Skema Sertifikasi (KKNI/Okupasi/Klaster)</td>
