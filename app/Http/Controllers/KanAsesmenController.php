@@ -907,10 +907,11 @@ class KanAsesmenController extends Controller
                 'jenis_dokumen' => $docType,
             ],
             [
-                'id_jadwal' => $request->id_jadwal,
-                'url_image' => $urlImage,
-                'url_ttd'   => $urlTtd,
-                'id_role'   => auth()->user()->role_id,
+                'id_jadwal'  => $request->id_jadwal,
+                'url_image'  => $urlImage,
+                'url_ttd'    => $urlTtd,
+                'id_role'    => auth()->user()->role_id,
+                'created_at' => now(),
             ]
         );
 
@@ -1394,7 +1395,6 @@ class KanAsesmenController extends Controller
         // Only set on initial create, not on update
         if (!$existing) {
             $data['created_at'] = now();
-            $data['updated_at'] = now();
         }
 
         Barcode::updateOrCreate(

@@ -139,12 +139,31 @@ class KanConfigController extends Controller
                 $penyusunId     = $penyusunUsers['map'][$penyusunNoreg] ?? null;
                 $validatorId    = $validatorUsers['map'][$validatorNoreg] ?? null;
 
+                // Preserve existing penyusun/validator data (from individual TTD) so
+                // Excel re-import doesn't overwrite actual signing dates with planned dates.
+                $existingConfig = JabatanConfigA::select([
+                    'kan_penyusun_id', 'kan_penyusun_tgl', 'kan_penyusun_img',
+                    'kan_validator_id', 'kan_validator_tgl', 'kan_validator_img',
+                ])->where('id_jabatan', $idJabatanKerja)->first();
+
+                $penyusunTgl = $this->parseDate($entry['tgl_penyusun'] ?? null);
+                $validatorTgl = $this->parseDate($entry['tgl_validator'] ?? null);
+
+                // Only overwrite penyusun date if not yet set by individual TTD
+                if ($existingConfig?->kan_penyusun_img) {
+                    $penyusunTgl = $existingConfig->kan_penyusun_tgl;
+                }
+                // Only overwrite validator date if not yet set by individual TTD
+                if ($existingConfig?->kan_validator_img) {
+                    $validatorTgl = $existingConfig->kan_validator_tgl;
+                }
+
                 $updated = JabatanConfigA::where('id_jabatan', $idJabatanKerja)->update([
                     'kan_no_skema'      => $entry['no_skema'],
                     'kan_penyusun_id'   => $penyusunId,
-                    'kan_penyusun_tgl'  => $this->parseDate($entry['tgl_penyusun'] ?? null),
+                    'kan_penyusun_tgl'  => $penyusunTgl,
                     'kan_validator_id'  => $validatorId,
-                    'kan_validator_tgl' => $this->parseDate($entry['tgl_validator'] ?? null),
+                    'kan_validator_tgl' => $validatorTgl,
                 ]);
 
                 if ($updated === 0) {
@@ -159,7 +178,8 @@ class KanConfigController extends Controller
                         $idJabatanKerja,
                         $penyusunId,
                         $validatorId,
-                        $entry['tgl_penyusun'] ?? null
+                        $entry['tgl_penyusun'] ?? null,
+                        $entry['tgl_validator'] ?? null
                     );
                     $qrGenerated++;
                 }
@@ -382,7 +402,8 @@ class KanConfigController extends Controller
         string $idJabatan,
         ?int $penyusunId,
         ?int $validatorId,
-        ?string $tglPenyusun
+        ?string $tglPenyusun,
+        ?string $tglValidator = null
     ): void {
         $updateData = [];
 
@@ -440,9 +461,10 @@ class KanConfigController extends Controller
                     'jenis_dokumen' => 'VALIDATOR_KAN',
                 ],
                 [
-                    'url_image' => $urlImage,
-                    'url_ttd'   => $urlTtd,
-                    'id_role'   => 15,
+                    'url_image'  => $urlImage,
+                    'url_ttd'    => $urlTtd,
+                    'id_role'    => 15,
+                    'created_at' => $this->parseDate($tglValidator) ?? now(),
                 ]
             );
         }

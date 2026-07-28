@@ -228,9 +228,10 @@ class PenyusunController extends Controller
                 'jenis_dokumen' => 'PENYUSUN',
             ],
             [
-                'url_image' => $urlImage,
-                'url_ttd'   => $urlTtd,
-                'id_role'   => $user->role_id,
+                'url_image'  => $urlImage,
+                'url_ttd'    => $urlTtd,
+                'id_role'    => $user->role_id,
+                'created_at' => Carbon::now()->toDateString(),
             ]
         );
 

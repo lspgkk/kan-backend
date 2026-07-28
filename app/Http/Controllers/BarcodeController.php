@@ -309,9 +309,11 @@ class BarcodeController extends Controller
         // Build the full URL to match what's stored in database
         $fullUrl = "https://barcode.lspgatensi.id/penyusun-validator/{$uuid}";
 
-        // Query JabatanConfigA by penyusun_url or validator_url
+        // 1) Try BNSP fields first, then KAN fields
         $jabatanConfig = JabatanConfigA::where('penyusun_url', $fullUrl)
             ->orWhere('validator_url', $fullUrl)
+            ->orWhere('kan_penyusun_url', $fullUrl)
+            ->orWhere('kan_validator_url', $fullUrl)
             ->first();
 
         if (!$jabatanConfig) {
@@ -322,10 +324,21 @@ class BarcodeController extends Controller
         }
 
         // Determine if it's penyusun or validator based on URL match
-        $isPenyusun = $jabatanConfig->penyusun_url === $fullUrl;
-        $userId = $isPenyusun ? $jabatanConfig->penyusun_id : $jabatanConfig->validator_id;
+        // Check BNSP URLs first, then KAN URLs
+        $isPenyusun = $jabatanConfig->penyusun_url === $fullUrl
+            || $jabatanConfig->kan_penyusun_url === $fullUrl;
+
+        // Resolve user ID: prefer kan_* field, fallback to BNSP field
+        $userId = $isPenyusun
+            ? ($jabatanConfig->kan_penyusun_id ?? $jabatanConfig->penyusun_id)
+            : ($jabatanConfig->kan_validator_id ?? $jabatanConfig->validator_id);
+
         $jabatan = $isPenyusun ? 'Penyusun' : 'Validator';
-        $tanggal = $isPenyusun ? $jabatanConfig->penyusun_tgl : $jabatanConfig->validator_tgl;
+
+        // Resolve tanggal: prefer kan_*_tgl, fallback to BNSP *_tgl
+        $tanggal = $isPenyusun
+            ? ($jabatanConfig->kan_penyusun_tgl ?? $jabatanConfig->penyusun_tgl)
+            : ($jabatanConfig->kan_validator_tgl ?? $jabatanConfig->validator_tgl);
 
         // Get user information
         $user = User::find($userId);
