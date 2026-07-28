@@ -237,7 +237,7 @@
                 <td colspan="2">{{ $tanggal }}</td>
             </tr>
         </table>
-        <p style="font-size: 12px;">*Coret yang tidak perlu</p>
+        <p style="font-size: 12px; page-break-after: avoid;">*Coret yang tidak perlu</p>
 
         <!-- LEMBAR JAWABAN TABLE -->
         <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
