@@ -516,6 +516,7 @@ Route::prefix('diskon')->group(function () {
         Route::post('/{id}/mapa02', [KanAsesmenController::class, 'submitKanMapa2ByPraktisi']);
         Route::post('/{id}/generate-pdf', [KanAsesmenController::class, 'generateKanPdfByPraktisi']);
         Route::post('/bulk-generate-pdf', [KanAsesmenController::class, 'generateKanPdfBulk']);
+        Route::get('/download-all-dokumen', [KanAsesmenController::class, 'downloadAllDokumenPraktisi']);
     });
 
     Route::prefix('kan/qr')->group(function () {
