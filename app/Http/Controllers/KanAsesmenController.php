@@ -2016,27 +2016,39 @@ class KanAsesmenController extends Controller
                     $userName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $kpj->user?->name ?? 'praktisi-' . $kpj->id_user);
                     $praktisiFolder = $jabatanFolder . $userName . '-' . $kpjId . '/';
 
-                    // Generate missing docs + re-fetch record biar dapet url terbaru
-                    $fresh = KanPraktisiJabatan::find($kpjId);
-                    if (!$fresh) continue;
-
+                    // Cek apakah ada dokumen yg belum di-generate
                     $anyMissing = false;
                     foreach ($docTypes as $doc) {
-                        if (empty($fresh->{$doc['url_col']})) {
+                        if (empty($kpj->{$doc['url_col']})) {
                             $anyMissing = true;
                             break;
                         }
                     }
 
+                    // Generate semua dokumen kalo ada yg missing
+                    // Return value dipake langsung (skip FTP readback) = jauh lebih cepet
+                    $generatedFiles = [];
                     if ($anyMissing) {
-                        $this->generatePdfFiles($kpjId);
-                        $fresh = KanPraktisiJabatan::find($kpjId);
-                        if (!$fresh) continue;
+                        $generatedFiles = $this->generatePdfFiles($kpjId);
+                        // Re-fetch biar dapet URL update buat doc yg tetep null abis generate
+                        $kpj = KanPraktisiJabatan::find($kpjId);
+                        if (!$kpj) continue;
                     }
 
-                    // Ambil semua dokumen ke ZIP
+                    // ZIP semua dokumen
                     foreach ($docTypes as $doc) {
-                        $url = $fresh->{$doc['url_col']};
+                        $label = $doc['label'];
+
+                        // Prioritas 1: pake content dari hasil generate langsung (gak perlu FTP)
+                        $matched = array_values(array_filter($generatedFiles, fn($f) => $f['label'] === $label));
+                        if (!empty($matched)) {
+                            $zip->addFromString($praktisiFolder . $matched[0]['filename'], $matched[0]['content']);
+                            $totalFiles++;
+                            continue;
+                        }
+
+                        // Prioritas 2: baca dari FTP kalo dokumen udah existing
+                        $url = $kpj->{$doc['url_col']};
                         if (empty($url)) continue;
 
                         $path = str_replace($publicBaseUrl, '', $url);
@@ -2049,26 +2061,7 @@ class KanAsesmenController extends Controller
                                 $totalFiles++;
                             }
                         } catch (\Throwable $e) {
-                            // File di storage ilang — coba regenerate sekali lagi
-                            $this->generatePdfFiles($kpjId);
-                            $freshAfterRegen = KanPraktisiJabatan::find($kpjId);
-                            if (!$freshAfterRegen) continue;
-
-                            $newUrl = $freshAfterRegen->{$doc['url_col']};
-                            if (empty($newUrl)) continue;
-
-                            $newPath = str_replace($publicBaseUrl, '', $newUrl);
-                            $newFilename = basename($newPath);
-
-                            try {
-                                $content = Storage::disk($disk)->get($newPath);
-                                if ($content) {
-                                    $zip->addFromString($praktisiFolder . $newFilename, $content);
-                                    $totalFiles++;
-                                }
-                            } catch (\Throwable $e2) {
-                                // skip kalo tetap gagal
-                            }
+                            // skip kalo FTP gagal
                         }
                     }
                 }
@@ -2088,8 +2081,8 @@ class KanAsesmenController extends Controller
         } catch (\Throwable $e) {
             return response()->json([
                 'message' => 'Terjadi kesalahan: ' . $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
+                'file'    => $e->getFile(),
+                'line'    => $e->getLine(),
             ], 500);
         }
     }
