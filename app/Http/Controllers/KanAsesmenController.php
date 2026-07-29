@@ -1981,79 +1981,62 @@ class KanAsesmenController extends Controller
      */
     public function downloadAllDokumenPraktisi(Request $request)
     {
-        $records = KanPraktisiJabatan::with(['user:id,name', 'jabatanKerja'])
-            ->orderBy('id_jabatan_kerja')
-            ->get();
+        try {
+            $records = KanPraktisiJabatan::with(['user:id,name', 'jabatanKerja'])
+                ->orderBy('id_jabatan_kerja')
+                ->get();
 
-        if ($records->isEmpty()) {
-            return response()->json(['message' => 'Tidak ada data praktisi'], 404);
-        }
+            if ($records->isEmpty()) {
+                return response()->json(['message' => 'Tidak ada data praktisi'], 404);
+            }
 
-        $grouped = $records->groupBy('id_jabatan_kerja');
+            $grouped = $records->groupBy('id_jabatan_kerja');
 
-        $zip = new ZipArchive();
-        $zipName = 'dokumen-praktisi-all.zip';
-        $zipPath = tempnam(sys_get_temp_dir(), 'kan_all_');
+            $zip = new ZipArchive();
+            $zipName = 'dokumen-praktisi-all.zip';
+            $zipPath = tempnam(sys_get_temp_dir(), 'kan_all_');
 
-        if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
-            return response()->json(['message' => 'Gagal membuat file ZIP'], 500);
-        }
+            if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
+                return response()->json(['message' => 'Gagal membuat file ZIP'], 500);
+            }
 
-        $totalFiles = 0;
-        $disk = 'str_moon';
-        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
-        $docTypes = self::KAN_DOC_TYPES;
+            $totalFiles = 0;
+            $disk = 'str_moon';
+            $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+            $docTypes = self::KAN_DOC_TYPES;
 
-        foreach ($grouped as $idJabatanKerja => $praktisiList) {
-            $jabatanKerja = $praktisiList->first()->jabatanKerja;
-            $namaJabatan = $jabatanKerja ? $jabatanKerja->jabatan_kerja : 'Unknown';
-            $jabatanFolder = $idJabatanKerja . ' - ' . $namaJabatan . '/';
+            foreach ($grouped as $idJabatanKerja => $praktisiList) {
+                $jabatanKerja = $praktisiList->first()->jabatanKerja;
+                $namaJabatan = $jabatanKerja ? $jabatanKerja->jabatan_kerja : 'Unknown';
+                $jabatanFolder = $idJabatanKerja . ' - ' . $namaJabatan . '/';
 
-            foreach ($praktisiList as $kpj) {
-                $kpjId = $kpj->id;
-                $userName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $kpj->user?->name ?? 'praktisi-' . $kpj->id_user);
-                $praktisiFolder = $jabatanFolder . $userName . '-' . $kpjId . '/';
+                foreach ($praktisiList as $kpj) {
+                    $kpjId = $kpj->id;
+                    $userName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $kpj->user?->name ?? 'praktisi-' . $kpj->id_user);
+                    $praktisiFolder = $jabatanFolder . $userName . '-' . $kpjId . '/';
 
-                // Cek apakah ada dokumen yang belum digenerate (URL masih null)
-                $anyMissing = false;
-                foreach ($docTypes as $doc) {
-                    if (empty($kpj->{$doc['url_col']})) {
-                        $anyMissing = true;
-                        break;
-                    }
-                }
+                    // Generate missing docs + re-fetch record biar dapet url terbaru
+                    $fresh = KanPraktisiJabatan::find($kpjId);
+                    if (!$fresh) continue;
 
-                if ($anyMissing) {
-                    $this->generatePdfFiles($kpjId);
-                    $kpj->refresh();
-                }
-
-                // Tambahkan semua dokumen ke ZIP
-                foreach ($docTypes as $doc) {
-                    $url = $kpj->{$doc['url_col']};
-
-                    if (empty($url)) {
-                        continue;
-                    }
-
-                    $path = str_replace($publicBaseUrl, '', $url);
-                    $filename = basename($path);
-
-                    try {
-                        $content = Storage::disk($disk)->get($path);
-                        if ($content) {
-                            $zip->addFromString($praktisiFolder . $filename, $content);
-                            $totalFiles++;
+                    $anyMissing = false;
+                    foreach ($docTypes as $doc) {
+                        if (empty($fresh->{$doc['url_col']})) {
+                            $anyMissing = true;
+                            break;
                         }
-                    } catch (\Throwable $e) {
-                        // File tidak ditemukan di storage — coba regenerate
+                    }
+
+                    if ($anyMissing) {
                         $this->generatePdfFiles($kpjId);
-                        $kpj->refresh();
-                        $url = $kpj->{$doc['url_col']};
+                        $fresh = KanPraktisiJabatan::find($kpjId);
+                        if (!$fresh) continue;
+                    }
 
-                        if (empty($url)) {
-                            continue;
-                        }
+                    // Ambil semua dokumen ke ZIP
+                    foreach ($docTypes as $doc) {
+                        $url = $fresh->{$doc['url_col']};
+                        if (empty($url)) continue;
 
                         $path = str_replace($publicBaseUrl, '', $url);
                         $filename = basename($path);
@@ -2064,25 +2047,50 @@ class KanAsesmenController extends Controller
                                 $zip->addFromString($praktisiFolder . $filename, $content);
                                 $totalFiles++;
                             }
-                        } catch (\Throwable $e2) {
-                            // Lewati file ini jika tetap gagal
+                        } catch (\Throwable $e) {
+                            // File di storage ilang — coba regenerate sekali lagi
+                            $this->generatePdfFiles($kpjId);
+                            $freshAfterRegen = KanPraktisiJabatan::find($kpjId);
+                            if (!$freshAfterRegen) continue;
+
+                            $newUrl = $freshAfterRegen->{$doc['url_col']};
+                            if (empty($newUrl)) continue;
+
+                            $newPath = str_replace($publicBaseUrl, '', $newUrl);
+                            $newFilename = basename($newPath);
+
+                            try {
+                                $content = Storage::disk($disk)->get($newPath);
+                                if ($content) {
+                                    $zip->addFromString($praktisiFolder . $newFilename, $content);
+                                    $totalFiles++;
+                                }
+                            } catch (\Throwable $e2) {
+                                // skip kalo tetap gagal
+                            }
                         }
                     }
                 }
             }
+
+            $zip->close();
+
+            if ($totalFiles === 0) {
+                unlink($zipPath);
+                return response()->json(['message' => 'Tidak ada dokumen yang tersedia untuk diunduh'], 400);
+            }
+
+            return response()->streamDownload(function () use ($zipPath) {
+                readfile($zipPath);
+                unlink($zipPath);
+            }, $zipName, ['Content-Type' => 'application/zip']);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ], 500);
         }
-
-        $zip->close();
-
-        if ($totalFiles === 0) {
-            unlink($zipPath);
-            return response()->json(['message' => 'Tidak ada dokumen yang tersedia untuk diunduh'], 400);
-        }
-
-        return response()->streamDownload(function () use ($zipPath) {
-            readfile($zipPath);
-            unlink($zipPath);
-        }, $zipName, ['Content-Type' => 'application/zip']);
     }
 
     // ═══════════════════════════════════════════════════════════════
