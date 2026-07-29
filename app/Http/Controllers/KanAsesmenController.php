@@ -29,6 +29,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use ZipArchive;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Ramsey\Uuid\Uuid;
@@ -1982,13 +1983,21 @@ class KanAsesmenController extends Controller
     public function downloadAllDokumenPraktisi(Request $request)
     {
         set_time_limit(0);
+        $token = $request->query('token');
+        $cacheKey = $token ? "download_all_{$token}" : null;
+
         try {
             $records = KanPraktisiJabatan::with(['user:id,name', 'jabatanKerja'])
                 ->orderBy('id_jabatan_kerja')
                 ->get();
 
-            if ($records->isEmpty()) {
+            $totalRecords = $records->count();
+            if ($totalRecords === 0) {
                 return response()->json(['message' => 'Tidak ada data praktisi'], 404);
+            }
+
+            if ($cacheKey) {
+                Cache::put($cacheKey, ['total' => $totalRecords, 'done' => 0, 'status' => 'processing'], 3600);
             }
 
             $grouped = $records->groupBy('id_jabatan_kerja');
@@ -2002,6 +2011,7 @@ class KanAsesmenController extends Controller
             }
 
             $totalFiles = 0;
+            $processed = 0;
             $disk = 'str_moon';
             $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
             $docTypes = self::KAN_DOC_TYPES;
@@ -2016,7 +2026,6 @@ class KanAsesmenController extends Controller
                     $userName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $kpj->user?->name ?? 'praktisi-' . $kpj->id_user);
                     $praktisiFolder = $jabatanFolder . $userName . '-' . $kpjId . '/';
 
-                    // Cek apakah ada dokumen yg belum di-generate
                     $anyMissing = false;
                     foreach ($docTypes as $doc) {
                         if (empty($kpj->{$doc['url_col']})) {
@@ -2025,21 +2034,15 @@ class KanAsesmenController extends Controller
                         }
                     }
 
-                    // Generate semua dokumen kalo ada yg missing
-                    // Return value dipake langsung (skip FTP readback) = jauh lebih cepet
                     $generatedFiles = [];
                     if ($anyMissing) {
                         $generatedFiles = $this->generatePdfFiles($kpjId);
-                        // Re-fetch biar dapet URL update buat doc yg tetep null abis generate
                         $kpj = KanPraktisiJabatan::find($kpjId);
                         if (!$kpj) continue;
                     }
 
-                    // ZIP semua dokumen
                     foreach ($docTypes as $doc) {
                         $label = $doc['label'];
-
-                        // Prioritas 1: pake content dari hasil generate langsung (gak perlu FTP)
                         $matched = array_values(array_filter($generatedFiles, fn($f) => $f['label'] === $label));
                         if (!empty($matched)) {
                             $zip->addFromString($praktisiFolder . $matched[0]['filename'], $matched[0]['content']);
@@ -2047,7 +2050,6 @@ class KanAsesmenController extends Controller
                             continue;
                         }
 
-                        // Prioritas 2: baca dari FTP kalo dokumen udah existing
                         $url = $kpj->{$doc['url_col']};
                         if (empty($url)) continue;
 
@@ -2061,8 +2063,18 @@ class KanAsesmenController extends Controller
                                 $totalFiles++;
                             }
                         } catch (\Throwable $e) {
-                            // skip kalo FTP gagal
+                            // skip FTP gagal
                         }
+                    }
+
+                    // Update progress cache
+                    $processed++;
+                    if ($cacheKey) {
+                        Cache::put($cacheKey, [
+                            'total'  => $totalRecords,
+                            'done'   => $processed,
+                            'status' => 'processing',
+                        ], 3600);
                     }
                 }
             }
@@ -2071,20 +2083,63 @@ class KanAsesmenController extends Controller
 
             if ($totalFiles === 0) {
                 unlink($zipPath);
+                if ($cacheKey) {
+                    Cache::put($cacheKey, ['status' => 'error', 'error' => 'Tidak ada dokumen'], 3600);
+                }
                 return response()->json(['message' => 'Tidak ada dokumen yang tersedia untuk diunduh'], 400);
+            }
+
+            // Store ZIP path buat download nanti
+            if ($cacheKey) {
+                Cache::put($cacheKey, [
+                    'status'   => 'done',
+                    'total'    => $totalRecords,
+                    'done'     => $totalRecords,
+                    'zip_path' => $zipPath,
+                    'zip_name' => $zipName,
+                ], 3600);
             }
 
             return response()->streamDownload(function () use ($zipPath) {
                 readfile($zipPath);
-                unlink($zipPath);
+                @unlink($zipPath);
             }, $zipName, ['Content-Type' => 'application/zip']);
         } catch (\Throwable $e) {
+            if ($cacheKey) {
+                Cache::put($cacheKey, [
+                    'status' => 'error',
+                    'error'  => $e->getMessage(),
+                ], 3600);
+            }
             return response()->json([
                 'message' => 'Terjadi kesalahan: ' . $e->getMessage(),
                 'file'    => $e->getFile(),
                 'line'    => $e->getLine(),
             ], 500);
         }
+    }
+
+    public function downloadAllProgress(Request $request)
+    {
+        $token = $request->query('token');
+        if (!$token) {
+            return response()->json(['message' => 'Token required'], 400);
+        }
+
+        $data = Cache::get("download_all_{$token}");
+        if (!$data) {
+            return response()->json(['status' => 'not_found'], 404);
+        }
+
+        $pct = $data['total'] > 0 ? min(100, round(($data['done'] / $data['total']) * 100)) : 0;
+
+        return response()->json([
+            'status'   => $data['status'],
+            'total'    => $data['total'],
+            'done'     => $data['done'],
+            'progress' => $pct,
+            'error'    => $data['error'] ?? null,
+        ]);
     }
 
     // ═══════════════════════════════════════════════════════════════
