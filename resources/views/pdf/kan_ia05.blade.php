@@ -208,7 +208,7 @@
         <br />
 
         <!-- FR.05.C LEMBAR JAWABAN -->
-        <h2 style="font-size: 14px; font-weight: bold;">FR.05.C. LEMBAR JAWABAN PERTANYAAN TERTULIS PILIHAN GANDA</h2>
+        <h2 style="font-size: 14px; font-weight: bold; page-break-before: always;">FR.05.C. LEMBAR JAWABAN PERTANYAAN TERTULIS PILIHAN GANDA</h2>
         <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 2px solid #000;">
             <tr>
                 <td rowspan="2" style="width: 30%;">Skema Sertifikasi (KKNI/Okupasi/Klaster)</td>
@@ -240,7 +240,7 @@
         <p style="font-size: 12px;">*Coret yang tidak perlu</p>
 
         <!-- LEMBAR JAWABAN TABLE -->
-        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000;">
+        <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 1px solid #000; page-break-inside: auto;">
             <tr class="hd-dok" style="font-weight: bold; text-align: center;">
                 <td colspan="2">Lembar Jawaban</td>
                 <td colspan="2">Rekomendasi</td>
