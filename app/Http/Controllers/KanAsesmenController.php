@@ -1796,17 +1796,19 @@ class KanAsesmenController extends Controller
     ];
 
     /**
-     * Generate PDF file(s) for a praktisi. Saves to storage + updates DB.
+     * Generate PDF file(s) for a praktisi.
+     * When $skipStorage=true, skips FTP upload + DB update (faster for batch ZIP).
      * Returns array of ['filename' => ..., 'content' => ..., 'label' => ...].
      */
-    private function generatePdfFiles(int $praktisiJabatanId, ?string $docFilter = null): array
+    private function generatePdfFiles(int $praktisiJabatanId, array|string|null $docFilter = null, bool $skipStorage = false): array
     {
         $record = KanPraktisiJabatan::find($praktisiJabatanId);
         if (!$record) return [];
 
         $docs = self::KAN_DOC_TYPES;
-        if ($docFilter) {
-            $docs = array_filter($docs, fn($d) => strtolower($d['label']) === strtolower($docFilter));
+        if ($docFilter !== null) {
+            $filterLabels = is_array($docFilter) ? $docFilter : [$docFilter];
+            $docs = array_filter($docs, fn($d) => in_array(strtolower($d['label']), array_map('strtolower', $filterLabels)));
         }
 
         $disk = 'str_moon';
@@ -1843,16 +1845,17 @@ class KanAsesmenController extends Controller
                 $pdf = Pdf::loadView("pdf.{$doc['blade']}", $viewData)->setPaper('A4', 'portrait');
                 $pdfOutput = $pdf->output();
 
-                Storage::disk($disk)->put($path, $pdfOutput);
-                $fullUrl = $publicBaseUrl . $path;
-
-                $record->update([$doc['url_col'] => $fullUrl]);
-
                 $files[] = [
                     'filename' => $filename,
                     'content'  => $pdfOutput,
                     'label'    => $doc['label'],
                 ];
+
+                if (!$skipStorage) {
+                    Storage::disk($disk)->put($path, $pdfOutput);
+                    $fullUrl = $publicBaseUrl . $path;
+                    $record->update([$doc['url_col'] => $fullUrl]);
+                }
             } catch (\Throwable $e) {
                 // skip failed docs
             }
@@ -2026,19 +2029,17 @@ class KanAsesmenController extends Controller
                     $userName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $kpj->user?->name ?? 'praktisi-' . $kpj->id_user);
                     $praktisiFolder = $jabatanFolder . $userName . '-' . $kpjId . '/';
 
-                    $anyMissing = false;
+                    // Cari dokumen yg masih missing biar cuma generate yg perlu
+                    $missingLabels = [];
                     foreach ($docTypes as $doc) {
                         if (empty($kpj->{$doc['url_col']})) {
-                            $anyMissing = true;
-                            break;
+                            $missingLabels[] = $doc['label'];
                         }
                     }
 
                     $generatedFiles = [];
-                    if ($anyMissing) {
-                        $generatedFiles = $this->generatePdfFiles($kpjId);
-                        $kpj = KanPraktisiJabatan::find($kpjId);
-                        if (!$kpj) continue;
+                    if (!empty($missingLabels)) {
+                        $generatedFiles = $this->generatePdfFiles($kpjId, $missingLabels, true);
                     }
 
                     foreach ($docTypes as $doc) {
