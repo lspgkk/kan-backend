@@ -1981,6 +1981,7 @@ class KanAsesmenController extends Controller
      */
     public function downloadAllDokumenPraktisi(Request $request)
     {
+        set_time_limit(0);
         try {
             $records = KanPraktisiJabatan::with(['user:id,name', 'jabatanKerja'])
                 ->orderBy('id_jabatan_kerja')
