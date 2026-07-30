@@ -14,12 +14,13 @@ return [
     'paths' => ['api/*', 'sanctum/csrf-cookie'],
 
     'allowed_methods' => ['*'],
- 
+
     'allowed_origins' => [
         'https://kantest.lspgatensi.id',
         'https://kan.lspgatensi.id',
         'http://localhost:5173',
         'http://localhost:3000',
+        'https://barcode.lspgatensi.id'
     ],
 
     'allowed_origins_patterns' => ['/https:\/\/kan(-test|test)?\.lspgatensi\.id$/'],
