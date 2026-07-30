@@ -2057,25 +2057,28 @@ class KanAsesmenController extends Controller
             'status' => 'processing',
         ], 3600);
 
-        // Kirim response awal 200, close koneksi, lanjut background
-        response()->json([
+        // Register background process — Laravel kirim response (termasuk header CORS
+        // dari middleware) lebih dulu, lalu jalankan processAllZip setelah response
+        // terkirim. Pake app()->terminating() biar ga skip middleware.
+        app()->terminating(function () use ($records, $totalRecords, $cacheKey) {
+            ignore_user_abort(true);
+            set_time_limit(0);
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            }
+            try {
+                $this->processAllZip($records, $totalRecords, $cacheKey);
+            } catch (\Throwable $e) {
+                Cache::put($cacheKey, ['status' => 'error', 'error' => $e->getMessage()], 3600);
+            }
+        });
+
+        return response()->json([
             'status'  => 'started',
             'token'   => $token,
             'total'   => $totalRecords,
             'message' => 'Proses dimulai. Polling /download-all-dokumen/progress',
-        ])->send();
-
-        if (function_exists('fastcgi_finish_request')) {
-            fastcgi_finish_request();
-        }
-        ignore_user_abort(true);
-
-        try {
-            $this->processAllZip($records, $totalRecords, $cacheKey);
-        } catch (\Throwable $e) {
-            Cache::put($cacheKey, ['status' => 'error', 'error' => $e->getMessage()], 3600);
-        }
-        exit;
+        ]);
     }
 
     /**
