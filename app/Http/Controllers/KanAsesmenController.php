@@ -1815,9 +1815,12 @@ class KanAsesmenController extends Controller
         $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
         $files = [];
 
+        // Cache header sekali per praktisi — dulu dipanggil 5x (1 per dok)
+        $header = $this->buildKanDokumenHeaderByPraktisiForPdf($praktisiJabatanId);
+        if ($header === null) return [];
+
         foreach ($docs as $doc) {
             try {
-                $header = $this->buildKanDokumenHeaderByPraktisiForPdf($praktisiJabatanId);
                 $docData = match ($doc['method']) {
                     'KanIa04b' => $this->buildKanIa04bDataByPraktisiForPdf($praktisiJabatanId),
                     'KanIa05'  => $this->buildKanIa05DataByPraktisiForPdf($praktisiJabatanId),
