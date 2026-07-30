@@ -37,6 +37,14 @@ use Ramsey\Uuid\Uuid;
 class KanAsesmenController extends Controller
 {
     // ──────────────────────────────────────────────
+    //  REQUEST-SCOPED CACHE
+    //  - image base64 by URL (avoid re-fetch same barcode logo HTTP)
+    //  - per-praktisi builder memo (avoid 4x MAPA01 calls etc)
+    // ──────────────────────────────────────────────
+    private array $imageUrlBase64Cache = [];
+    private array $builderMemoCache = [];
+
+    // ──────────────────────────────────────────────
     //  BUILDER: DOKUMEN HEADER
     // ──────────────────────────────────────────────
 
@@ -940,9 +948,15 @@ class KanAsesmenController extends Controller
     private function imageUrlToBase64(?string $url): ?string
     {
         if (!$url) return null;
+        if (array_key_exists($url, $this->imageUrlBase64Cache)) {
+            return $this->imageUrlBase64Cache[$url];
+        }
         try {
             $contents = file_get_contents($url);
-            if ($contents === false) return null;
+            if ($contents === false) {
+                $this->imageUrlBase64Cache[$url] = null;
+                return null;
+            }
             $extension = pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'png';
             $mime = match (strtolower($extension)) {
                 'jpg', 'jpeg' => 'image/jpeg',
@@ -950,8 +964,11 @@ class KanAsesmenController extends Controller
                 'svg'         => 'image/svg+xml',
                 default       => 'image/png',
             };
-            return 'data:' . $mime . ';base64,' . base64_encode($contents);
+            $result = 'data:' . $mime . ';base64,' . base64_encode($contents);
+            $this->imageUrlBase64Cache[$url] = $result;
+            return $result;
         } catch (\Throwable $e) {
+            $this->imageUrlBase64Cache[$url] = null;
             return null;
         }
     }
@@ -968,6 +985,10 @@ class KanAsesmenController extends Controller
 
     private function buildKanDokumenHeaderByPraktisi(int $praktisiJabatanId, bool $forPdf = false): ?array
     {
+        $memoKey = 'header_' . $praktisiJabatanId . '_' . ($forPdf ? '1' : '0');
+        if (array_key_exists($memoKey, $this->builderMemoCache)) {
+            return $this->builderMemoCache[$memoKey];
+        }
         $record = KanPraktisiJabatan::with([
             'user:id,name,email',
             'jabatanKerja:id_jabatan_kerja,jabatan_kerja,jenjang_id',
@@ -1009,7 +1030,7 @@ class KanAsesmenController extends Controller
             ->first();
         $ttdDate = $praktisiBarcode?->created_at?->locale('id')->translatedFormat('d F Y') ?? '';
 
-        return [
+        $result = [
             'jabatan_kerja'   => $record->jabatanKerja?->jabatan_kerja ?? '',
             'nomor_skema'     => $jabatanConfig?->kan_no_skema,
             'tuk'             => 'TUK SEWAKTU GKK',
@@ -1035,6 +1056,7 @@ class KanAsesmenController extends Controller
             'barcode_manajer'   => $mapBarcode($penyusunValidator?->kan_manajer_img)
                 ?: $mapBarcode($penyusunValidator?->manajer_img),
         ];
+        return $this->builderMemoCache[$memoKey] = $result;
     }
 
     // ──────────────────────────────────────────────
@@ -2311,13 +2333,17 @@ class KanAsesmenController extends Controller
 
     private function buildKanMapaDataByPraktisi(int $kpjId): ?array
     {
+        if (array_key_exists('mapa1_' . $kpjId, $this->builderMemoCache)) {
+            return $this->builderMemoCache['mapa1_' . $kpjId];
+        }
         $record = KanPraktisiJabatan::with([
             'user:id,name',
             'jabatanKerja:id_jabatan_kerja,jabatan_kerja,jenjang_id,acuan',
         ])->find($kpjId);
 
-        if (!$record) return null;
-
+        if (!$record) {
+            return $this->builderMemoCache['mapa1_' . $kpjId] = null;
+        }
         $idJabatan = $record->id_jabatan_kerja;
         $jenjang = $record->jabatanKerja->jenjang_id ?? 0;
 
@@ -2473,7 +2499,7 @@ class KanAsesmenController extends Controller
             ]],
         ];
 
-        return [
+        return $this->builderMemoCache['mapa1_' . $kpjId] = [
             'kelompok_kerja' => $kelompokKerja,
             'referensi_form' => [],
             'skkni' => $record->jabatanKerja->acuan ?? '',
