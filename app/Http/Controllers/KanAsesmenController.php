@@ -2012,137 +2012,190 @@ class KanAsesmenController extends Controller
     {
         set_time_limit(0);
         $token = $request->query('token');
-        $cacheKey = $token ? "download_all_{$token}" : null;
+        if (!$token) {
+            return response()->json(['message' => 'Token required'], 400);
+        }
+        $cacheKey = "download_all_{$token}";
+
+        $state = Cache::get($cacheKey);
+
+        // State: already done → return ZIP
+        if (is_array($state) && ($state['status'] ?? null) === 'done' && !empty($state['zip_path'])) {
+            return $this->streamCachedZip($cacheKey, $state);
+        }
+
+        // State: still processing → 202
+        if (is_array($state) && ($state['status'] ?? null) === 'processing') {
+            $pct = ($state['total'] ?? 0) > 0 ? min(100, round(($state['done'] / $state['total']) * 100)) : 0;
+            return response()->json([
+                'status'   => 'processing',
+                'total'    => $state['total'] ?? 0,
+                'done'     => $state['done'] ?? 0,
+                'progress' => $pct,
+                'message'  => 'Masih proses, polling /download-all-dokumen/progress',
+            ], 202);
+        }
+
+        // State: error → 500
+        if (is_array($state) && ($state['status'] ?? null) === 'error') {
+            return response()->json(['message' => $state['error'] ?? 'Error', 'status' => 'error'], 500);
+        }
+
+        // State: fresh — start background job
+        $records = KanPraktisiJabatan::with(['user:id,name', 'jabatanKerja'])
+            ->orderBy('id_jabatan_kerja')
+            ->get();
+
+        $totalRecords = $records->count();
+        if ($totalRecords === 0) {
+            return response()->json(['message' => 'Tidak ada data praktisi'], 404);
+        }
+
+        Cache::put($cacheKey, [
+            'total'  => $totalRecords,
+            'done'   => 0,
+            'status' => 'processing',
+        ], 3600);
+
+        // Kirim response awal 200, close koneksi, lanjut background
+        response()->json([
+            'status'  => 'started',
+            'token'   => $token,
+            'total'   => $totalRecords,
+            'message' => 'Proses dimulai. Polling /download-all-dokumen/progress',
+        ])->send();
+
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        }
+        ignore_user_abort(true);
 
         try {
-            $records = KanPraktisiJabatan::with(['user:id,name', 'jabatanKerja'])
-                ->orderBy('id_jabatan_kerja')
-                ->get();
-
-            $totalRecords = $records->count();
-            if ($totalRecords === 0) {
-                return response()->json(['message' => 'Tidak ada data praktisi'], 404);
-            }
-
-            if ($cacheKey) {
-                Cache::put($cacheKey, ['total' => $totalRecords, 'done' => 0, 'status' => 'processing'], 3600);
-            }
-
-            $grouped = $records->groupBy('id_jabatan_kerja');
-
-            $zip = new ZipArchive();
-            $zipName = 'dokumen-praktisi-all.zip';
-            $zipPath = tempnam(sys_get_temp_dir(), 'kan_all_');
-
-            if ($zip->open($zipPath, ZipArchive::CREATE) !== true) {
-                return response()->json(['message' => 'Gagal membuat file ZIP'], 500);
-            }
-
-            $totalFiles = 0;
-            $processed = 0;
-            $disk = 'str_moon';
-            $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
-            $docTypes = self::KAN_DOC_TYPES;
-
-            foreach ($grouped as $idJabatanKerja => $praktisiList) {
-                $jabatanKerja = $praktisiList->first()->jabatanKerja;
-                $namaJabatan = $jabatanKerja ? $jabatanKerja->jabatan_kerja : 'Unknown';
-                $jabatanFolder = $idJabatanKerja . ' - ' . $namaJabatan . '/';
-
-                foreach ($praktisiList as $kpj) {
-                    $kpjId = $kpj->id;
-                    $userName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $kpj->user?->name ?? 'praktisi-' . $kpj->id_user);
-                    $praktisiFolder = $jabatanFolder . $userName . '-' . $kpjId . '/';
-
-                    // Cari dokumen yg masih missing biar cuma generate yg perlu
-                    $missingLabels = [];
-                    foreach ($docTypes as $doc) {
-                        if (empty($kpj->{$doc['url_col']})) {
-                            $missingLabels[] = $doc['label'];
-                        }
-                    }
-
-                    $generatedFiles = [];
-                    if (!empty($missingLabels)) {
-                        $generatedFiles = $this->generatePdfFiles($kpjId, $missingLabels, true);
-                    }
-
-                    foreach ($docTypes as $doc) {
-                        $label = $doc['label'];
-                        $matched = array_values(array_filter($generatedFiles, fn($f) => $f['label'] === $label));
-                        if (!empty($matched)) {
-                            $zip->addFromString($praktisiFolder . $matched[0]['filename'], $matched[0]['content']);
-                            $totalFiles++;
-                            continue;
-                        }
-
-                        $url = $kpj->{$doc['url_col']};
-                        if (empty($url)) continue;
-
-                        $path = str_replace($publicBaseUrl, '', $url);
-                        $filename = basename($path);
-
-                        try {
-                            $content = Storage::disk($disk)->get($path);
-                            if ($content) {
-                                $zip->addFromString($praktisiFolder . $filename, $content);
-                                $totalFiles++;
-                            }
-                        } catch (\Throwable $e) {
-                            // skip FTP gagal
-                        }
-                    }
-
-                    // Update progress cache
-                    $processed++;
-                    if ($cacheKey) {
-                        Cache::put($cacheKey, [
-                            'total'  => $totalRecords,
-                            'done'   => $processed,
-                            'status' => 'processing',
-                        ], 3600);
-                    }
-                }
-            }
-
-            $zip->close();
-
-            if ($totalFiles === 0) {
-                unlink($zipPath);
-                if ($cacheKey) {
-                    Cache::put($cacheKey, ['status' => 'error', 'error' => 'Tidak ada dokumen'], 3600);
-                }
-                return response()->json(['message' => 'Tidak ada dokumen yang tersedia untuk diunduh'], 400);
-            }
-
-            // Store ZIP path buat download nanti
-            if ($cacheKey) {
-                Cache::put($cacheKey, [
-                    'status'   => 'done',
-                    'total'    => $totalRecords,
-                    'done'     => $totalRecords,
-                    'zip_path' => $zipPath,
-                    'zip_name' => $zipName,
-                ], 3600);
-            }
-
-            return response()->streamDownload(function () use ($zipPath) {
-                readfile($zipPath);
-                @unlink($zipPath);
-            }, $zipName, ['Content-Type' => 'application/zip']);
+            $this->processAllZip($records, $totalRecords, $cacheKey);
         } catch (\Throwable $e) {
-            if ($cacheKey) {
+            Cache::put($cacheKey, ['status' => 'error', 'error' => $e->getMessage()], 3600);
+        }
+        exit;
+    }
+
+    /**
+     * Background ZIP builder. Dipanggil setelah fastcgi_finish_request.
+     */
+    private function processAllZip($records, int $totalRecords, string $cacheKey): void
+    {
+        $grouped = $records->groupBy('id_jabatan_kerja');
+
+        $zipDir = storage_path('app/kan-zips');
+        if (!is_dir($zipDir)) {
+            @mkdir($zipDir, 0755, true);
+        }
+        $zipName = 'dokumen-praktisi-all.zip';
+        $zipPath = $zipDir . '/' . str_replace(['{', '}', '/'], '', $cacheKey) . '.zip';
+
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            Cache::put($cacheKey, ['status' => 'error', 'error' => 'Gagal membuat ZIP'], 3600);
+            return;
+        }
+
+        $totalFiles = 0;
+        $processed = 0;
+        $disk = 'str_moon';
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $docTypes = self::KAN_DOC_TYPES;
+
+        foreach ($grouped as $idJabatanKerja => $praktisiList) {
+            $jabatanKerja = $praktisiList->first()->jabatanKerja;
+            $namaJabatan = $jabatanKerja ? $jabatanKerja->jabatan_kerja : 'Unknown';
+            $jabatanFolder = $idJabatanKerja . ' - ' . $namaJabatan . '/';
+
+            foreach ($praktisiList as $kpj) {
+                $kpjId = $kpj->id;
+                $userName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $kpj->user?->name ?? 'praktisi-' . $kpj->id_user);
+                $praktisiFolder = $jabatanFolder . $userName . '-' . $kpjId . '/';
+
+                $missingLabels = [];
+                foreach ($docTypes as $doc) {
+                    if (empty($kpj->{$doc['url_col']})) {
+                        $missingLabels[] = $doc['label'];
+                    }
+                }
+
+                $generatedFiles = [];
+                if (!empty($missingLabels)) {
+                    $generatedFiles = $this->generatePdfFiles($kpjId, $missingLabels, true);
+                }
+
+                foreach ($docTypes as $doc) {
+                    $label = $doc['label'];
+                    $matched = array_values(array_filter($generatedFiles, fn($f) => $f['label'] === $label));
+                    if (!empty($matched)) {
+                        $zip->addFromString($praktisiFolder . $matched[0]['filename'], $matched[0]['content']);
+                        $totalFiles++;
+                        continue;
+                    }
+
+                    $url = $kpj->{$doc['url_col']};
+                    if (empty($url)) continue;
+
+                    $path = str_replace($publicBaseUrl, '', $url);
+                    $filename = basename($path);
+
+                    try {
+                        $content = Storage::disk($disk)->get($path);
+                        if ($content) {
+                            $zip->addFromString($praktisiFolder . $filename, $content);
+                            $totalFiles++;
+                        }
+                    } catch (\Throwable $e) {
+                        // skip FTP gagal
+                    }
+                }
+
+                $processed++;
                 Cache::put($cacheKey, [
-                    'status' => 'error',
-                    'error'  => $e->getMessage(),
+                    'total'  => $totalRecords,
+                    'done'   => $processed,
+                    'status' => 'processing',
                 ], 3600);
             }
-            return response()->json([
-                'message' => 'Terjadi kesalahan: ' . $e->getMessage(),
-                'file'    => $e->getFile(),
-                'line'    => $e->getLine(),
-            ], 500);
         }
+
+        $zip->close();
+
+        if ($totalFiles === 0) {
+            @unlink($zipPath);
+            Cache::put($cacheKey, ['status' => 'error', 'error' => 'Tidak ada dokumen'], 3600);
+            return;
+        }
+
+        Cache::put($cacheKey, [
+            'status'   => 'done',
+            'total'    => $totalRecords,
+            'done'     => $totalRecords,
+            'zip_path' => $zipPath,
+            'zip_name' => $zipName,
+        ], 3600);
+    }
+
+    /**
+     * Stream ZIP yang udah di-cache. Hapus file + cache abis stream.
+     */
+    private function streamCachedZip(string $cacheKey, array $state)
+    {
+        $zipPath = $state['zip_path'];
+        $zipName = $state['zip_name'] ?? 'dokumen-praktisi-all.zip';
+
+        if (!file_exists($zipPath)) {
+            Cache::forget($cacheKey);
+            return response()->json(['message' => 'ZIP expired atau hilang, coba lagi'], 404);
+        }
+
+        return response()->streamDownload(function () use ($zipPath, $cacheKey) {
+            readfile($zipPath);
+            @unlink($zipPath);
+            Cache::forget($cacheKey);
+        }, $zipName, ['Content-Type' => 'application/zip']);
     }
 
     public function downloadAllProgress(Request $request)
