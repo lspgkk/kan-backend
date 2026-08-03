@@ -1809,7 +1809,7 @@ class KanAsesmenController extends Controller
     //  GENERATE PDF: KAN Documents by Praktisi
     // ═══════════════════════════════════════════════════════════════
 
-    private const KAN_DOC_TYPES = [
+    public const KAN_DOC_TYPES = [
         ['method' => 'KanIa04b', 'blade' => 'kan_ia04b', 'dir' => 'kan_ia04b', 'code' => 'KAN-IA-04B', 'label' => 'IA04B',  'url_col' => 'url_ia04b'],
         ['method' => 'KanIa05',  'blade' => 'kan_ia05',  'dir' => 'kan_ia05',  'code' => 'KAN-IA-05',  'label' => 'IA05',   'url_col' => 'url_ia05'],
         ['method' => 'KanIa06',  'blade' => 'kan_ia06',  'dir' => 'kan_ia06',  'code' => 'KAN-IA-06',  'label' => 'IA06',   'url_col' => 'url_ia06'],
