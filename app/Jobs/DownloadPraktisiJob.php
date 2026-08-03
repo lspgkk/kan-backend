@@ -3,18 +3,18 @@
 namespace App\Jobs;
 
 use App\Models\KanPraktisiJabatan;
-use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use ZipArchive;
 
 class DownloadPraktisiJob implements ShouldQueue
 {
-    use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $tries = 2;
     public $timeout = 300;
@@ -88,5 +88,17 @@ class DownloadPraktisiJob implements ShouldQueue
                 // Skip gagal
             }
         }
+
+        // Increment done counter
+        Cache::increment("{$this->cacheKey}_done_count");
+
+        // Update progress cache
+        $doneCount = Cache::get("{$this->cacheKey}_done_count");
+        $total = Cache::get($this->cacheKey)['total'] ?? 0;
+        Cache::put($this->cacheKey, [
+            'total'  => $total,
+            'done'   => $doneCount,
+            'status' => 'processing',
+        ], 7200);
     }
 }

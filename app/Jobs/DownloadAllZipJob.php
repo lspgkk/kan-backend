@@ -4,14 +4,11 @@ namespace App\Jobs;
 
 use App\Models\KanPraktisiJabatan;
 use Illuminate\Bus\Queueable;
-use Illuminate\Bus\Batch;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Bus;
-use Throwable;
 use ZipArchive;
 
 class DownloadAllZipJob implements ShouldQueue
@@ -44,6 +41,7 @@ class DownloadAllZipJob implements ShouldQueue
             @mkdir($tempDir, 0755, true);
         }
 
+        // Dispatch semua DownloadPraktisiJob sekaligus
         $jobs = [];
         foreach ($grouped as $idJabatanKerja => $praktisiList) {
             $jabatanKerja = $praktisiList->first()->jabatanKerja;
@@ -70,99 +68,12 @@ class DownloadAllZipJob implements ShouldQueue
             'status' => 'processing',
         ], 7200);
 
-        $batch = Bus::batch($jobs)
-            ->then(function (Batch $batch) use ($tempDir, $totalRecords) {
-                $this->buildZip($tempDir, $totalRecords);
-                $this->cleanup($tempDir);
-            })
-            ->catch(function (Batch $batch, Throwable $e) {
-                Cache::put($this->cacheKey, [
-                    'status' => 'error',
-                    'error'  => $e->getMessage(),
-                ], 7200);
-            })
-            ->progress(function (Batch $batch) {
-                $processed = $batch->processedJobs();
-                $total = $batch->totalJobs;
-                Cache::put($this->cacheKey, [
-                    'total'  => $total,
-                    'done'   => $processed,
-                    'status' => 'processing',
-                ], 7200);
-            })
-            ->dispatch();
-
-        Cache::put($this->cacheKey, [
-            'total'   => $totalRecords,
-            'done'    => 0,
-            'status'  => 'processing',
-            'batchId' => $batch->id,
-        ], 7200);
-    }
-
-    private function buildZip(string $tempDir, int $totalRecords): void
-    {
-        $zipDir = storage_path('app/kan-zips');
-        if (!is_dir($zipDir)) {
-            @mkdir($zipDir, 0755, true);
+        // Dispatch semua job tanpa batch — biar parallel
+        foreach ($jobs as $job) {
+            dispatch($job);
         }
 
-        $zipName = 'dokumen-praktisi-all.zip';
-        $zipPath = $zipDir . '/' . str_replace(['{', '}', '/'], '', $this->cacheKey) . '.zip';
-
-        $zip = new ZipArchive();
-        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-            Cache::put($this->cacheKey, ['status' => 'error', 'error' => 'Gagal membuat ZIP'], 7200);
-            return;
-        }
-
-        $this->addFolderToZip($zip, $tempDir, '');
-        $zip->close();
-
-        Cache::put($this->cacheKey, [
-            'total'    => $totalRecords,
-            'done'     => $totalRecords,
-            'status'   => 'done',
-            'zip_path' => $zipPath,
-        ], 7200);
-    }
-
-    private function addFolderToZip(ZipArchive $zip, string $folder, string $prefix): void
-    {
-        $files = scandir($folder);
-        foreach ($files as $file) {
-            if ($file === '.' || $file === '..') {
-                continue;
-            }
-
-            $path = $folder . '/' . $file;
-            $localPath = $prefix === '' ? $file : $prefix . '/' . $file;
-
-            if (is_dir($path)) {
-                $zip->addEmptyDir($localPath);
-                $this->addFolderToZip($zip, $path, $localPath);
-            } else {
-                $zip->addFile($path, $localPath);
-            }
-        }
-    }
-
-    private function cleanup(string $tempDir): void
-    {
-        $this->deleteDirectory($tempDir);
-    }
-
-    private function deleteDirectory(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-
-        $files = array_diff(scandir($dir), ['.', '..']);
-        foreach ($files as $file) {
-            $path = $dir . '/' . $file;
-            is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
-        }
-        rmdir($dir);
+        // Dispatch job untuk tunggu semua selesai & build ZIP
+        dispatch(new BuildZipAfterDownloadJob($this->token, $tempDir, count($jobs)));
     }
 }
