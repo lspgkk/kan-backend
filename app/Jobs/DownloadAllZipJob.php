@@ -70,10 +70,10 @@ class DownloadAllZipJob implements ShouldQueue
 
         // Dispatch semua job tanpa batch — biar parallel
         foreach ($jobs as $job) {
-            dispatch($job);
+            dispatch($job->onQueue('download-all'));
         }
 
         // Dispatch job untuk tunggu semua selesai & build ZIP
-        dispatch(new BuildZipAfterDownloadJob($this->token, $tempDir, count($jobs)));
+        dispatch((new BuildZipAfterDownloadJob($this->token, $tempDir, count($jobs)))->onQueue('download-all'));
     }
 }
