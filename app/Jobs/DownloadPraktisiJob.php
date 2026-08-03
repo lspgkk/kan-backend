@@ -89,16 +89,7 @@ class DownloadPraktisiJob implements ShouldQueue
             }
         }
 
-        // Increment done counter
+        // Increment counter — progress endpoint baca ini
         Cache::increment("{$this->cacheKey}_done_count");
-
-        // Update progress cache
-        $doneCount = Cache::get("{$this->cacheKey}_done_count");
-        $total = Cache::get($this->cacheKey)['total'] ?? 0;
-        Cache::put($this->cacheKey, [
-            'total'  => $total,
-            'done'   => $doneCount,
-            'status' => 'processing',
-        ], 7200);
     }
 }

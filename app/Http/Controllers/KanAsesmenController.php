@@ -2051,6 +2051,14 @@ class KanAsesmenController extends Controller
             return response()->json(['message' => 'Tidak ada data praktisi'], 404);
         }
 
+        // Set initial cache state sebelum dispatch biar FE bisa polling
+        Cache::put($cacheKey, [
+            'total'  => $totalRecords,
+            'done'   => 0,
+            'status' => 'processing',
+        ], 7200);
+        Cache::put("{$cacheKey}_done_count", 0, 7200);
+
         // Dispatch ke queue untuk parallel processing
         \App\Jobs\DownloadAllZipJob::dispatch($token);
 
@@ -2189,19 +2197,23 @@ class KanAsesmenController extends Controller
             return response()->json(['message' => 'Token required'], 400);
         }
 
-        $data = Cache::get("download_all_{$token}");
+        $cacheKey = "download_all_{$token}";
+        $data = Cache::get($cacheKey);
         if (!$data) {
             return response()->json(['status' => 'not_found'], 404);
         }
 
-        $pct = $data['total'] > 0 ? min(100, round(($data['done'] / $data['total']) * 100)) : 0;
+        $doneCount = Cache::get("{$cacheKey}_done_count", 0);
+        $total = $data['total'] ?? 0;
+        $pct = $total > 0 ? min(100, round(($doneCount / $total) * 100)) : 0;
 
         return response()->json([
             'status'   => $data['status'],
-            'total'    => $data['total'],
-            'done'     => $data['done'],
+            'total'    => $total,
+            'done'     => $doneCount,
             'progress' => $pct,
             'error'    => $data['error'] ?? null,
+            'zip_path' => $data['zip_path'] ?? null,
         ]);
     }
 
