@@ -1822,7 +1822,7 @@ class KanAsesmenController extends Controller
      * When $skipStorage=true, skips FTP upload + DB update (faster for batch ZIP).
      * Returns array of ['filename' => ..., 'content' => ..., 'label' => ...].
      */
-    private function generatePdfFiles(int $praktisiJabatanId, array|string|null $docFilter = null, bool $skipStorage = false): array
+    public function generatePdfFiles(int $praktisiJabatanId, array|string|null $docFilter = null, bool $skipStorage = false): array
     {
         $record = KanPraktisiJabatan::find($praktisiJabatanId);
         if (!$record) return [];
