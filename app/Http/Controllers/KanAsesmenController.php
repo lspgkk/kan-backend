@@ -2051,27 +2051,8 @@ class KanAsesmenController extends Controller
             return response()->json(['message' => 'Tidak ada data praktisi'], 404);
         }
 
-        Cache::put($cacheKey, [
-            'total'  => $totalRecords,
-            'done'   => 0,
-            'status' => 'processing',
-        ], 3600);
-
-        // Register background process — Laravel kirim response (termasuk header CORS
-        // dari middleware) lebih dulu, lalu jalankan processAllZip setelah response
-        // terkirim. Pake app()->terminating() biar ga skip middleware.
-        app()->terminating(function () use ($records, $totalRecords, $cacheKey) {
-            ignore_user_abort(true);
-            set_time_limit(0);
-            if (function_exists('fastcgi_finish_request')) {
-                fastcgi_finish_request();
-            }
-            try {
-                $this->processAllZip($records, $totalRecords, $cacheKey);
-            } catch (\Throwable $e) {
-                Cache::put($cacheKey, ['status' => 'error', 'error' => $e->getMessage()], 3600);
-            }
-        });
+        // Dispatch ke queue untuk parallel processing
+        \App\Jobs\DownloadAllZipJob::dispatch($token);
 
         return response()->json([
             'status'  => 'started',
@@ -2082,7 +2063,7 @@ class KanAsesmenController extends Controller
     }
 
     /**
-     * Background ZIP builder. Dipanggil setelah fastcgi_finish_request.
+     * Legacy ZIP builder. Deprecated — gunakan DownloadAllZipJob.
      */
     private function processAllZip($records, int $totalRecords, string $cacheKey): void
     {
