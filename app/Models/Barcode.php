@@ -16,6 +16,7 @@ class Barcode extends Model
         'id_role',
         'jenis_dokumen',
         'created_at',
+        'updated_at',
     ];
 
     public function user()

@@ -79,7 +79,7 @@ class ValidatorController extends Controller
         }
 
         $uuid = (string) Uuid::uuid4();
-        $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
+        $urlTtd = "https://barcode.lspgatensi.id/penyusun-validator/{$uuid}";
         $filename = 'ttd_validator_' . Str::uuid() . '.png';
 
         $qrImage = QrCode::format('png')->size(300)->margin(1)->generate($urlTtd);

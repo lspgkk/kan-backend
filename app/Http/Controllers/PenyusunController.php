@@ -202,7 +202,7 @@ class PenyusunController extends Controller
         }
 
         $uuid = (string) Uuid::uuid4();
-        $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
+        $urlTtd = "https://barcode.lspgatensi.id/penyusun-validator/{$uuid}";
         $filename = 'ttd_penyusun_' . Str::uuid() . '.png';
 
         $qrImage = QrCode::format('png')->size(300)->margin(1)->generate($urlTtd);
@@ -450,7 +450,7 @@ class PenyusunController extends Controller
                 ] : null,
                 'manajer_info'    => $config ? [
                     'nama'    => $config->kanManajer?->name ?? $config->manajer?->name,
-                    'tanggal' => $config->kan_manajer_tgl ?? $config->penyusun_tgl,
+                    'tanggal' => $config->kan_manajer_tgl ?? $config->kan_validator_tgl,
                     'barcode' => $config->kan_manajer_img ?? $config->manajer_img,
                 ] : null,
             ],

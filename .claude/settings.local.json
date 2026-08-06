@@ -129,7 +129,11 @@
       "PowerShell(php artisan kan:generate-qr \"c:\\\\Users\\\\Rafie Pradipta\\\\Downloads\\\\a1_a10_extract.json\")",
       "PowerShell(git fetch *)",
       "PowerShell(git *)",
-      "Bash(tasklist)"
+      "Bash(tasklist)",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Rafie Pradipta\\\\Downloads\\\\mapping_skema_asesor \\(1\\).json' | ConvertFrom-Json\\).total_schemes\")",
+      "PowerShell($json = Get-Content 'c:\\\\Users\\\\Rafie Pradipta\\\\Downloads\\\\mapping_skema_asesor \\(1\\).json' -Raw | ConvertFrom-Json; $json.data | ForEach-Object { $count = \\($_.asesor | Get-Member -MemberType NoteProperty\\).Count; if \\($count -ne 10\\) { Write-Output \"Skema $\\($_.no\\): $count asesor - $\\($_.skema\\)\" } }; $totalAsesor = 0; $json.data | ForEach-Object { $totalAsesor += \\($_.asesor | Get-Member -MemberType NoteProperty\\).Count }; Write-Output \"Total asesor across all skema: $totalAsesor\")",
+      "PowerShell($json = Get-Content 'c:\\\\Users\\\\Rafie Pradipta\\\\Downloads\\\\mapping_skema_asesor \\(1\\).json' -Raw | ConvertFrom-Json; $targets = @\\('HIDROLOGI', 'SUMBER DAYA AIR', 'IRIGASI RAWA', 'NURYONO', 'Nuryono', 'nuryono'\\); $json.data | Where-Object { $skema = $_.skema; $targets | Where-Object { $skema -match $_ } } | ForEach-Object { Write-Output \"Skema $\\($_.no\\): $\\($_.skema\\)\"; $_.asesor.PSObject.Properties | ForEach-Object { Write-Output \"  $\\($_.Name\\): $\\($_.Value\\)\" } })",
+      "PowerShell(php artisan kan:fix-penyusun-validator-qr 2>&1)"
     ]
   }
 }

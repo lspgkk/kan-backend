@@ -14,7 +14,7 @@ class RegenerateKanManajerQr extends Command
 {
     protected $signature = 'kan:regenerate-manajer-qr
                             {--dry-run : Simulasi saja, jangan simpan perubahan}';
-    protected $description = 'Regenerate manajer barcodes for KAN records — uses kan_penyusun_tgl as the manajer date, stores in Barcode with matching created_at';
+    protected $description = 'Regenerate manajer barcodes for KAN records — uses kan_manajer_tgl as the manajer date, stores in Barcode with matching created_at';
 
     private const JENIS_DOKUMEN = 'MANAGER_MUTU_KAN';
     private const ROLE_MANAJER = 7; // Manajer sertifikasi LSP
@@ -22,7 +22,7 @@ class RegenerateKanManajerQr extends Command
     public function handle(): int
     {
         // Fetch all KAN records that have manajer_img from main DB but no kan_manajer_img
-        // Also fetch kan_penyusun_tgl (fallback: penyusun_tgl) to use as the manajer date
+        // Uses kan_manajer_tgl (fallback: kan_penyusun_tgl → penyusun_tgl) as the manajer date
         $records = DB::table('jabatan_config_a')
             ->select([
                 'id_jabatan',
@@ -30,6 +30,7 @@ class RegenerateKanManajerQr extends Command
                 'manajer_id',
                 'manajer_img',
                 'manajer_url',
+                'kan_manajer_tgl',
                 'kan_penyusun_tgl',
                 'penyusun_tgl',
             ])
@@ -117,10 +118,10 @@ class RegenerateKanManajerQr extends Command
 
         $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
 
-        // Use kan_penyusun_tgl as the manajer date, fallback to penyusun_tgl
-        $tglManajer = $record->kan_penyusun_tgl ?? $record->penyusun_tgl;
+        // Use kan_manajer_tgl as the manajer date, fallback to kan_penyusun_tgl → penyusun_tgl
+        $tglManajer = $record->kan_manajer_tgl ?? $record->kan_penyusun_tgl ?? $record->penyusun_tgl;
         if (empty($tglManajer)) {
-            $this->warn("\n  ⚠ {$record->id_jabatan}: kan_penyusun_tgl & penyusun_tgl kosong, skip");
+            $this->warn("\n  ⚠ {$record->id_jabatan}: kan_manajer_tgl, kan_penyusun_tgl & penyusun_tgl kosong, skip");
             return ['generated' => 0, 'skipped' => 1];
         }
 
@@ -137,6 +138,7 @@ class RegenerateKanManajerQr extends Command
                     'url_ttd'    => $urlTtd,
                     'id_role'    => self::ROLE_MANAJER,
                     'created_at' => $tglManajer,
+                    'updated_at' => $tglManajer,
                 ]
             );
 
