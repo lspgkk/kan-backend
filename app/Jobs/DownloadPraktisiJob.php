@@ -45,7 +45,7 @@ class DownloadPraktisiJob implements ShouldQueue
         $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
         $docTypes = \App\Http\Controllers\KanAsesmenController::KAN_DOC_TYPES;
 
-        $targetDir = $this->tempDir . '/' . $this->jabatanFolder . '/' . $this->praktisiFolder;
+        $targetDir = $this->tempDir . '/' . $this->jabatanFolder . '/' . $this->praktisiFolder . '/';
         if (!is_dir($targetDir)) {
             @mkdir($targetDir, 0755, true);
         }
