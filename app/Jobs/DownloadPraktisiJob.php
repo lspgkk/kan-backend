@@ -65,9 +65,10 @@ class DownloadPraktisiJob implements ShouldQueue
 
         foreach ($docTypes as $doc) {
             $label = $doc['label'];
+            $shortName = strtolower($label) . '.pdf';
             $matched = array_values(array_filter($generatedFiles, fn($f) => $f['label'] === $label));
             if (!empty($matched)) {
-                file_put_contents($targetDir . $matched[0]['filename'], $matched[0]['content']);
+                file_put_contents($targetDir . $shortName, $matched[0]['content']);
                 continue;
             }
 
@@ -77,12 +78,11 @@ class DownloadPraktisiJob implements ShouldQueue
             }
 
             $path = str_replace($publicBaseUrl, '', $url);
-            $filename = basename($path);
 
             try {
                 $content = Storage::disk($disk)->get($path);
                 if ($content) {
-                    file_put_contents($targetDir . $filename, $content);
+                    file_put_contents($targetDir . $shortName, $content);
                 }
             } catch (\Throwable $e) {
                 // Skip gagal

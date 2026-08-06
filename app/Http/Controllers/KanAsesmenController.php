@@ -2000,11 +2000,11 @@ class KanAsesmenController extends Controller
      * Struktur ZIP:
      *   {id_jabatan_kerja - jabatan_kerja}/
      *     {nama_praktisi - id_praktisi_jabatan}/
-     *       KAN-MAPA-01-PRAKTISI-{id}.pdf
-     *       KAN-MAPA-02-PRAKTISI-{id}.pdf
-     *       KAN-IA-04B-PRAKTISI-{id}.pdf
-     *       KAN-IA-05-PRAKTISI-{id}.pdf
-     *       KAN-IA-06-PRAKTISI-{id}.pdf
+     *       mapa01.pdf
+     *       mapa02.pdf
+     *       ia04b.pdf
+     *       ia05.pdf
+     *       ia06.pdf
      *
      * Jika PDF belum pernah digenerate, akan digenerate terlebih dahulu.
      */
