@@ -24,6 +24,7 @@ use App\Models\SPTKomtek;
 use App\Services\QontakService;
 use App\Models\SkKomtek;
 use App\Models\SkPelaksanaanUji;
+use App\Models\SkPenetapan;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -162,6 +163,10 @@ class JadwalController extends Controller
         unset($data['asesi_jadwals']); // Remove the full asesi_jadwals relationship
         $data['spt_asesor'] = $jadwal->sptAsesor ? $jadwal->sptAsesor->link : null;
         $data['spt_komtek'] = $jadwal->sptKomtek ? $jadwal->sptKomtek->link : null;
+        $data['sk_komtek'] = SkKomtek::where('jadwal_id', $jadwal->jadwal_id)->value('link');
+        $data['sk_pelaksanaan_uji'] = SkPelaksanaanUji::where('jadwal_id', $jadwal->jadwal_id)->value('link');
+        $data['sk_penetapan'] = SkPenetapan::where('jadwal_id', $jadwal->jadwal_id)->value('link');
+        $data['ba_komtek'] = BaKomtek::where('jadwal_id', $jadwal->jadwal_id)->value('link');
 
         // Add TUK info
         $data['tuk'] = $jadwal->tuk ? [
