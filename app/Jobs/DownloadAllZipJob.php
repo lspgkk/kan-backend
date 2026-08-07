@@ -50,7 +50,7 @@ class DownloadAllZipJob implements ShouldQueue
 
             foreach ($praktisiList as $kpj) {
                 $userName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $kpj->user?->name ?? 'praktisi-' . $kpj->id_user);
-                $praktisiFolder = $userName . '-' . $kpj->id;
+                $praktisiFolder = substr($userName, 0, 10) . '-' . $kpj->id;
 
                 $jobs[] = new DownloadPraktisiJob(
                     $kpj->id,

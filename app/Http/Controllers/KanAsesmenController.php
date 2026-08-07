@@ -1965,7 +1965,7 @@ class KanAsesmenController extends Controller
             if (!$record) continue;
 
             $name = preg_replace('/[^a-zA-Z0-9_-]/', '_', $record->user?->name ?? "praktisi-{$id}");
-            $folder = "{$name}-{$id}/";
+            $folder = substr($name, 0, 10) . "-{$id}/";
             $files = $this->generatePdfFiles($id);
 
             foreach ($files as $file) {
@@ -2104,7 +2104,7 @@ class KanAsesmenController extends Controller
             foreach ($praktisiList as $kpj) {
                 $kpjId = $kpj->id;
                 $userName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $kpj->user?->name ?? 'praktisi-' . $kpj->id_user);
-                $praktisiFolder = $jabatanFolder . $userName . '-' . $kpjId . '/';
+                $praktisiFolder = $jabatanFolder . substr($userName, 0, 10) . '-' . $kpjId . '/';
 
                 $missingLabels = [];
                 foreach ($docTypes as $doc) {
