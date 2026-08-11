@@ -124,7 +124,7 @@
         <table width="100%" cellpadding="5" bgcolor="#fff" cellspacing="0" align="center" style="border: 2px solid #000;">
             <tr class="panduan-title">
                 <td style="width: 100px; text-align: center; font-weight: bold; color: #fff;">
-                    {{ $soal->unit_kode }}<br />{{ $soal->kuk_kode }}
+                    KUK
                 </td>
                 <td colspan="2" style="font-weight: bold; color: #fff;">
                     SOAL, Pilih Jawaban semua pertanyaan berikut (A / B / C / D) :
