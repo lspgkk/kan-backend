@@ -409,7 +409,7 @@ class GenerateDokumenService
 
         $jabatanKerja = JabatanKerja::where('id_jabatan_kerja', $jabatanKerjaId)->value('jabatan_kerja');
         $jabatanConfig = JabatanConfigA::with(['penyusun:id,name,noreg', 'validator:id,name,noreg', 'manajer:id,name,noreg'])
-            ->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'penyusun_url', 'validator_id', 'validator_tgl', 'validator_img', 'validator_url', 'manajer_id', 'manajer_img', 'manajer_url', 'no_skema'])
+            ->select(['penyusun_id', 'penyusun_tgl', 'penyusun_img', 'penyusun_url', 'validator_id', 'validator_tgl', 'validator_img', 'validator_url', 'manajer_id', 'manajer_img', 'manajer_url', 'no_skema', 'kan_manajer_tgl'])
             ->where('id_jabatan', $jabatanKerjaId)
             ->first();
 
@@ -445,7 +445,7 @@ class GenerateDokumenService
             'noreg_penyusun'  => $jabatanConfig?->penyusun?->noreg,
             'noreg_validator' => $jabatanConfig?->validator?->noreg,
             'nama_manajer'    => $jabatanConfig?->manajer?->name,
-            'tanggal_manajer' => $jabatanConfig?->penyusun_tgl,
+            'tanggal_manajer' => $jabatanConfig?->kan_manajer_tgl ?? $jabatanConfig?->penyusun_tgl,
             'metode'          => 'observasi',
             'waktu'           => $tanggal->locale('id')->translatedFormat('H:i'),
         ];

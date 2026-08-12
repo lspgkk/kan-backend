@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
 $isFix = in_array('--fix', $argv ?? []);
 $isDetail = in_array('--detail', $argv ?? []);
 
-$jsonFile = 'c:/Users/Rafie Pradipta/Downloads/ALL_SOAL_MERGED.json';
+$jsonFile = 'c:/Users/Rafie Pradipta/Downloads/ALL_SOAL_MERGED_FIXED.json';
 
 if (!file_exists($jsonFile)) {
     die("ERROR: JSON file not found: {$jsonFile}\n");
@@ -470,7 +470,7 @@ foreach ($jsonSoals as $key => $jsonData) {
                 }
             }
 
-            if (is_null($dbSoal->id_kuk) && $kukId) {
+            if ((is_null($dbSoal->id_kuk) || $dbSoal->id_kuk != $kukId) && $kukId) {
                 $fixData['id_kuk'] = $kukId;
                 $fixData['kuk_kode'] = $kukKode;
                 $needsFix = true;
