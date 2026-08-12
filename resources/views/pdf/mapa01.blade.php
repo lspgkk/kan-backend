@@ -582,7 +582,7 @@
                 @endphp
                 <tr>
                     <td style="width: 11%; word-wrap: break-word; overflow-wrap: break-word;">{{ $i + 1 }}. {{ $unit['nama_unit'] }}</td>
-                    <td style="width: 14%; word-wrap: break-word; overflow-wrap: break-word;">Hasil tanya jawab tentang: {{ $unit['nama_unit'] }}</td>
+                    <td style="width: 14%; word-wrap: break-word; overflow-wrap: break-word;">Hasil kegiatan terstruktur dan hasil tanya jawab tentang: {{ $unit['nama_unit'] }}</td>
                     <td style="width: 3%;" align="center">{{ $td3 }}</td>
                     <td style="width: 3%;" align="center">{{ $td4 }}</td>
                     <td style="width: 3%;" align="center">{{ $td5 }}</td>

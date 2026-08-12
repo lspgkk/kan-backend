@@ -120,7 +120,7 @@ td.vhead .vtext{position:absolute;top:50%;left:50%;width:280px;transform:transla
                     elseif ($m === 'observasi') { $td3='L'; $td5='T'; $td7='DIT'; $td8='DPT'; }
                 }
             @endphp
-            <tr><td style="width:11%">{{ $i + 1 }}. {{ $unit['nama_unit'] }}</td><td style="width:14%">Hasil tanya jawab tentang: {{ $unit['nama_unit'] }}</td><td style="width:3%" align="center">{{ $td3 }}</td><td style="width:3%" align="center">{{ $td4 }}</td><td style="width:3%" align="center">{{ $td5 }}</td><td style="width:11%" align="center">{!! $td6 ?: '&nbsp;' !!}</td><td style="width:11%" align="center">{!! $td7 ?: '&nbsp;' !!}</td><td style="width:11%" align="center">{!! $td8 ?: '&nbsp;' !!}</td><td style="width:12%" align="center">{!! $td9 ?: '&nbsp;' !!}</td><td style="width:10%" align="center">{!! $td10 ?: '&nbsp;' !!}</td><td style="width:11%" align="center">{!! $td11 ?: '&nbsp;' !!}</td></tr>
+            <tr><td style="width:11%">{{ $i + 1 }}. {{ $unit['nama_unit'] }}</td><td style="width:14%">Hasil kegiatan terstruktur dan hasil tanya jawab tentang: {{ $unit['nama_unit'] }}</td><td style="width:3%" align="center">{{ $td3 }}</td><td style="width:3%" align="center">{{ $td4 }}</td><td style="width:3%" align="center">{{ $td5 }}</td><td style="width:11%" align="center">{!! $td6 ?: '&nbsp;' !!}</td><td style="width:11%" align="center">{!! $td7 ?: '&nbsp;' !!}</td><td style="width:11%" align="center">{!! $td8 ?: '&nbsp;' !!}</td><td style="width:12%" align="center">{!! $td9 ?: '&nbsp;' !!}</td><td style="width:10%" align="center">{!! $td10 ?: '&nbsp;' !!}</td><td style="width:11%" align="center">{!! $td11 ?: '&nbsp;' !!}</td></tr>
         @endforeach
     </table><br>
 @endforeach
