@@ -1313,7 +1313,9 @@ class KanAsesmenController extends Controller
         }
 
         return [
-            'asesi'   => $map($barcodes->firstWhere('id_role', 8)),
+            // Praktisi KAN ber-role 16 (bukan role 8 seperti asesi BNSP).
+            // Ambil barcode pertama — di flow praktisi hanya ada 1 user per dokumen.
+            'asesi'   => $map($barcodes->first()),
             'asesor1' => null,
             'asesor2' => null,
         ];
