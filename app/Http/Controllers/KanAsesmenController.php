@@ -932,7 +932,9 @@ class KanAsesmenController extends Controller
         if (!$b) return null;
         return (object) [
             'url'     => $b->url_image,
-            'tanggal' => $b->updated_at,
+            // Tanggal asesmen = created_at barcode (tanggal uji coba asesmen sesuai sumber),
+            // bukan updated_at — updated_at berubah saat barcode di-regenerate/di-sign ulang.
+            'tanggal' => $b->created_at,
         ];
     }
 
@@ -941,7 +943,7 @@ class KanAsesmenController extends Controller
         if (!$b) return null;
         return (object) [
             'url'     => $this->imageUrlToBase64($b->url_image),
-            'tanggal' => $b->updated_at,
+            'tanggal' => $b->created_at,
         ];
     }
 
