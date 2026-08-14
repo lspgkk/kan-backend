@@ -445,7 +445,7 @@ class GenerateDokumenService
             'noreg_penyusun'  => $jabatanConfig?->penyusun?->noreg,
             'noreg_validator' => $jabatanConfig?->validator?->noreg,
             'nama_manajer'    => $jabatanConfig?->manajer?->name,
-            'tanggal_manajer' => $jabatanConfig?->penyusun_tgl,
+            'tanggal_manajer' => $jabatanConfig?->kan_manajer_tgl ?? $jabatanConfig?->validator_tgl,
             'metode'          => 'observasi',
             'waktu'           => $tanggal->locale('id')->translatedFormat('H:i'),
         ];
@@ -1109,24 +1109,58 @@ class GenerateDokumenService
             ->where('id_jabatan', $klasifikasi?->jabatan_kerja)
             ->get();
 
+        // Bukti APL02 yang sudah dilampirkan asesi per subunit (dari sitkon / submit APL02)
+        $answers = \App\Models\Apl2Answer::with('files')
+            ->where('id_izin', $idIzin)
+            ->get()
+            ->keyBy('subunit_id');
+
+        // Referensi kerja asesi (surat_referensi dari proyeks) — berupa URL
+        $referensiKerja = \App\Models\Proyek::where('id_izin', $idIzin)
+            ->latest('created_at')
+            ->value('surat_referensi');
+
         return [
             'id_izin' => $idIzin,
             'jabatan_kerja' => $header['jabatan_kerja'],
             'jenjang' => $header['jenjang'],
             'metode' => 'observasi',
             'is_dilanjutkan' => true,
-            'units' => $units->map(function ($unit) {
+            'units' => $units->map(function ($unit) use ($answers, $referensiKerja) {
                 return [
                     'id' => (string) $unit->id,
                     'kode' => $unit->kode,
                     'judul_kompetensi' => $unit->nama,
-                    'subunits' => $unit->subunits->map(function ($subunit) {
+                    'subunits' => $unit->subunits->map(function ($subunit) use ($answers, $referensiKerja) {
+                        $answer = $answers->get($subunit->id);
+
+                        // File bukti per subunit: path diubah ke URL penuh (moon) bila relatif
+                        $files = $answer
+                            ? $answer->files->map(fn ($file) => [
+                                'path' => $file->path && (str_starts_with($file->path, 'http://') || str_starts_with($file->path, 'https://'))
+                                    ? $file->path
+                                    : self::MOON_BASE . ltrim($file->path, '/'),
+                                'name' => $file->original_name,
+                            ])->values()
+                            : collect([]);
+
+                        // Autofill kolom bukti dengan Referensi Kerja (URL) bila belum terdaftar
+                        if ($referensiKerja && filter_var($referensiKerja, FILTER_VALIDATE_URL)) {
+                            $hasRef = $files->contains(fn ($f) => ($f['path'] ?? null) === $referensiKerja);
+                            if (!$hasRef) {
+                                $files = $files->push([
+                                    'path' => $referensiKerja,
+                                    'name' => 'Referensi Kerja',
+                                ]);
+                            }
+                        }
+
                         return [
                             'id' => (string) $subunit->id,
                             'no_elemen' => $subunit->kode,
                             'judul_elemen' => $subunit->nama,
                             'kompeten' => true,
-                            'files' => collect([]),
+                            'files' => $files,
                             'kuk_list' => $subunit->kuks->map(fn($kuk) => [
                                 'no_kuk' => $kuk->kode,
                                 'judul_kuk' => $kuk->nama,
