@@ -445,7 +445,7 @@ class GenerateDokumenService
             'noreg_penyusun'  => $jabatanConfig?->penyusun?->noreg,
             'noreg_validator' => $jabatanConfig?->validator?->noreg,
             'nama_manajer'    => $jabatanConfig?->manajer?->name,
-            'tanggal_manajer' => $jabatanConfig?->kan_manajer_tgl ?? $jabatanConfig?->validator_tgl,
+            'tanggal_manajer' => $jabatanConfig?->kan_manajer_tgl ?? $jabatanConfig?->kan_validator_tgl ?? $jabatanConfig?->validator_tgl,
             'metode'          => 'observasi',
             'waktu'           => $tanggal->locale('id')->translatedFormat('H:i'),
         ];
