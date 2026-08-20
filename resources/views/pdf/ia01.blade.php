@@ -58,6 +58,26 @@ td.grp{
     border-left:1px solid #000;
     border-right:1px solid #000;
 }
+td.grp-first{
+    border-top:1px solid #000;
+    border-bottom:none;
+    border-left:1px solid #000;
+    border-right:1px solid #000;
+}
+td.grp-last{
+    border-top:none;
+    border-bottom:1px solid #000;
+    border-left:1px solid #000;
+    border-right:1px solid #000;
+}
+
+/* ── Cegah baris terpotong lintas halaman (dompdf) ── */
+tr{
+    page-break-inside: avoid;
+}
+.keep{
+    page-break-inside: avoid;
+}
 
 .gray{
     background:#fff;
@@ -112,7 +132,7 @@ td.grp{
 </head>
 <body>
 
-<h3><b>{{ $kelompok_kerja['kode'] }}.</b> &nbsp; {{ $kelompok_kerja['nama_dokumen'] }}</h3>
+<h3><b>{{ $kelompok_kerja['kode'] ?? 'FR.IA.01' }}.</b> &nbsp; {{ $kelompok_kerja['nama_dokumen'] ?? '' }}</h3>
 
 <!-- IDENTITAS -->
 @if(isset($dokumenHeader))
@@ -179,7 +199,7 @@ td.grp{
 </div>
 </div>
 
-@foreach($kelompok_kerja['kelompok_kerja'] as $kelompok)
+@foreach($kelompok_kerja['kelompok_kerja'] ?? [] as $kelompok)
 <!-- KELOMPOK PEKERJAAN {{ $kelompok['urut'] }} -->
 <div class="box">
 <table>
@@ -213,15 +233,16 @@ td.grp{
 
 @foreach($unit['subunits'] as $index => $subunit)
 <!-- UNIT KOMPETENSI -->
-<div class="box">
+<div class="box keep">
 <table>
 <tr>
-<td rowspan="2" width="25%">Unit Kompetensi {{ $index + 1 }}</td>
+<td class="grp-first" width="25%" style="vertical-align: middle;">Unit Kompetensi {{ $index + 1 }}</td>
 <td class="gray" width="20%">Kode</td>
 <td width="2%">:</td>
 <td colspan="2">{{ $unit['kode_unit'] }}</td>
 </tr>
 <tr>
+<td class="grp-last" width="25%">&nbsp;</td>
 <td class="gray">Judul Unit</td>
 <td>:</td>
 <td colspan="2">{{ $unit['nama_unit'] }}</td>
@@ -289,7 +310,7 @@ td.grp{
 
 <!-- REKOMENDASI & TTD -->
 @if(isset($dokumenHeader))
-<div class="box">
+<div class="box keep">
 <table>
 <tr>
 <td class="gray" colspan="2"><b>Rekomendasi:</b></td>
@@ -297,11 +318,11 @@ td.grp{
 </tr>
 <tr>
 <td colspan="2" rowspan="8">
-<div class="checkbox"></div>
+<div class="checkbox {{ !empty($is_kompeten) ? 'checked' : '' }}"></div>
 Asesi telah memenuhi pencapaian seluruh kriteria unjuk kerja, direkomendasikan <b>KOMPETEN</b>.
 <br/>
 <br/>
-<div class="checkbox"></div>
+<div class="checkbox {{ empty($is_kompeten) ? 'checked' : '' }}"></div>
 Asesi belum memenuhi pencapaian seluruh kriteria unjuk kerja, direkomendasikan <b>BELUM KOMPETEN</b>. pada:
 <br/>
 <span style="margin-left: 18px;">Kelompok Pekerjaan: …</span>

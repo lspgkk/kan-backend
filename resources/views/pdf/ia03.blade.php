@@ -54,6 +54,26 @@ td.grp{
     border-left:1px solid #000;
     border-right:1px solid #000;
 }
+td.grp-first{
+    border-top:1px solid #000;
+    border-bottom:none;
+    border-left:1px solid #000;
+    border-right:1px solid #000;
+}
+td.grp-last{
+    border-top:none;
+    border-bottom:1px solid #000;
+    border-left:1px solid #000;
+    border-right:1px solid #000;
+}
+
+/* ── Cegah baris terpotong lintas halaman (dompdf) ── */
+tr{
+    page-break-inside: avoid;
+}
+.keep{
+    page-break-inside: avoid;
+}
 
 .no-border td{
     border:none;
@@ -123,7 +143,7 @@ td.grp{
 </head>
 <body>
 
-<h3>{{ $kelompok_kerja['kode'] }}. &nbsp; {{ $kelompok_kerja['nama_dokumen'] }}</h3>
+<h3>{{ $kelompok_kerja['kode'] ?? 'FR.IA.03' }}. &nbsp; {{ $kelompok_kerja['nama_dokumen'] ?? '' }}</h3>
 
 <!-- HEADER IDENTITAS -->
 @if(isset($dokumenHeader))
@@ -195,7 +215,7 @@ td.grp{
 </div>
 </div>
 
-@foreach($kelompok_kerja['kelompok_kerja'] as $kelompok)
+@foreach($kelompok_kerja['kelompok_kerja'] ?? [] as $kelompok)
 <!-- KELOMPOK {{ $kelompok['urut'] }} -->
 <div class="box">
 <table>
@@ -357,6 +377,7 @@ td.grp{
 </table>
 
 <!-- PENYUSUN DAN VALIDATOR -->
+<div class="keep">
 <table>
     <tr>
         <td class="red" style="width: 20%;">Status</td>
@@ -400,6 +421,7 @@ td.grp{
         <td></td>
     </tr>
 </table>
+</div>
 
 </div>
 @endif
