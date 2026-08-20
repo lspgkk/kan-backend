@@ -45,6 +45,16 @@ td, th{
     vertical-align:top;
 }
 
+/* ── Rowspan palsu: dompdf tidak support rowspan lintas halaman ──
+   Kolom yg tadinya rowspan dibuat per-baris, border hanya kiri+kanan
+   (atas di baris pertama, bawah di baris terakhir) agar tampak menyatu. */
+td.grp{
+    border-top:none;
+    border-bottom:none;
+    border-left:1px solid #000;
+    border-right:1px solid #000;
+}
+
 .no-border td{
     border:none;
 }
@@ -203,7 +213,11 @@ td, th{
 @foreach($kelompok['units'] as $index => $unit)
 <tr>
 @if($index == 0)
-    <td rowspan="{{ $totalUnits }}"></td>
+    <td class="grp-first">&nbsp;</td>
+@elseif($index == $totalUnits - 1)
+    <td class="grp-last">&nbsp;</td>
+@else
+    <td class="grp">&nbsp;</td>
 @endif
 <td class="center">{{ $index + 1 }}</td>
 <td>{{ $unit['kode_unit'] ?? '' }}</td>
