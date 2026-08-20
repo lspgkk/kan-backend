@@ -255,7 +255,10 @@ class GenerateDokumenService
             $dayStart = Carbon::parse($tanggalUji)->startOfDay();
             $praBase = (clone $dayStart)->addHours(8)->addMinutes($praMinute);
             $apl01Base = (clone $dayStart)->subDay()->addHours(8)->addMinutes($praMinute);
-            $asesmenBase = (clone $dayStart)->addHours(8)->addMinutes($randMinute);
+            // Asesmen WAJIB dimulai SETELAH seluruh dokumen pra-asesmen selesai
+            // (pra max offset = Ak01 2265+3s). base + 2400s (40 mnt) menjamin
+            // AK07/AK04/AK01 selalu LEBIH AWAL dari IA04A/IA04B (urutan frontend sitkon).
+            $asesmenBase = (clone $praBase)->addSeconds(2400);
 
             // Time offsets (seconds) from each base — same offsets apply to all,
             // but each id_izin has different base minute so times vary

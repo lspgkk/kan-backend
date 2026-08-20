@@ -426,7 +426,7 @@
             <!-- Kelompok Pekerjaan {{ $kelompok['urut'] }} -->
             <table width="100%" cellpadding="5" cellspacing="0" align="center">
                 <tr>
-                    {{-- Kelompok name (header row) -   -}}
+                    {{-- Kelompok name (header row) --}}
                     <td style="width: 20%;" class="no-bottom">
                         <strong>{{ $kelompok['nama'] }}</strong>
                     </td>
@@ -557,6 +557,16 @@
                     $jenjang = $dokumenHeader['jenjang'] ?? null;
                     $metode = strtolower($dokumenHeader['metode'] ?? '');
 
+                    // Kalimat metode asesmen dinamis sesuai jenjang & metode uji
+                    // (referensi: obs 4-9 = kegiatan terstruktur+tanya jawab;
+                    //  obs 1-3 = observasi langsung+tanya jawab; portofolio = verifikasi portofolio+wawancara)
+                    $metodeLabel = 'Hasil kegiatan terstruktur dan hasil tanya jawab tentang:';
+                    if ($metode === 'portofolio') {
+                        $metodeLabel = 'Hasil verifikasi portofolio dan hasil wawancara tentang:';
+                    } elseif ($jenjang >= 1 && $jenjang <= 3) {
+                        $metodeLabel = 'Hasil observasi langsung dan hasil tanya jawab tentang:';
+                    }
+
                     if ($jenjang >= 1 && $jenjang <= 3) {
                         // jenjang 1-3
                         $td3 = 'L';
@@ -582,7 +592,7 @@
                 @endphp
                 <tr>
                     <td style="width: 11%; word-wrap: break-word; overflow-wrap: break-word;">{{ $i + 1 }}. {{ $unit['nama_unit'] }}</td>
-                    <td style="width: 14%; word-wrap: break-word; overflow-wrap: break-word;">Hasil tanya jawab tentang: {{ $unit['nama_unit'] }}</td>
+                    <td style="width: 14%; word-wrap: break-word; overflow-wrap: break-word;">{{ $metodeLabel }} {{ $unit['nama_unit'] }}</td>
                     <td style="width: 3%;" align="center">{{ $td3 }}</td>
                     <td style="width: 3%;" align="center">{{ $td4 }}</td>
                     <td style="width: 3%;" align="center">{{ $td5 }}</td>
@@ -652,7 +662,7 @@
                     @if($dokumenHeader['barcode_manajer'] ?? null)
                     <img src="{{ $dokumenHeader['barcode_manajer'] }}" width="60" height="60" /><br />
                     @endif
-                    {{ $dokumenHeader['tanggal_manajer'] ? \Carbon\Carbon::parse($dokumenHeader['tanggal_manajer'])->locale('id')->translatedFormat('d F Y') : '' }}
+                    {{ isset($dokumenHeader['tanggal_manajer']) ? \Carbon\Carbon::parse($dokumenHeader['tanggal_manajer'])->locale('id')->translatedFormat('d F Y') : '' }}
                 </td>
             </tr>
             <tr>
@@ -700,7 +710,7 @@
                     @if($dokumenHeader['barcode_penyusun'] ?? null)
                     <img src="{{ $dokumenHeader['barcode_penyusun'] }}" width="80" height="80" /><br />
                     @endif
-                    {{ $dokumenHeader['tanggal_penyusun'] ? \Carbon\Carbon::parse($dokumenHeader['tanggal_penyusun'])->locale('id')->translatedFormat('d F Y') : '' }}
+                    {{ isset($dokumenHeader['tanggal_penyusun']) ? \Carbon\Carbon::parse($dokumenHeader['tanggal_penyusun'])->locale('id')->translatedFormat('d F Y') : '' }}
                 </td>
             </tr>
             <tr>
@@ -712,7 +722,7 @@
                     @if($dokumenHeader['barcode_validator'] ?? null)
                     <img src="{{ $dokumenHeader['barcode_validator'] }}" width="80" height="80" /><br />
                     @endif
-                    {{ $dokumenHeader['tanggal_validator'] ? \Carbon\Carbon::parse($dokumenHeader['tanggal_validator'])->locale('id')->translatedFormat('d F Y') : '' }}
+                    {{ isset($dokumenHeader['tanggal_validator']) ? \Carbon\Carbon::parse($dokumenHeader['tanggal_validator'])->locale('id')->translatedFormat('d F Y') : '' }}
                 </td>
             </tr>
         </table>

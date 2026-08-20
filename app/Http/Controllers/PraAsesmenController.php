@@ -1372,7 +1372,13 @@ class PraAsesmenController extends Controller
 
         $apl2Submission = Apl2Submission::where('id_izin', $id)->first();
 
-        $isPengalaman = Proyek::where('id_izin', $id)->exists();
+        // Pengalaman dihitung dari proyek YANG PUNYA referensi kerja (surat_referensi).
+        // Jika APL-02 tidak punya url referensi kerja → asesi TIDAK dicentang
+        // sebagai "pekerja berpengalaman" di MAPA-01 (per instruksi user).
+        $isPengalaman = Proyek::where('id_izin', $id)
+            ->whereNotNull('surat_referensi')
+            ->where('surat_referensi', '!=', '')
+            ->exists();
 
         $jabatanKerja = JabatanKerja::select(['jabatan_kerja', 'acuan'])
             ->where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)
