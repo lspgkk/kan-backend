@@ -212,11 +212,6 @@
         ];
         @endphp
         <table width="100%" cellpadding="5" cellspacing="0" align="center">
-            <!-- Header Section 1 -->
-            <tr>
-                <td colspan="5" style="font-weight: bold;">1.1. Asesi</td>
-            </tr>
-
             <!-- Asesi Options -->
             <tr>
                 <td rowspan="21" style="width: 5%; vertical-align: top;">1.1.</td>
@@ -369,9 +364,6 @@
             </tr>
 
             <!-- Tolak Ukur Asesmen -->
-            <tr>
-                <td colspan="5" style="font-weight: bold;">1.2. Tolak ukur asesmen</td>
-            </tr>
             <tr>
                 <td rowspan="5" style="vertical-align: top;">1.2</td>
                 <td rowspan="5" style="vertical-align: top;">Tolak ukur asesmen</td>
