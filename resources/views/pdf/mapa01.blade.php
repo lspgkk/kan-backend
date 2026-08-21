@@ -55,6 +55,25 @@
             .no-top {
                 border-top-color: transparent !important;
             }
+            /* ── Rowspan palsu: dompdf tidak support rowspan lintas halaman ── */
+            td.grp{
+                border-top:none;
+                border-bottom:none;
+                border-left:1px solid #000;
+                border-right:1px solid #000;
+            }
+            td.grp-first{
+                border-top:1px solid #000;
+                border-bottom:none;
+                border-left:1px solid #000;
+                border-right:1px solid #000;
+            }
+            td.grp-last{
+                border-top:none;
+                border-bottom:1px solid #000;
+                border-left:1px solid #000;
+                border-right:1px solid #000;
+            }
             .no-break {
                 page-break-inside: avoid;
             }
@@ -363,34 +382,42 @@
                 </td>
             </tr>
 
-            <!-- Tolak Ukur Asesmen -->
+            <!-- Tolak Ukur Asesmen (rowspan palsu — dompdf tidak support rowspan lintas halaman) -->
             <tr>
-                <td rowspan="5" style="vertical-align: top;">1.2</td>
-                <td rowspan="5" style="vertical-align: top;">Tolak ukur asesmen</td>
+                <td class="grp-first" style="vertical-align: top;">1.2</td>
+                <td class="grp-first" style="vertical-align: top;">Tolak ukur asesmen</td>
                 <td colspan="3">
                     <span class="checkbox {{ $tolak_ukur['skkni'] ? 'checked' : '' }}"></span>
                     Standar Kompetensi {{ $skkni }}
                 </td>
             </tr>
             <tr>
+                <td class="grp"></td>
+                <td class="grp"></td>
                 <td colspan="3">
                     <span class="checkbox {{ $tolak_ukur['kriteria_kurikulum'] ? 'checked' : '' }}"></span>
                     Kriteria asesmen dari kurikulum pelatihan
                 </td>
             </tr>
             <tr>
+                <td class="grp"></td>
+                <td class="grp"></td>
                 <td colspan="3">
                     <span class="checkbox {{ $tolak_ukur['spesifikasi_kinerja'] ? 'checked' : '' }}"></span>
                     Spesifikasi kinerja suatu perusahaan atau industri
                 </td>
             </tr>
             <tr>
+                <td class="grp"></td>
+                <td class="grp"></td>
                 <td colspan="3">
                     <span class="checkbox {{ $tolak_ukur['spesifikasi_produk'] ? 'checked' : '' }}"></span>
                     Spesifikasi Produk
                 </td>
             </tr>
             <tr>
+                <td class="grp-last"></td>
+                <td class="grp-last"></td>
                 <td colspan="3">
                     <span class="checkbox {{ $tolak_ukur['pedoman_khusus'] ? 'checked' : '' }}"></span>
                     Pedoman khusus
