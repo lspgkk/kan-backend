@@ -77,7 +77,7 @@ class PenerbitanSertifikatController extends Controller
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
             'x-authorization' => $authData
-        ])->timeout(30)->connectTimeout(30)->get($url);
+        ])->timeout(120)->connectTimeout(30)->get($url);
 
         $response_jadwal = $response->json();
         if ($response_jadwal['code'] == "ERR") {
@@ -321,7 +321,7 @@ class PenerbitanSertifikatController extends Controller
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
             'x-authorization' => $authData
-        ])->timeout(30)->connectTimeout(30)->get($url);
+        ])->timeout(120)->connectTimeout(30)->get($url);
 
         $response_jadwal = $response->json();
         if ($response_jadwal['code'] == "ERR") {
@@ -368,7 +368,7 @@ class PenerbitanSertifikatController extends Controller
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
             'x-authorization' => $authData,
-        ])->timeout(30)->connectTimeout(30)->get($url);
+        ])->timeout(120)->connectTimeout(30)->get($url);
 
         $get_tuk_response = $response->json();
         $get_tuk_response = $get_tuk_response['data']['kota']['kota'];
@@ -564,7 +564,7 @@ class PenerbitanSertifikatController extends Controller
                 continue;
             }
 
-            $response_post_bnsp = Http::withHeaders($siki->getHeaders())->timeout(30)->connectTimeout(30)->post($url, $request_api_asesor);
+            $response_post_bnsp = Http::withHeaders($siki->getHeaders())->timeout(120)->connectTimeout(30)->post($url, $request_api_asesor);
             if ($response_post_bnsp->successful()) {
                 $responseData = $response_post_bnsp->json();
                 if ($responseData['status'] == "success") {
@@ -661,7 +661,7 @@ class PenerbitanSertifikatController extends Controller
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
             'x-authorization' => $authData
-        ])->timeout(30)->connectTimeout(30)->get($url);
+        ])->timeout(120)->connectTimeout(30)->get($url);
 
         $response_jadwal = $response->json();
         if ($response_jadwal['code'] == "ERR") {
@@ -841,7 +841,7 @@ class PenerbitanSertifikatController extends Controller
                 continue;
             }
 
-            $response_post_bnsp = Http::withHeaders($siki->getHeaders())->timeout(30)->connectTimeout(30)->post($url, $request_api_komtek);
+            $response_post_bnsp = Http::withHeaders($siki->getHeaders())->timeout(120)->connectTimeout(30)->post($url, $request_api_komtek);
             if ($response_post_bnsp->successful()) {
                 $responseData = $response_post_bnsp->json();
                 if ($responseData['status'] == "success") {
@@ -910,7 +910,7 @@ class PenerbitanSertifikatController extends Controller
             }
 
             DB::beginTransaction();
-            $response_post_bnsp = Http::withHeaders($siki->getHeaders())->timeout(30)->connectTimeout(30)->post($url, $request_api_asesor);
+            $response_post_bnsp = Http::withHeaders($siki->getHeaders())->timeout(120)->connectTimeout(30)->post($url, $request_api_asesor);
             if ($response_post_bnsp->successful()) {
                 $responseData = $response_post_bnsp->json();
                 if ($responseData['status'] == "success") {
