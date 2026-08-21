@@ -40,6 +40,25 @@
             .no-top {
                 border-top-color: transparent !important;
             }
+            /* ── Rowspan palsu: dompdf tidak support rowspan lintas halaman ── */
+            td.grp{
+                border-top:none;
+                border-bottom:none;
+                border-left:1px solid #000;
+                border-right:1px solid #000;
+            }
+            td.grp-first{
+                border-top:1px solid #000;
+                border-bottom:none;
+                border-left:1px solid #000;
+                border-right:1px solid #000;
+            }
+            td.grp-last{
+                border-top:none;
+                border-bottom:1px solid #000;
+                border-left:1px solid #000;
+                border-right:1px solid #000;
+            }
             .no-break {
                 page-break-inside: avoid;
             }
@@ -165,6 +184,11 @@
 
         <!-- KELOMPOK PEKERJAAN Table -->
         @foreach ($kelompok_kerja['kelompok_kerja'] as $item)
+        @php
+            $unitCount = count($item['units']);
+            $namaLabel = trim((string) ($item['nama'] ?? ''));
+            $namaSudahUrutan = preg_match('/^kelompok pekerjaan/i', $namaLabel);
+        @endphp
         <table
             width="100%"
             cellpadding="5"
@@ -174,16 +198,24 @@
             style="border: 1px solid #000;"
         >
             <tr class="hd-dok" style="font-weight: bold; text-align: center;">
-                <td style="width: 20%; vertical-align: middle;"></td>
+                {{-- Kelompok name (header row) — MUK: "Kelompok Pekerjaan N" + label, cell merah rowspan palsu --}}
+                <td style="width: 20%; vertical-align: middle;" class="grp-first hd-dok">
+                    <strong>Kelompok Pekerjaan {{ $item['urut'] }}</strong>
+                    @if (!$namaSudahUrutan && $namaLabel !== '')
+                        <br />{{ $namaLabel }}
+                    @endif
+                </td>
                 <td style="width: 8%;">No.</td>
                 <td style="width: 25%;">Kode Unit</td>
                 <td>Judul Unit</td>
             </tr>
             @foreach($item['units'] as $idx => $unit)
             <tr>
-                <td style="width: 20%; vertical-align: middle;" class="hd-dok">@if ($idx === 0)
-                    {{ $item['nama'] }}
-                @endif</td>
+                @if ($idx === $unitCount - 1)
+                    <td style="width: 20%; vertical-align: middle;" class="grp-last hd-dok">&nbsp;</td>
+                @else
+                    <td style="width: 20%; vertical-align: middle;" class="grp hd-dok">&nbsp;</td>
+                @endif
                 <td style="text-align: center;">{{ $idx + 1 }}</td>
                 <td>{{ $unit['kode_unit'] }}</td>
                 <td>{{ $unit['nama_unit'] }}</td>

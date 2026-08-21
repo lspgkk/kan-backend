@@ -55,6 +55,25 @@
             .no-top {
                 border-top-color: transparent !important;
             }
+            /* ── Rowspan palsu: dompdf tidak support rowspan lintas halaman ── */
+            td.grp{
+                border-top:none;
+                border-bottom:none;
+                border-left:1px solid #000;
+                border-right:1px solid #000;
+            }
+            td.grp-first{
+                border-top:1px solid #000;
+                border-bottom:none;
+                border-left:1px solid #000;
+                border-right:1px solid #000;
+            }
+            td.grp-last{
+                border-top:none;
+                border-bottom:1px solid #000;
+                border-left:1px solid #000;
+                border-right:1px solid #000;
+            }
             .no-break {
                 page-break-inside: avoid;
             }
@@ -160,9 +179,20 @@ td {
         <br />
 
         @foreach ($kelompok_kerja['kelompok_kerja'] as $kelompok)
+        @php
+            $unitCount = count($kelompok['units']);
+            $namaLabel = trim((string) ($kelompok['nama'] ?? ''));
+            $namaSudahUrutan = preg_match('/^kelompok pekerjaan/i', $namaLabel);
+        @endphp
         <table width="100%" cellpadding="5" cellspacing="0" align="center" class="no-break">
             <tr>
-                <td style="width:25%;" class="noborder"></td>
+                {{-- Kelompok name (header row) — MUK: "Kelompok Pekerjaan N" BOLD + label non-bold --}}
+                <td style="width:25%; text-align: center;" class="grp-first">
+                    <strong>Kelompok Pekerjaan {{ $kelompok['urut'] }}</strong>
+                    @if (!$namaSudahUrutan && $namaLabel !== '')
+                        <br />{{ $namaLabel }}
+                    @endif
+                </td>
                 <td style="width:5%;" align="center"><strong>No.</strong></td>
                 <td style="width:20%;" align="center"><strong>Kode Unit</strong></td>
                 <td style="width:50%;" align="center"><strong>Judul Unit</strong></td>
@@ -172,26 +202,19 @@ td {
                 @php
                     $total = count($kelompok['units']);
 
-                    // middle index (works for odd & even counts)
-                    $middleIndex = intdiv($total - 1, 2);
-
-                    // border handling
-                    if ($i === 0 && $total > 1) {
-                        $borderClass = 'no-bottom';
-                    } elseif ($i === $total - 1 && $total > 1) {
-                        $borderClass = 'no-top';
+                    // border handling — rowspan palsu: grp (kiri+kanan), grp-last di baris terakhir
+                    if ($i === $total - 1 && $total > 1) {
+                        $borderClass = 'grp-last';
                     } elseif ($total > 1) {
-                        $borderClass = 'no-top-bottom';
+                        $borderClass = 'grp';
                     } else {
-                        $borderClass = '';
+                        $borderClass = 'grp-last';
                     }
                 @endphp
 
                 <tr>
                     <td valign="top" class="{{ $borderClass }}">
-                        @if ($i === $middleIndex)
-                            {{ $kelompok['nama'] }}
-                        @endif
+                        &nbsp;
                     </td>
 
                     <td align="center">{{ $i + 1 }}.</td>
