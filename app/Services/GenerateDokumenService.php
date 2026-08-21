@@ -449,7 +449,7 @@ class GenerateDokumenService
             'noreg_validator' => $jabatanConfig?->validator?->noreg,
             'nama_manajer'    => $jabatanConfig?->manajer?->name,
             'tanggal_manajer' => $jabatanConfig?->kan_manajer_tgl ?? $jabatanConfig?->kan_validator_tgl ?? $jabatanConfig?->validator_tgl,
-            'metode'          => 'observasi',
+            'metode'          => strtolower((string) (\App\Models\Apl2Submission::where('id_izin', $idIzin)->value('metode') ?? 'observasi')),
             'waktu'           => $tanggal->locale('id')->translatedFormat('H:i'),
         ];
     }
@@ -1044,8 +1044,21 @@ class GenerateDokumenService
             }
         }
 
-        $persyaratan = $persyaratanRecords->map(function ($item) use ($matchedLevels, $pendidikanTerakhir) {
-            $checked = false;
+        // Fallback: profil pendidikan kosong -> pilih item yang menyebut pengalaman
+        // (kalau asesi berpengalaman) atau item pertama, supaya Bagian 3 tetap ada ceklis.
+        $checkedNo = null;
+        if (empty($matchedLevels)) {
+            $punyaPengalaman = \App\Models\Proyek::where('id_izin', $idIzin)->exists();
+            if ($punyaPengalaman) {
+                foreach ($persyaratanRecords as $k) {
+                    if (stripos($k->bukti, 'pengalaman') !== false) { $checkedNo = $k->no; break; }
+                }
+            }
+            if ($checkedNo === null) $checkedNo = $persyaratanRecords->first()?->no;
+        }
+
+        $persyaratan = $persyaratanRecords->map(function ($item) use ($matchedLevels, $pendidikanTerakhir, $checkedNo) {
+            $checked = $checkedNo !== null ? ($item->no == $checkedNo) : false;
             foreach ($matchedLevels as $l) {
                 if (stripos($item->bukti, $l) !== false) { $checked = true; break; }
             }
@@ -1127,7 +1140,7 @@ class GenerateDokumenService
             'id_izin' => $idIzin,
             'jabatan_kerja' => $header['jabatan_kerja'],
             'jenjang' => $header['jenjang'],
-            'metode' => 'observasi',
+            'metode'          => strtolower((string) (\App\Models\Apl2Submission::where('id_izin', $idIzin)->value('metode') ?? 'observasi')),
             'is_dilanjutkan' => true,
             'units' => $units->map(function ($unit) use ($answers, $referensiKerja) {
                 return [
@@ -1187,7 +1200,7 @@ class GenerateDokumenService
             'referensi_form' => $referensiForm,
             'skkni' => [],
             'jenjang' => $header['jenjang'],
-            'metode' => 'observasi',
+            'metode'          => strtolower((string) (\App\Models\Apl2Submission::where('id_izin', $idIzin)->value('metode') ?? 'observasi')),
         ];
     }
 
@@ -1672,7 +1685,7 @@ class GenerateDokumenService
         // ── APL02: submission + answers ──
         \App\Models\Apl2Submission::updateOrCreate(
             ['id_izin' => $idIzin],
-            ['metode' => 'observasi', 'is_dilanjutkan' => true]
+            ['metode'          => strtolower((string) (\App\Models\Apl2Submission::where('id_izin', $idIzin)->value('metode') ?? 'observasi')), 'is_dilanjutkan' => true]
         );
         $subunits = \App\Models\SubunitKompetensi::whereHas('unit', function ($q) use ($jabatanKerjaId) {
             $q->where('id_jabatan', $jabatanKerjaId);
