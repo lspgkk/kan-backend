@@ -156,11 +156,9 @@
         <br />
 
         <!-- ================= SECTION 1: Pendekatan Asesmen ================= -->
-        <table width="100%" cellpadding="5" cellspacing="0" align="center" class="noborder">
+        <table width="100%" cellpadding="5" cellspacing="0" align="center">
             <tr>
-                <td class="noborder">
-                    <strong>1. Pendekatan Asesmen</strong><br />
-                </td>
+                <td class="hd-dok" style="font-weight: bold;">1. Pendekatan Asesmen</td>
             </tr>
         </table>
         @php
@@ -216,7 +214,7 @@
         <table width="100%" cellpadding="5" cellspacing="0" align="center">
             <!-- Header Section 1 -->
             <tr>
-                <td class="hd-dok" colspan="5" style="font-weight: bold;">1.1. Asesi</td>
+                <td colspan="5" style="font-weight: bold;">1.1. Asesi</td>
             </tr>
 
             <!-- Asesi Options -->
@@ -372,7 +370,7 @@
 
             <!-- Tolak Ukur Asesmen -->
             <tr>
-                <td class="hd-dok" colspan="5" style="font-weight: bold;">1.2. Tolak ukur asesmen</td>
+                <td colspan="5" style="font-weight: bold;">1.2. Tolak ukur asesmen</td>
             </tr>
             <tr>
                 <td rowspan="5" style="vertical-align: top;">1.2</td>
@@ -410,25 +408,25 @@
         <br />
 
         <!-- ================= SECTION 2: Mempersiapkan Rencana Asesmen ================= -->
-        <table width="100%" cellpadding="5" cellspacing="0" align="center" class="noborder">
+        <table width="100%" cellpadding="5" cellspacing="0" align="center">
             <tr>
-                <td class="noborder">
-                    <strong>2. Mempersiapkan Rencana Asesmen</strong><br />
-                </td>
+                <td class="hd-dok" style="font-weight: bold;">2. Mempersiapkan Rencana Asesmen</td>
             </tr>
         </table>
 
         @foreach ($kelompok_kerja['kelompok_kerja'] as $kelompok)
             @php
                 $unitCount = count($kelompok['units']);
+                $namaLabel = trim((string) ($kelompok['nama'] ?? ''));
+                $namaSudahUrutan = preg_match('/^kelompok pekerjaan/i', $namaLabel);
             @endphp
 
             <!-- Kelompok Pekerjaan {{ $kelompok['urut'] }} -->
             <table width="100%" cellpadding="5" cellspacing="0" align="center">
                 <tr>
-                    {{-- Kelompok name (header row) --}}
-                    <td style="width: 20%;" class="no-bottom">
-                        <strong>{{ $kelompok['nama'] }}</strong>
+                    {{-- Kelompok name (header row) — MUK: "Kelompok Pekerjaan N" BOLD rata tengah --}}
+                    <td style="width: 20%; text-align: center;" class="no-bottom">
+                        <strong>Kelompok Pekerjaan {{ $kelompok['urut'] }}</strong>
                     </td>
                     <td style="width: 8%;" align="center"><strong>No.</strong></td>
                     <td style="width: 22%;" align="center"><strong>Kode Unit</strong></td>
@@ -446,8 +444,17 @@
                     @endphp
 
                     <tr>
-                        {{-- Empty kelompok cell (rowspan replacement) --}}
-                        <td class="{{ $kelompokClass }}"></td>
+                        {{-- Merged kelompok cell (rowspan replacement) — label kelompok non-bold, MUK --}}
+                        @if ($i === 0)
+                            <td class="{{ $kelompokClass }}" style="vertical-align: middle; text-align: center;">
+                                @if (!$namaSudahUrutan)
+                                    {{ $namaLabel }}
+                                @endif
+                                &nbsp;
+                            </td>
+                        @else
+                            <td class="{{ $kelompokClass }}"></td>
+                        @endif
 
                         <td align="center">{{ $i + 1 }}.</td>
                         <td align="center">{{ $unit['kode_unit'] }}</td>
@@ -609,17 +616,12 @@
         @endforeach
 
         <!-- ================= SECTION 3: Modifikasi dan Kontekstualisasi ================= -->
-        <table width="100%" cellpadding="5" cellspacing="0" align="center" class="noborder">
+        <table width="100%" cellpadding="5" cellspacing="0" align="center">
             <tr>
-                <td class="noborder">
-                    <strong>3. Modifikasi dan Kontekstualisasi:</strong><br />
-                </td>
+                <td class="hd-dok" style="font-weight: bold;">3. Modifikasi dan Kontekstualisasi</td>
             </tr>
         </table>
         <table width="100%" cellpadding="5" cellspacing="0" align="center">
-            <tr>
-                <td class="hd-dok" colspan="2" style="font-weight: bold;">Modifikasi dan Kontekstualisasi</td>
-            </tr>
             @foreach ($referensi_form['2']['kelompok']['kategoris'][0]['subkategoris'][0]['referensis'] as $idx => $item)
             <tr>
                 <td style="width: 50%;">3.{{ $idx + 1 }} {{ $item['nama'] }}</td>
