@@ -1051,9 +1051,10 @@ class PenerbitanSertifikatController extends Controller
                 return Http::withHeaders([
                     'Content-Type' => 'application/json',
                     'x-authorization' => $authData
-                ])->timeout(30)->connectTimeout(30)->get($url);
+                ])->timeout(120)->connectTimeout(30)->get($url);
             }, function ($e) {
-                return $e->response;
+                Log::warning('BNSP skema timeout/error: ' . $e->getMessage());
+                return response()->json(['code' => 'ERR', 'message' => $e->getMessage()]);
             });
 
             $response_data = $response->json();
@@ -1090,7 +1091,27 @@ class PenerbitanSertifikatController extends Controller
                 'x-authorization' => $authData
             ];
 
-            $response_post_bnsp = Http::withHeaders($headers)->timeout(30)->connectTimeout(30)->post($url, $request_api_hasil2);
+            try {
+                $response_post_bnsp = Http::withHeaders($headers)->timeout(120)->connectTimeout(30)->post($url, $request_api_hasil2);
+            } catch (\Illuminate\Http\Client\ConnectionException $e) {
+                Log::error('BNSP Pencatatan ConnectionException (timeout)', [
+                    'id_izin' => $peserta->id_izin,
+                    'nama_peserta' => $peserta->nama ?? null,
+                    'url' => $url,
+                    'error' => $e->getMessage(),
+                ]);
+                return $this->errorResponse(
+                    phase: 'storePenerbitan.submitHasilUji',
+                    message: "Gagal koneksi ke BNSP (pencatatan sertifikat) setelah 120 detik: " . $e->getMessage(),
+                    statusCode: 504,
+                    url: $url,
+                    method: 'POST',
+                    requestPayload: $request_api_hasil2,
+                    responseBody: ['error' => $e->getMessage()],
+                    responseStatus: 504,
+                    idIzin: $peserta->id_izin,
+                );
+            }
             if ($response_post_bnsp->successful()) {
                 $responseData = $response_post_bnsp->json();
                 if ($responseData['code'] == "OK") {
