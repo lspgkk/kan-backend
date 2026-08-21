@@ -360,7 +360,10 @@ class PraAsesmenController extends Controller
         $jabatanKerja = JabatanKerja::select(['jabatan_kerja', 'acuan'])->where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->first();
         $pekerjaan = Proyek::where('id_izin', $id)->latest('created_at')->first();
         $apl1Answer = Apl1Answer::where('id_izin', $id)->first();
-        $kualifikasi = JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)->value('jabatan_kerja');
+        $kualifikasi = JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)
+            ->where('jabatan_kerja', 'not like', '%fresh%')
+            ->orderBy('id')->value('jabatan_kerja')
+            ?? JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)->orderBy('id')->value('jabatan_kerja');
         $unitKompetensi = UnitKompetensi::select(['kode', 'nama'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->get();
         $jenjang = Pendidikan::where('id_izin', $id)->orderBy('created_at', 'desc')->value('jenjang');
 
@@ -643,7 +646,9 @@ class PraAsesmenController extends Controller
         $pekerjaan   = Proyek::where('id_izin', $id)->latest('created_at')->first();
         $apl1Answer  = Apl1Answer::where('id_izin', $id)->first();
         $kualifikasi = JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)
-            ->value('jabatan_kerja');
+            ->where('jabatan_kerja', 'not like', '%fresh%')
+            ->orderBy('id')->value('jabatan_kerja')
+            ?? JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)->orderBy('id')->value('jabatan_kerja');
 
         $unitKompetensi = UnitKompetensi::select(['kode', 'nama'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)

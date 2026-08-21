@@ -966,7 +966,13 @@ class GenerateDokumenService
         $unitKompetensi = \App\Models\UnitKompetensi::select(['kode', 'nama'])
             ->where('id_jabatan', $klasifikasi?->jabatan_kerja)->get();
         $nomorSkema = \App\Models\JabatanConfigA::where('id_jabatan', $klasifikasi?->jabatan_kerja)->value('no_skema');
-        $kualifikasi = \App\Models\JenjangJabatanKerja::where('jenjang_id', $klasifikasi?->jenjang)->value('jabatan_kerja');
+        $kualifikasi = \App\Models\JenjangJabatanKerja::where('jenjang_id', $klasifikasi?->jenjang)
+            ->where('jabatan_kerja', 'not like', '%fresh%')
+            ->orderBy('id')->value('jabatan_kerja');
+        if (!$kualifikasi) {
+            $kualifikasi = \App\Models\JenjangJabatanKerja::where('jenjang_id', $klasifikasi?->jenjang)
+                ->orderBy('id')->value('jabatan_kerja');
+        }
 
         $dataPribadi = [
             'nama'          => $personal?->nama,
