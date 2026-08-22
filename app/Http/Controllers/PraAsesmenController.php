@@ -542,9 +542,9 @@ class PraAsesmenController extends Controller
                     'kualifikasi' => $kualifikasi,
                 ],
                 'data_pekerjaan' => [
-                    'perusahaan' => $apl1Answer
-                        ? $apl1Answer->perusahaan
-                        : ($pekerjaan ? $pekerjaan->pemberi_kerja : null),
+                    'perusahaan' => $pekerjaan
+                        ? $pekerjaan->pemberi_kerja
+                        : ($apl1Answer ? $apl1Answer->perusahaan : null),
 
                     'jabatan' => $apl1Answer
                         ? $apl1Answer->jabatan
@@ -870,7 +870,7 @@ class PraAsesmenController extends Controller
             ],
 
             'data_pekerjaan' => [
-                'perusahaan' => $apl1Answer?->perusahaan ?? $pekerjaan?->pemberi_kerja,
+                'perusahaan' => $pekerjaan?->pemberi_kerja ?? $apl1Answer?->perusahaan,
                 'jabatan'    => $apl1Answer?->jabatan ?? $pekerjaan?->jabatan,
                 'alamat'     => $apl1Answer?->alamat_kantor ?? $pekerjaan?->alamat,
                 'kode_pos'   => $apl1Answer?->kode_pos ?? $pekerjaan?->kode_pos,
