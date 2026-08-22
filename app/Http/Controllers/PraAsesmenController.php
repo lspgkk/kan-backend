@@ -1929,7 +1929,8 @@ class PraAsesmenController extends Controller
     {
         $barcodes = $this->resolveDocumentBarcodes($id, 'AK07', $forPdf);
 
-        $isPengalaman = Proyek::where('id_izin', $id)->exists();
+        $isPengalaman = Proyek::where('id_izin', $id)
+            ->whereNotNull('nama_proyek')->where('nama_proyek', '!=', '')->exists();
 
         $referensis = Referensi::with([
                 'kategoriRel',
