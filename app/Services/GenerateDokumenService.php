@@ -1244,16 +1244,26 @@ class GenerateDokumenService
         // Read from pre-populated DB (see prePopulateAnswers); fallback to hardcoded text
         $ak7Answers = \App\Models\Ak7Answer::where('id_izin', $idIzin)->get()->keyBy('referensi_id');
 
+        // Asesi tanpa pengalaman kerja (tidak ada data proyeks) → jangan centang
+        // "Pekerja berpengalaman" (referensi 117/118); tetap centang pelatihan/pendidikan.
+        $hasProyek = \Illuminate\Support\Facades\DB::table('proyeks')->where('id_izin', $idIzin)
+            ->whereNotNull('nama_proyek')->where('nama_proyek', '!=', '')->exists();
+        $pekerjaBerpengalamanIds = [117, 118];
+
         // Inject jawaban
-        $kelompoks->each(function ($kelompok) use ($idIzin, $ak7Answers) {
-            $kelompok->kategoris->each(function ($kategori) use ($idIzin, $kelompok, $ak7Answers) {
-                $kategori->referensis->each(function ($referensi) use ($idIzin, $kelompok, $ak7Answers) {
+        $kelompoks->each(function ($kelompok) use ($idIzin, $ak7Answers, $hasProyek, $pekerjaBerpengalamanIds) {
+            $kelompok->kategoris->each(function ($kategori) use ($idIzin, $kelompok, $ak7Answers, $hasProyek, $pekerjaBerpengalamanIds) {
+                $kategori->referensis->each(function ($referensi) use ($idIzin, $kelompok, $ak7Answers, $hasProyek, $pekerjaBerpengalamanIds) {
                     // kelompok 6 & 7 = text, others = boolean
                     if (in_array($kelompok->kategori, [6, 7])) {
                         $ak7Answer = $ak7Answers->get($referensi->id);
                         $referensi->jawaban = $ak7Answer?->answer_text ?? $this->llmService->getFallback('ak07_text');
                     } else {
                         $referensi->answer_bool = true;
+                        // Asesi tanpa pengalaman kerja: jangan centang "Pekerja berpengalaman"
+                        if (!$hasProyek && in_array((int) $referensi->id, $pekerjaBerpengalamanIds)) {
+                            $referensi->answer_bool = false;
+                        }
                     }
                 });
             });
