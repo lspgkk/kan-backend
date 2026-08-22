@@ -39,6 +39,7 @@ use App\Models\JabatanDokumen;
 use App\Models\JabatanKerja;
 use App\Models\Jadwal;
 use App\Models\JenjangJabatanKerja;
+use App\Models\Jenjang;
 use App\Models\KlasifikasiKualifikasi;
 use App\Models\Pendidikan;
 use App\Models\Personal;
@@ -360,10 +361,18 @@ class PraAsesmenController extends Controller
         $jabatanKerja = JabatanKerja::select(['jabatan_kerja', 'acuan'])->where('id_jabatan_kerja', $klasifikasi->jabatan_kerja)->first();
         $pekerjaan = Proyek::where('id_izin', $id)->latest('created_at')->first();
         $apl1Answer = Apl1Answer::where('id_izin', $id)->first();
-        $kualifikasi = JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)
-            ->where('jabatan_kerja', 'not like', '%fresh%')
-            ->orderBy('id')->value('jabatan_kerja')
-            ?? JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)->orderBy('id')->value('jabatan_kerja');
+        $kualifikasi = null;
+        $pendidikan = Pendidikan::where('id_izin', $id)->orderByDesc('tahun_lulus')->first();
+        if ($pendidikan?->jenjang) {
+            $kualifikasi = Jenjang::where('id_siki', (string) $pendidikan->jenjang)->value('nama')
+                ?? Jenjang::where('id_bnsp', (string) $pendidikan->jenjang)->value('nama');
+        }
+        if (!$kualifikasi) {
+            $kualifikasi = JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)
+                ->where('jabatan_kerja', 'not like', '%fresh%')
+                ->orderBy('id')->value('jabatan_kerja')
+                ?? JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)->orderBy('id')->value('jabatan_kerja');
+        }
         $unitKompetensi = UnitKompetensi::select(['kode', 'nama'])->where('id_jabatan', $klasifikasi->jabatan_kerja)->get();
         $jenjang = Pendidikan::where('id_izin', $id)->orderBy('created_at', 'desc')->value('jenjang');
 
@@ -645,10 +654,18 @@ class PraAsesmenController extends Controller
 
         $pekerjaan   = Proyek::where('id_izin', $id)->latest('created_at')->first();
         $apl1Answer  = Apl1Answer::where('id_izin', $id)->first();
-        $kualifikasi = JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)
-            ->where('jabatan_kerja', 'not like', '%fresh%')
-            ->orderBy('id')->value('jabatan_kerja')
-            ?? JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)->orderBy('id')->value('jabatan_kerja');
+        $kualifikasi = null;
+        $pendidikan = Pendidikan::where('id_izin', $id)->orderByDesc('tahun_lulus')->first();
+        if ($pendidikan?->jenjang) {
+            $kualifikasi = Jenjang::where('id_siki', (string) $pendidikan->jenjang)->value('nama')
+                ?? Jenjang::where('id_bnsp', (string) $pendidikan->jenjang)->value('nama');
+        }
+        if (!$kualifikasi) {
+            $kualifikasi = JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)
+                ->where('jabatan_kerja', 'not like', '%fresh%')
+                ->orderBy('id')->value('jabatan_kerja')
+                ?? JenjangJabatanKerja::where('jenjang_id', $klasifikasi->jenjang)->orderBy('id')->value('jabatan_kerja');
+        }
 
         $unitKompetensi = UnitKompetensi::select(['kode', 'nama'])
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)

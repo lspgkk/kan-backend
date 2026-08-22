@@ -966,11 +966,19 @@ class GenerateDokumenService
         $unitKompetensi = \App\Models\UnitKompetensi::select(['kode', 'nama'])
             ->where('id_jabatan', $klasifikasi?->jabatan_kerja)->get();
         $nomorSkema = \App\Models\JabatanConfigA::where('id_jabatan', $klasifikasi?->jabatan_kerja)->value('no_skema');
-        $kualifikasi = \App\Models\JenjangJabatanKerja::where('jenjang_id', $klasifikasi?->jenjang)
-            ->where('jabatan_kerja', 'not like', '%fresh%')
-            ->orderBy('id')->value('jabatan_kerja');
+        $pendidikan = \App\Models\Pendidikan::where('id_izin', $idIzin)
+            ->orderByDesc('tahun_lulus')
+            ->first();
+        $kualifikasi = null;
+        if ($pendidikan?->jenjang) {
+            $kualifikasi = \App\Models\Jenjang::where('id_siki', (string) $pendidikan->jenjang)->value('nama')
+                ?? \App\Models\Jenjang::where('id_bnsp', (string) $pendidikan->jenjang)->value('nama');
+        }
         if (!$kualifikasi) {
             $kualifikasi = \App\Models\JenjangJabatanKerja::where('jenjang_id', $klasifikasi?->jenjang)
+                ->where('jabatan_kerja', 'not like', '%fresh%')
+                ->orderBy('id')->value('jabatan_kerja')
+                ?? \App\Models\JenjangJabatanKerja::where('jenjang_id', $klasifikasi?->jenjang)
                 ->orderBy('id')->value('jabatan_kerja');
         }
 
