@@ -1929,8 +1929,14 @@ class PraAsesmenController extends Controller
     {
         $barcodes = $this->resolveDocumentBarcodes($id, 'AK07', $forPdf);
 
+        // Berpengalaman = punya FILE REFERENSI KERJA (surat_referensi) ATAU nama proyek terisi.
+        // Baris placeholder (semua kolom null) TIDAK dihitung.
         $isPengalaman = Proyek::where('id_izin', $id)
-            ->whereNotNull('nama_proyek')->where('nama_proyek', '!=', '')->exists();
+            ->where(function ($q) {
+                $q->whereNotNull('surat_referensi')->where('surat_referensi', '!=', '')
+                  ->orWhereNotNull('nama_proyek')->where('nama_proyek', '!=', '');
+            })
+            ->exists();
 
         $referensis = Referensi::with([
                 'kategoriRel',
