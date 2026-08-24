@@ -796,7 +796,7 @@ class GenerateDokumenService
             $ak05GroupKey = null;
             $ak05GroupMembers = null;
 
-            if ($method === 'Ak05') {
+            if ($method === 'Ak05' && $this->mode !== 'per-asesi') {
                 $asesiJadwal = \App\Models\AsesiJadwal::where('id_izin', $idIzin)->first();
                 if ($asesiJadwal) {
                     $klasifikasi = \App\Models\KlasifikasiKualifikasi::where('id_izin', $idIzin)->first();
@@ -815,7 +815,7 @@ class GenerateDokumenService
             }
 
             // ── BUILD VIEW DATA ──
-            if ($method === 'Ak05' && $ak05GroupMembers) {
+            if ($method === 'Ak05' && $ak05GroupMembers && $this->mode !== 'per-asesi') {
                 // For AK05 groups: build combined view data for all group members
                 $docData = $this->buildAk05GroupViewData($header, $ak05GroupMembers, $barcodes);
                 if ($docData === null) {
@@ -891,7 +891,7 @@ class GenerateDokumenService
                         logger()->debug("[PDF-CACHE] {$code} {$idIzin} HIT — skipping DomPDF+FTP, reusing existing PDF");
 
                         // For AK05 groups, update ALL group members
-                        if ($method === 'Ak05' && $ak05GroupMembers) {
+                        if ($method === 'Ak05' && $ak05GroupMembers && $this->mode !== 'per-asesi') {
                             foreach ($ak05GroupMembers as $member) {
                                 BuktiAsesmen::updateOrCreate(
                                     ['id_izin' => $member->id_izin],
@@ -930,7 +930,7 @@ class GenerateDokumenService
             \Illuminate\Support\Facades\Cache::put($cachedUrlKey, $fullUrl, 86400);
 
             // For AK05 groups, update ALL group members (regenerates same file — most complete data wins)
-            if ($method === 'Ak05' && $ak05GroupMembers) {
+            if ($method === 'Ak05' && $ak05GroupMembers && $this->mode !== 'per-asesi') {
                 foreach ($ak05GroupMembers as $member) {
                     BuktiAsesmen::updateOrCreate(
                         ['id_izin' => $member->id_izin],
