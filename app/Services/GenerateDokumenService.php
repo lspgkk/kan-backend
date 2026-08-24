@@ -1023,11 +1023,12 @@ class GenerateDokumenService
 
         $educationMapping = [
             'SD' => ['1', '2'], 'SMP' => ['2'], 'SMA' => ['3'],
+            'SMK' => ['17'],
             'D1' => ['4', '16'], 'D2' => ['5'], 'D3' => ['6'],
             'D4' => ['7', '12'], 'S1' => ['8', '13'], 'S2' => ['9', '14', '18'],
             'S3' => ['10', '15', '19'], 'profesi' => ['11'], 'Non' => ['99'],
         ];
-        $educationOrder = ['Non', 'SD', 'SMP', 'SMA', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3', 'profesi'];
+        $educationOrder = ['Non', 'SD', 'SMP', 'SMA', 'SMK', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3', 'profesi'];
 
         $persyaratanRecords = \App\Models\ImpBuktiPersyaratan::select(['no', 'bukti'])
             ->where('id_jabatan', $klasifikasi?->jabatan_kerja)
