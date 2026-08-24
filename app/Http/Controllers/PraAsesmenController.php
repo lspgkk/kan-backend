@@ -2674,25 +2674,17 @@ class PraAsesmenController extends Controller
         if (!$jadwal) {
             Log::warning("[resolveDocumentBarcodes] JADWAL NOT FOUND for jadwal_id=" . var_export($jadwalId, true) . " → fallback ambil barcode asesor (id_role=5) batch yg sama dgn barcode asesi");
 
-            // Fallback: jadwal tidak ada (asesi_jadwals kosong / id_jadwal barcode kosong).
-            // Ambil 2 barcode asesor (id_role=5) yg dibuat pada BATCH yg sama dgn barcode asesi
-            // (created_at berdekatan, karena generate membuat asesi→asesor1→asesor2 berurutan).
-            // Kalau tidak ketemu batch yg sama, fallback ke 2 barcode asesor terbaru.
+                        // Fallback: jadwal tidak ada (asesi_jadwals kosong / id_jadwal barcode kosong).
+            // Pilih 2 barcode asesor (id_role=5) dgn ID TERKECIL — itu set asli batch generate
+            // (asesi→asesor1→asesor2 dibuat berurutan). Set duplikat (regenerate dgn asesor
+            // berbeda, mis. Adi/Fauzan) punya id lebih besar — JANGAN dipakai.
+            // Lalu sort ASC by created_at: asesor1 = yg paling awal (offset +2s), asesor2 (+3s).
             $asesiBc = $barcodes->firstWhere('id_role', 8);
-            $asesorBarcodes = $barcodes->filter(fn ($b) => $b->id_role == 5)->values();
-
-            if ($asesiBc && $asesorBarcodes->count() > 2) {
-                $tAsesi = strtotime((string) $asesiBc->created_at);
-                $batch = $asesorBarcodes->filter(function ($b) use ($tAsesi) {
-                    $t = strtotime((string) $b->created_at);
-                    return $t && abs($t - $tAsesi) < 6 * 3600; // ±6 jam = batch generate yg sama
-                })->values();
-                if ($batch->count() >= 2) {
-                    $asesorBarcodes = $batch;
-                }
-            }
-
-            $asesorBarcodes = $asesorBarcodes->sortByDesc('created_at')->values();
+            $asesorBarcodes = $barcodes->filter(fn ($b) => $b->id_role == 5)
+                ->sortBy('id')
+                ->take(2)
+                ->sortBy('created_at')
+                ->values();
 
             return [
                 'asesi'   => $map($asesiBc),
