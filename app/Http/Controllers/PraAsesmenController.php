@@ -32,6 +32,15 @@ use App\Models\Ia4aAnswer;
 use App\Models\Ia4bAnswer;
 use App\Models\Ia5Answer;
 use App\Models\Ia5Feedback;
+use App\Models\Ia08Answer;
+use App\Models\Ia08UnitAnswer;
+use App\Models\Ia08Recommendation;
+use App\Models\Ia09Answer;
+use App\Models\Ia10Answer;
+use App\Models\Ia10FormData;
+use App\Models\KanIa4bAnswer;
+use App\Models\KanIa5Answer;
+use App\Models\KanIa6Answer;
 use App\Models\ImpBuktiAdministrasi;
 use App\Models\ImpBuktiPersyaratan;
 use App\Models\JabatanConfigA;
@@ -46,8 +55,10 @@ use App\Models\Personal;
 use App\Models\Proyek;
 use App\Models\Referensi;
 use App\Models\Role;
+use App\Models\Soal;
 use App\Models\UnitKompetensi;
 use App\Models\User;
+use App\Services\BarcodeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -60,6 +71,13 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class PraAsesmenController extends Controller
 {
+    protected BarcodeService $barcodeService;
+
+    public function __construct(BarcodeService $barcodeService)
+    {
+        $this->barcodeService = $barcodeService;
+    }
+
     public function absenAwal(Request $request, $id)
     {
         return $this->handleAbsen($request, $id, 'awal');
@@ -96,13 +114,52 @@ class PraAsesmenController extends Controller
         $filename = (string) Str::uuid() . '.' . $image->getClientOriginalExtension();
         $relativePath = "dok_asesmen/absen/{$filename}";
 
-        $uploaded = Storage::disk('str_moon')->putFileAs(
-            'dok_asesmen/absen',
-            $image,
-            $filename
-        );
+        // 🔍 Pre-check FTP connectivity & directory
+        try {
+            Storage::disk('str_moon')->files('dok_asesmen/absen');
+        } catch (\Exception $e) {
+            Log::error('Absen pra upload gagal (FTP pre-check exception)', [
+                'id_izin' => $id,
+                'type' => $type,
+                'disk' => 'str_moon',
+                'directory' => 'dok_asesmen/absen',
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Gagal mengupload gambar',
+            ], 500);
+        }
+
+        try {
+            $uploaded = Storage::disk('str_moon')->putFileAs(
+                'dok_asesmen/absen',
+                $image,
+                $filename
+            );
+        } catch (\Exception $e) {
+            Log::error('Absen pra upload gagal (exception)', [
+                'id_izin' => $id,
+                'type' => $type,
+                'filename' => $filename,
+                'disk' => 'str_moon',
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Gagal mengupload gambar',
+            ], 500);
+        }
 
         if (!$uploaded) {
+            Log::error('Absen pra upload gagal (putFileAs returned false - koneksi OK tapi write gagal)', [
+                'id_izin' => $id,
+                'type' => $type,
+                'filename' => $filename,
+                'filesize' => $image->getSize(),
+                'disk' => 'str_moon',
+            ]);
+
             return response()->json([
                 'message' => 'Gagal mengupload gambar',
             ], 500);
@@ -116,6 +173,28 @@ class PraAsesmenController extends Controller
                 ['id_izin' => $id],
                 ["url_absen_asesi_pra_{$type}" => $imageUrl]
             );
+
+            // Auto-start asesmen kalo semua asesi di jadwal ini udah absen akhir
+            if ($type === 'akhir') {
+                $jadwalId = AsesiJadwal::where('id_izin', $id)->value('jadwal_id');
+                if ($jadwalId) {
+                    $allIdIzin = AsesiJadwal::where('jadwal_id', $jadwalId)->pluck('id_izin');
+                    $absenData = BuktiAsesmen::whereIn('id_izin', $allIdIzin)
+                        ->pluck('url_absen_asesi_pra_akhir', 'id_izin');
+
+                    $allDone = $allIdIzin->every(fn($idIzin) => !empty($absenData[$idIzin]));
+
+                    if ($allDone) {
+                        Jadwal::where('jadwal_id', $jadwalId)
+                            ->where('tahap', 1)
+                            ->update([
+                                'is_started' => true,
+                                'started_at' => now(),
+                                'tahap' => 2,
+                            ]);
+                    }
+                }
+            }
 
             return response()->json([
                 'message' => "Absen {$type} asesi berhasil disimpan",
@@ -207,8 +286,8 @@ class PraAsesmenController extends Controller
                 'asesor2:id,nama,noreg',
             ])->where('jadwal_id', $jadwalId)->first();
 
-            $idAsesor1 = $jadwal ? User::where('noreg', $jadwal->asesor?->noreg)->value('id') : null;
-            $idAsesor2 = $jadwal ? User::where('noreg', $jadwal->asesor2?->noreg)->value('id') : null;
+            $idAsesor1 = $jadwal ? User::where('noreg', $jadwal->asesor?->noreg)->where('is_deleted', false)->where('role_id', 5)->orderBy('id', 'desc')->value('id') : null;
+            $idAsesor2 = $jadwal ? User::where('noreg', $jadwal->asesor2?->noreg)->where('is_deleted', false)->where('role_id', 5)->orderBy('id', 'desc')->value('id') : null;
         } else {
             $jadwal = null;
             $idAsesor1 = null;
@@ -244,7 +323,7 @@ class PraAsesmenController extends Controller
                 'tahap' => $jadwal?->tahap,
                 'jadwal_id' => $jadwalId,
                 'nama_manajer' => $namaManajer,
-                'tanggal_manajer' => $penyusun_validator->penyusun_tgl,
+                'tanggal_manajer' => $penyusun_validator->manajer_tgl ?? $penyusun_validator->kan_validator_tgl ?? $penyusun_validator->validator_tgl,
                 'barcode_manajer' => $penyusun_validator->manajer_img,
             ]
         ]);
@@ -299,8 +378,8 @@ class PraAsesmenController extends Controller
             return null;
         }
 
-        $idAsesor1 = User::where('noreg', $jadwal->asesor?->noreg)->value('id');
-        $idAsesor2 = User::where('noreg', $jadwal->asesor2?->noreg)->value('id');
+        $idAsesor1 = $this->resolveAsesorUserId($id, $jadwal->asesor?->noreg);
+        $idAsesor2 = $this->resolveAsesorUserId($id, $jadwal->asesor2?->noreg);
 
         $penyusun_validator = JabatanConfigA::with([
             'penyusun:id,name,noreg',
@@ -334,7 +413,7 @@ class PraAsesmenController extends Controller
             'nama_manajer' => $penyusun_validator->manajer?->name,
             'tanggal_penyusun' => $penyusun_validator->penyusun_tgl,
             'tanggal_validator' => $penyusun_validator->validator_tgl,
-            'tanggal_manajer' => $penyusun_validator->penyusun_tgl,
+            'tanggal_manajer' => $penyusun_validator->manajer_tgl ?? $penyusun_validator->kan_validator_tgl ?? $penyusun_validator->validator_tgl,
             'barcode_penyusun' => $this->imageUrlToBase64($penyusun_validator->penyusun_img),
             'barcode_validator' => $this->imageUrlToBase64($penyusun_validator->validator_img),
             'barcode_manajer' => $this->imageUrlToBase64($penyusun_validator->manajer_img),
@@ -346,6 +425,34 @@ class PraAsesmenController extends Controller
                 ? \Carbon\Carbon::parse($jadwal->tanggal_uji)->locale('id')->translatedFormat('H:i')
                 : null,
         ];
+    }
+
+    /**
+     * Pilih id user asesor untuk sebuah noreg. Noreg bisa dobel (MET sama):
+     * prioritaskan akun yang bener2 bikin barcode di id_izin ini,
+     * fallback ke akun terbaru.
+     */
+    private function resolveAsesorUserId(string $idIzin, ?string $noreg): ?int
+    {
+        if (!$noreg) {
+            return null;
+        }
+
+        $candidateIds = User::where('noreg', $noreg)
+            ->where('is_deleted', false)
+            ->where('role_id', 5)
+            ->orderBy('id', 'desc')
+            ->pluck('id');
+
+        if ($candidateIds->isEmpty()) {
+            return null;
+        }
+
+        $signedUserId = Barcode::where('id_izin', $idIzin)
+            ->whereIn('id_user', $candidateIds)
+            ->value('id_user');
+
+        return $signedUserId ?? $candidateIds->first();
     }
 
     public function getApl01($id)
@@ -384,6 +491,7 @@ class PraAsesmenController extends Controller
             'SD' => ['1', '2'],
             'SMP' => ['2'],
             'SMA' => ['3'],
+            'SMK' => ['17'],
             'D1' => ['4', '16'],
             'D2' => ['5'],
             'D3' => ['6'],
@@ -396,7 +504,7 @@ class PraAsesmenController extends Controller
         ];
 
         // Education hierarchy from lowest to highest (for fallback matching)
-        $educationOrder = ['Non', 'SD', 'SMP', 'SMA', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3', 'profesi'];
+        $educationOrder = ['Non', 'SD', 'SMP', 'SMA', 'SMK', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3', 'profesi'];
 
         // Load persyaratan records
         $persyaratanRecords = ImpBuktiPersyaratan::select(['no', 'bukti'])
@@ -437,14 +545,42 @@ class PraAsesmenController extends Controller
             }
         }
 
-        $persyaratan = $persyaratanRecords->map(function ($item) use ($matchedEducationLevels, $pendidikanTerakhir) {
-                $checked = false;
-                foreach ($matchedEducationLevels as $level) {
-                    if (stripos($item->bukti, $level) !== false) {
-                        $checked = true;
-                        break;
+        // ── Pilih SATU bukti persyaratan yg paling sesuai profil asesi ──
+        // (buktinya alternatif "atau" — tidak boleh dua-duanya terceklis)
+        $kandidat = [];
+        foreach ($persyaratanRecords as $item) {
+            $match = false;
+            foreach ($matchedEducationLevels as $level) {
+                if (stripos($item->bukti, $level) !== false) {
+                    // "SMK Plus" belongs to D1 level, not SMK
+                    if (strtolower($level) === 'smk' && stripos($item->bukti, 'SMK Plus') !== false) {
+                        continue;
                     }
+                    $match = true; break;
                 }
+            }
+            if ($match) $kandidat[] = $item;
+        }
+        $checkedNo = null;
+        if (count($kandidat) === 1) {
+            $checkedNo = $kandidat[0]->no;
+        } elseif (count($kandidat) > 1) {
+            $punyaPengalaman = Proyek::where('id_izin', $id)->exists();
+            if ($punyaPengalaman) {
+                foreach ($kandidat as $k) {
+                    if (stripos($k->bukti, 'pengalaman') !== false) { $checkedNo = $k->no; break; }
+                }
+            }
+            if ($checkedNo === null) {
+                foreach ($kandidat as $k) {
+                    if (stripos($k->bukti, 'SKL') !== false) { $checkedNo = $k->no; break; }
+                }
+            }
+            if ($checkedNo === null) $checkedNo = $kandidat[0]->no;
+        }
+
+        $persyaratan = $persyaratanRecords->map(function ($item) use ($checkedNo, $pendidikanTerakhir) {
+                $checked = ($item->no == $checkedNo);
 
                 // Add ijazah URL if checked and bukti contains 'ijazah'
                 $ijazahUrl = null;
@@ -463,11 +599,21 @@ class PraAsesmenController extends Controller
             ->where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->orderBy('no', 'asc')
             ->get();
-        $barcodeByRole = Barcode::with('user:id,name')
+        // Fetch barcode asesi (role 8) — always safe, only one asesi per id_izin
+        $barcodeAsesi = Barcode::with('user:id,name')
             ->where('id_izin', $id)
             ->where('jenis_dokumen', 'APL01')
-            ->get()
-            ->keyBy('id_role');
+            ->where('id_role', 8)
+            ->first();
+
+        // Fetch barcode admin LSP — filter by url_image to distinguish from
+        // asesor barcodes that may also have role_id=2 but no url_image
+        $barcodeAdmin = Barcode::with('user:id,name')
+            ->where('id_izin', $id)
+            ->where('jenis_dokumen', 'APL01')
+            ->where('id_role', 2)
+            ->whereNotNull('url_image')
+            ->first();
 
         $formattedAdministratif = collect();
         $no = 1;
@@ -542,33 +688,14 @@ class PraAsesmenController extends Controller
                     'kualifikasi' => $kualifikasi,
                 ],
                 'data_pekerjaan' => [
-                    'perusahaan' => $pekerjaan
-                        ? $pekerjaan->pemberi_kerja
-                        : ($apl1Answer ? $apl1Answer->perusahaan : null),
-
-                    'jabatan' => $apl1Answer
-                        ? $apl1Answer->jabatan
-                        : ($pekerjaan ? $pekerjaan->jabatan : null),
-
-                    'alamat_kantor' => $apl1Answer
-                        ? $apl1Answer->alamat_kantor
-                        : ($pekerjaan ? $pekerjaan->alamat : null),
-
-                    'kode_pos' => $apl1Answer
-                        ? $apl1Answer->kode_pos
-                        : ($pekerjaan ? $pekerjaan->kode_pos : null),
-
-                    'telepon_kantor' => $apl1Answer
-                        ? $apl1Answer->telepon_kantor
-                        : ($pekerjaan ? $pekerjaan->telepon : null),
-
-                    'fax' => $apl1Answer
-                        ? $apl1Answer->fax
-                        : ($pekerjaan ? $pekerjaan->fax : null),
-
-                    'email_kantor' => $apl1Answer
-                        ? $apl1Answer->email_kantor
-                        : ($pekerjaan ? $pekerjaan->email : null),
+                    // Perusahaan/Lembaga: prioritaskan apl1Answer dulu, jatuh ke proyeks.pemberi_kerja saat null (??)
+                    'perusahaan' => $apl1Answer?->perusahaan ?? $pekerjaan?->pemberi_kerja,
+                    'jabatan' => $apl1Answer?->jabatan ?? $pekerjaan?->jabatan,
+                    'alamat_kantor' => $apl1Answer?->alamat_kantor ?? $pekerjaan?->alamat,
+                    'kode_pos' => $apl1Answer?->kode_pos ?? $pekerjaan?->kode_pos,
+                    'telepon_kantor' => $apl1Answer?->telepon_kantor ?? $pekerjaan?->telepon,
+                    'fax' => $apl1Answer?->fax ?? $pekerjaan?->fax,
+                    'email_kantor' => $apl1Answer?->email_kantor ?? $pekerjaan?->email,
                 ],
                 'data_sertifikasi' => [
                     'judul' => $jabatanKerja->jabatan_kerja,
@@ -581,6 +708,7 @@ class PraAsesmenController extends Controller
                         ['id' => '5', 'label' => 'Lainnya:', 'checked' => false]
                     ]
                 ],
+                'ref_kerja' => !is_null($pekerjaan),
                 'is_diterima' => $apl1Answer?->is_diterima,
                 'skkni' => $jabatanKerja->acuan,
                 'data_unit_kompetensi' => $unitKompetensi,
@@ -589,14 +717,14 @@ class PraAsesmenController extends Controller
                 'catatan' => null,
                 'barcodes' => [
                     'asesi' => [
-                        'url' => optional($barcodeByRole->get(8))->url_image,
-                        'tanggal' => optional($barcodeByRole->get(8))->created_at,
-                        'nama' => optional(optional($barcodeByRole->get(8))->user)->name,
+                        'url' => optional($barcodeAsesi)->url_image,
+                        'tanggal' => optional($barcodeAsesi)->created_at,
+                        'nama' => optional(optional($barcodeAsesi)->user)->name,
                     ],
                     'admin' => [
-                        'url' => optional($barcodeByRole->get(2))->url_image,
-                        'tanggal' => optional($barcodeByRole->get(2))->created_at,
-                        'nama' => optional(optional($barcodeByRole->get(2))->user)->name,
+                        'url' => optional($barcodeAdmin)->url_image,
+                        'tanggal' => optional($barcodeAdmin)->created_at,
+                        'nama' => optional(optional($barcodeAdmin)->user)->name,
                     ],
                 ]
             ]
@@ -689,6 +817,7 @@ class PraAsesmenController extends Controller
             'SD' => ['1', '2'],
             'SMP' => ['2'],
             'SMA' => ['3'],
+            'SMK' => ['17'],
             'D1' => ['4', '16'],
             'D2' => ['5'],
             'D3' => ['6'],
@@ -701,7 +830,7 @@ class PraAsesmenController extends Controller
         ];
 
         // Education hierarchy from lowest to highest (for fallback matching)
-        $educationOrder = ['Non', 'SD', 'SMP', 'SMA', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3', 'profesi'];
+        $educationOrder = ['Non', 'SD', 'SMP', 'SMA', 'SMK', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3', 'profesi'];
 
         // Load persyaratan records
         $persyaratanRecords = ImpBuktiPersyaratan::select(['no', 'bukti'])
@@ -744,14 +873,42 @@ class PraAsesmenController extends Controller
             }
         }
 
-        $persyaratan = $persyaratanRecords->map(function ($item) use ($matchedEducationLevels, $pendidikanTerakhir) {
-                $checked = false;
-                foreach ($matchedEducationLevels as $level) {
-                    if (stripos($item->bukti, $level) !== false) {
-                        $checked = true;
-                        break;
+        // ── Pilih SATU bukti persyaratan yg paling sesuai profil asesi ──
+        // (buktinya alternatif "atau" — tidak boleh dua-duanya terceklis)
+        $kandidat = [];
+        foreach ($persyaratanRecords as $item) {
+            $match = false;
+            foreach ($matchedEducationLevels as $level) {
+                if (stripos($item->bukti, $level) !== false) {
+                    // "SMK Plus" belongs to D1 level, not SMK
+                    if (strtolower($level) === 'smk' && stripos($item->bukti, 'SMK Plus') !== false) {
+                        continue;
                     }
+                    $match = true; break;
                 }
+            }
+            if ($match) $kandidat[] = $item;
+        }
+        $checkedNo = null;
+        if (count($kandidat) === 1) {
+            $checkedNo = $kandidat[0]->no;
+        } elseif (count($kandidat) > 1) {
+            $punyaPengalaman = Proyek::where('id_izin', $id)->exists();
+            if ($punyaPengalaman) {
+                foreach ($kandidat as $k) {
+                    if (stripos($k->bukti, 'pengalaman') !== false) { $checkedNo = $k->no; break; }
+                }
+            }
+            if ($checkedNo === null) {
+                foreach ($kandidat as $k) {
+                    if (stripos($k->bukti, 'SKL') !== false) { $checkedNo = $k->no; break; }
+                }
+            }
+            if ($checkedNo === null) $checkedNo = $kandidat[0]->no;
+        }
+
+        $persyaratan = $persyaratanRecords->map(function ($item) use ($checkedNo, $pendidikanTerakhir) {
+                $checked = ($item->no == $checkedNo);
 
                 // Add ijazah URL if checked and bukti contains 'ijazah'
                 $ijazahUrl = null;
@@ -834,18 +991,31 @@ class PraAsesmenController extends Controller
         * BARCODE
         * ========================= */
 
-        $barcodeByRole = Barcode::with('user:id,name')
-        ->where('id_izin', $id)
-        ->where('jenis_dokumen', 'APL01')
-        ->get()
-        ->keyBy('id_role')   // 👈 key FIRST
-        ->map(function ($barcode) {
+        // Fetch barcode asesi (role 8)
+        $barcodeAsesiTtd = Barcode::with('user:id,name')
+            ->where('id_izin', $id)
+            ->where('jenis_dokumen', 'APL01')
+            ->where('id_role', 8)
+            ->first();
+
+        // Fetch barcode admin LSP — filter by url_image to distinguish from
+        // asesor barcodes that may also have role_id=2 but no url_image
+        $barcodeAdminTtd = Barcode::with('user:id,name')
+            ->where('id_izin', $id)
+            ->where('jenis_dokumen', 'APL01')
+            ->where('id_role', 2)
+            ->whereNotNull('url_image')
+            ->first();
+
+        $formatBarcode = function ($barcode) {
+            if (!$barcode) return null;
             return [
                 'user'    => $barcode->user,
                 'tanggal' => $barcode->created_at,
-                'base64'  => $this->imageUrlToBase64($barcode->url_image), // URL → Base64
+                'base64'  => $this->imageUrlToBase64($barcode->url_image),
+                'url'     => $barcode->url_image,
             ];
-        });
+        };
 
         $nomorSkema = JabatanConfigA::where('id_jabatan', $klasifikasi->jabatan_kerja)
             ->value('no_skema');
@@ -870,7 +1040,9 @@ class PraAsesmenController extends Controller
             ],
 
             'data_pekerjaan' => [
-                'perusahaan' => $pekerjaan?->pemberi_kerja ?? $apl1Answer?->perusahaan,
+                // Perusahaan/Lembaga: prioritaskan apl1_answers dulu (string kosong juga dianggap kosong),
+                // jatuh ke proyeks.pemberi_kerja.
+                'perusahaan' => $apl1Answer?->perusahaan ?: $pekerjaan?->pemberi_kerja,
                 'jabatan'    => $apl1Answer?->jabatan ?? $pekerjaan?->jabatan,
                 'alamat'     => $apl1Answer?->alamat_kantor ?? $pekerjaan?->alamat,
                 'kode_pos'   => $apl1Answer?->kode_pos ?? $pekerjaan?->kode_pos,
@@ -890,8 +1062,8 @@ class PraAsesmenController extends Controller
             'bukti_administratif' => $formattedAdministratif,
 
             'barcodes' => [
-                'asesi' => $barcodeByRole[8] ?? null,
-                'admin' => $barcodeByRole[2] ?? null,
+                'asesi' => $formatBarcode($barcodeAsesiTtd),
+                'admin' => $formatBarcode($barcodeAdminTtd),
             ],
         ];
 
@@ -985,7 +1157,7 @@ class PraAsesmenController extends Controller
                         'id' => (string) $subunit->id,
                         'no_elemen' => $subunit->kode,
                         'judul_elemen' => $subunit->nama,
-                        'kompeten' => (bool) ($answer->kompeten ?? false),
+                        'kompeten' => $answer ? (bool) $answer->kompeten : null,
 
                         'files' => $answer
                             ? $answer->files->map(fn ($file) => [
@@ -1425,15 +1597,30 @@ class PraAsesmenController extends Controller
         /* =========================
         * KELOMPOK KERJA
         * ========================= */
+
+        // Fetch soal tipe=8 (deskripsi kelompok pekerjaan) from FR.IA.04.B doc
+        $ia04bDokumen = JabatanDokumen::where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where('kode', 'FR.IA.04.B')->where('is_active', true)->first();
+        $soalDeskripsi = $ia04bDokumen
+            ? Soal::query()
+                ->where('id_dokumen', $ia04bDokumen->id)
+                ->where('tipe', 8)
+                ->select(['id', 'id_dokumen', 'tipe', 'soal', 'no'])
+                ->get()
+                ->keyBy('no')
+            : collect();
+
         $kelompokKerja = [
             'id' => $dokumen->id,
             'kode' => $dokumen->kode,
             'nama_dokumen' => $dokumen->nama_dokumen,
-            'kelompok_kerja' => $dokumen->kelompoks->map(function ($kelompok) {
+            'kelompok_kerja' => $dokumen->kelompoks->map(function ($kelompok) use ($soalDeskripsi) {
+                $soalItem = $soalDeskripsi->get($kelompok->urut);
                 return [
                     'id' => $kelompok->id,
                     'nama' => $kelompok->nama,
                     'urut' => $kelompok->urut,
+                    'deskripsi' => $soalItem?->soal,
                     'units' => $kelompok->units->map(function ($unit) {
                         return [
                             'id_unit'   => $unit->id_unit,
@@ -1619,7 +1806,10 @@ class PraAsesmenController extends Controller
         * GENERATE PDF
         * ========================= */
 
-        $pdf = Pdf::loadView('pdf.mapa01', $viewData)
+        $metode = strtolower($dokumenHeader['metode'] ?? 'observasi');
+        $template = $metode === 'portofolio' ? 'pdf.mapa01-portofolio' : 'pdf.mapa01-observasi';
+
+        $pdf = Pdf::loadView($template, $viewData)
             ->setPaper('A4', 'portrait');
 
         $disk = 'str_moon';
@@ -1656,6 +1846,46 @@ class PraAsesmenController extends Controller
         ]);
     }
 
+    public function generateMapa01Pdf(string $idIzin): string
+    {
+        $data = $this->buildMapa01Data($idIzin, true);
+        if (!$data) {
+            throw new \RuntimeException('Data MAPA01 tidak ditemukan untuk ' . $idIzin);
+        }
+
+        $dokumenHeader = $this->buildDokumenHeader($idIzin);
+        if (!$dokumenHeader) {
+            throw new \RuntimeException('Dokumen header tidak ditemukan untuk ' . $idIzin);
+        }
+
+        $viewData = array_merge($data, [
+            'dokumenHeader' => $dokumenHeader
+        ]);
+
+        $metode = strtolower($dokumenHeader['metode'] ?? 'observasi');
+        $template = $metode === 'portofolio' ? 'pdf.mapa01-portofolio' : 'pdf.mapa01-observasi';
+
+        $pdf = Pdf::loadView($template, $viewData)
+            ->setPaper('A4', 'portrait');
+
+        $disk = 'str_moon';
+        $directory = 'dok_asesmen/mapa01';
+        $filename = 'FR-MAPA-01-' . $idIzin . '.pdf';
+        $path = $directory . '/' . $filename;
+
+        Storage::disk($disk)->put($path, $pdf->output());
+
+        $publicBaseUrl = 'https://moon.lspgatensi.id/files/new_gatensi/';
+        $fullUrl = $publicBaseUrl . $path;
+
+        BuktiAsesmen::updateOrCreate(
+            ['id_izin' => $idIzin],
+            ['url_mapa01' => $fullUrl]
+        );
+
+        return $fullUrl;
+    }
+
     private function buildMapa02Data(
         int|string $id,
         bool $forPdf = false
@@ -1686,15 +1916,29 @@ class PraAsesmenController extends Controller
 
         $barcodes = $this->resolveDocumentBarcodes($id, 'MAPA02', $forPdf);
 
+        // Fetch soal tipe=8 (deskripsi kelompok pekerjaan) from FR.IA.04.B doc
+        $ia04bDokumen = JabatanDokumen::where('id_jabatan', $klasifikasi->jabatan_kerja)
+            ->where('kode', 'FR.IA.04.B')->where('is_active', true)->first();
+        $soalDeskripsi = $ia04bDokumen
+            ? Soal::query()
+                ->where('id_dokumen', $ia04bDokumen->id)
+                ->where('tipe', 8)
+                ->select(['id', 'id_dokumen', 'tipe', 'soal', 'no'])
+                ->get()
+                ->keyBy('no')
+            : collect();
+
         $kelompokKerja = [
             'id' => $dokumen->id,
             'kode' => $dokumen->kode,
             'nama_dokumen' => $dokumen->nama_dokumen,
-            'kelompok_kerja' => $dokumen->kelompoks->map(function ($kelompok) {
+            'kelompok_kerja' => $dokumen->kelompoks->map(function ($kelompok) use ($soalDeskripsi) {
+                $soalItem = $soalDeskripsi->get($kelompok->urut);
                 return [
-                    'id' => $kelompok->id,
-                    'nama' => $kelompok->nama,
-                    'urut' => $kelompok->urut,
+                    'id'        => $kelompok->id,
+                    'nama'      => $kelompok->nama,
+                    'urut'      => $kelompok->urut,
+                    'deskripsi' => $soalItem?->soal,
                     'units' => $kelompok->units->map(function ($unit) {
                         return [
                             'id_unit'   => $unit->id_unit,
@@ -1823,7 +2067,10 @@ class PraAsesmenController extends Controller
         * GENERATE PDF
         * ========================= */
 
-        $pdf = Pdf::loadView('pdf.mapa02', $viewData)
+        $metode = strtolower($dokumenHeader['metode'] ?? 'observasi');
+        $template = $metode === 'portofolio' ? 'pdf.mapa02-portofolio' : 'pdf.mapa02-observasi';
+
+        $pdf = Pdf::loadView($template, $viewData)
             ->setPaper('A4', 'portrait');
 
         $disk = 'str_moon';
@@ -1885,7 +2132,10 @@ class PraAsesmenController extends Controller
         * GENERATE PDF
         * ========================= */
 
-        $pdf = Pdf::loadView('pdf.mapa02', $viewData)
+        $metode = strtolower($dokumenHeader['metode'] ?? 'observasi');
+        $template = $metode === 'portofolio' ? 'pdf.mapa02-portofolio' : 'pdf.mapa02-observasi';
+
+        $pdf = Pdf::loadView($template, $viewData)
             ->setPaper('A4', 'portrait');
 
         $disk = 'str_moon';
@@ -2235,46 +2485,14 @@ class PraAsesmenController extends Controller
         // --- Fetch AK04 reason ---
         $reason = Ak4Reason::where('id_izin', $id)->value('alasan');
 
-        if ($forPdf) {
-            $barcodeByRole = Barcode::with('user:id,name')
-            ->where('id_izin', $id)
-            ->where('jenis_dokumen', 'AK04')
-            ->get()
-            ->keyBy('id_role')   // 👈 key FIRST
-            ->map(function ($barcode) {
-                return [
-                    'user'    => $barcode->user,
-                    'tanggal' => $barcode->created_at,
-                    'url'  => $this->imageUrlToBase64($barcode->url_image), // URL → Base64
-                ];
-            });
-
-            return [
-                'kelompoks' => $kelompokData,
-                'alasan'    => $reason,
-                'barcodes' => [
-                    'asesi' => $barcodeByRole[8] ?? null,
-                ]
-            ];
-        }
-        
-        $barcodeByRole = Barcode::with('user:id,name')
-        ->where('id_izin', $id)
-        ->where('jenis_dokumen', 'AK04')
-        ->get()
-        ->keyBy('id_role');
+        // --- Resolve barcodes (asesi + asesor1 + asesor2) ---
+        $barcodes = $this->resolveDocumentBarcodes($id, 'AK04', $forPdf);
 
         return [
-                'kelompoks' => $kelompokData,
-                'alasan'    => $reason,
-                'barcodes' => [
-                    'asesi' => [
-                        'url' => optional($barcodeByRole->get(8))->url_image,
-                        'tanggal' => optional($barcodeByRole->get(8))->created_at,
-                        'nama' => optional(optional($barcodeByRole->get(8))->user)->name,
-                    ]
-                ]
-            ];
+            'kelompoks' => $kelompokData,
+            'alasan'    => $reason,
+            'barcodes'  => $barcodes,
+        ];
     }
 
     public function getAk04($id)
@@ -2408,7 +2626,9 @@ class PraAsesmenController extends Controller
                 'file'      => $fileUrl,
                 'barcodes'  => $barcodes,
             ]
-        ]);
+        ])->header('Cache-Control', 'no-cache, no-store, must-revalidate')
+          ->header('Pragma', 'no-cache')
+          ->header('Expires', '0');
     }
 
     private function buildAk01Data(
@@ -2674,7 +2894,7 @@ class PraAsesmenController extends Controller
         if (!$jadwal) {
             Log::warning("[resolveDocumentBarcodes] JADWAL NOT FOUND for jadwal_id=" . var_export($jadwalId, true) . " → fallback ambil barcode asesor (id_role=5) batch yg sama dgn barcode asesi");
 
-                        // Fallback: jadwal tidak ada (asesi_jadwals kosong / id_jadwal barcode kosong).
+            // Fallback: jadwal tidak ada (asesi_jadwals kosong / id_jadwal barcode kosong).
             // Pilih 2 barcode asesor (id_role=5) dgn ID TERKECIL — itu set asli batch generate
             // (asesi→asesor1→asesor2 dibuat berurutan). Set duplikat (regenerate dgn asesor
             // berbeda, mis. Adi/Fauzan) punya id lebih besar — JANGAN dipakai.
@@ -2700,11 +2920,11 @@ class PraAsesmenController extends Controller
         /** 📌 Resolve asesor → user via eager‑loaded noreg
          *  (same pattern as buildDokumenHeader / getDokumenHeader) */
         $asesor1User = $jadwal->asesor
-            ? User::where('noreg', $jadwal->asesor->noreg)->first()
+            ? User::where('noreg', $jadwal->asesor->noreg)->where('is_deleted', false)->where('role_id', 5)->orderBy('id', 'desc')->first()
             : null;
 
         $asesor2User = $jadwal->asesor2
-            ? User::where('noreg', $jadwal->asesor2->noreg)->first()
+            ? User::where('noreg', $jadwal->asesor2->noreg)->where('is_deleted', false)->where('role_id', 5)->orderBy('id', 'desc')->first()
             : null;
 
         Log::info("[resolveDocumentBarcodes] asesor1User: " . ($asesor1User ? "id={$asesor1User->id} name={$asesor1User->name}" : 'NULL'));
@@ -2725,6 +2945,19 @@ class PraAsesmenController extends Controller
                     ? $map($barcodes[$asesor2User->id] ?? null)
                     : null,
         ];
+
+        // Fallback: jadwal resolve tapi asesor user-nya null (asesor di jadwal bukan role 5 /
+        // noreg kosong / user tidak ada) ATAU barcode asesor utk user tsb tidak ada.
+        // Pakai barcode asesor (id_role=5) yg tersedia utk jenis dokumen ini (batch generate sama).
+        $role5 = $barcodes->where('id_role', 5)->values();
+        if (!$result['asesor1'] && $role5->isNotEmpty()) {
+            $result['asesor1'] = $map($role5->get(0));
+            Log::warning("[resolveDocumentBarcodes] FALLBACK asesor1 → barcode role5 #0 (user=" . ($role5->get(0)->id_user ?? '?') . ")");
+        }
+        if (!$result['asesor2'] && $role5->count() > 1) {
+            $result['asesor2'] = $map($role5->get(1));
+            Log::warning("[resolveDocumentBarcodes] FALLBACK asesor2 → barcode role5 #1 (user=" . ($role5->get(1)->id_user ?? '?') . ")");
+        }
 
         Log::info("[resolveDocumentBarcodes] RESULT: asesi=" . ($result['asesi'] ? 'PRESENT' : 'NULL') . " asesor1=" . ($result['asesor1'] ? 'PRESENT' : 'NULL') . " asesor2=" . ($result['asesor2'] ? 'PRESENT' : 'NULL'));
 
@@ -2772,37 +3005,47 @@ class PraAsesmenController extends Controller
         $uuid = (string) Uuid::uuid4();
         $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
 
-        // 2️⃣ Generate filename
-        $filename = "{$filePrefix}_" . Str::uuid() . '.png';
+        // 2️⃣+3️⃣+4️⃣+5️⃣+6️⃣ Generate QR, upload ke FTP (retry + verifikasi) via service
+        try {
+            $qr = $this->barcodeService->generateTtdQr($filePrefix, $urlTtd);
+        } catch (\RuntimeException $e) {
+            Log::error('Barcode upload gagal', [
+                'docType' => $docType,
+                'izinId'  => $izinId,
+                'error'   => $e->getMessage(),
+            ]);
+            throw new \RuntimeException('Gagal mengupload barcode ke FTP: ' . $e->getMessage());
+        }
 
-        // 3️⃣ Generate QR image
-        $qrImage = QrCode::format('png')
-            ->size(300)
-            ->margin(1)
-            ->generate($urlTtd);
-
-        // 4️⃣ FTP path
-        $path = "barcodes/{$filename}";
-
-        // 5️⃣ Upload to FTP
-        Storage::disk('str_moon')->put($path, $qrImage);
-
-        // 6️⃣ Public image URL
-        $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+        $urlImage = $qr['url_image'];
 
         // 7️⃣ Save / update DB
+        $barcodeValues = [
+            'id_jadwal' => $request->id_jadwal,
+            'url_image' => $urlImage,
+            'url_ttd'   => $urlTtd,
+            'id_role'   => auth()->user()->role_id,
+        ];
+
+        // Cap created_at ke tanggal_uji (jam tetap now) bila sekarang lewat tanggal uji
+        $now = \Carbon\Carbon::now();
+        $effective = $now;
+        $jadwal = Jadwal::where('jadwal_id', $request->id_jadwal)->first();
+        if ($jadwal && $jadwal->tanggal_uji) {
+            $tanggalUji = \Carbon\Carbon::parse($jadwal->tanggal_uji)->startOfDay();
+            if ($now->copy()->startOfDay()->gt($tanggalUji)) {
+                $effective = $tanggalUji->copy()->setTimeFrom($now);
+            }
+            $barcodeValues['created_at'] = $effective;
+        }
+
         Barcode::updateOrCreate(
             [
                 'id_user'       => auth()->user()->id,
                 'id_izin'       => $izinId,
                 'jenis_dokumen' => $docType,
             ],
-            [
-                'id_jadwal' => $request->id_jadwal,
-                'url_image' => $urlImage,
-                'url_ttd'   => $urlTtd,
-                'id_role'   => auth()->user()->role_id,
-            ]
+            $barcodeValues
         );
 
         return [
@@ -2820,27 +3063,42 @@ class PraAsesmenController extends Controller
         $uuid = (string) Uuid::uuid4();
         $urlTtd = "https://barcode.lspgatensi.id/ttd/{$uuid}";
 
-        // 2️⃣ Generate filename
-        $filename = "{$filePrefix}_" . Str::uuid() . '.png';
+        // 2️⃣+3️⃣+4️⃣+5️⃣+6️⃣ Generate QR, upload ke FTP (retry + verifikasi) via service
+        try {
+            $qr = $this->barcodeService->generateTtdQr($filePrefix, $urlTtd);
+        } catch (\RuntimeException $e) {
+            Log::error('Barcode upload gagal', [
+                'docType' => $docType,
+                'izinId'  => $izinId,
+                'error'   => $e->getMessage(),
+            ]);
+            throw new \RuntimeException('Gagal mengupload barcode ke FTP: ' . $e->getMessage());
+        }
 
-        // 3️⃣ Generate QR image
-        $qrImage = QrCode::format('png')
-            ->size(300)
-            ->margin(1)
-            ->generate($urlTtd);
-
-        // 4️⃣ FTP path
-        $path = "barcodes/{$filename}";
-
-        // 5️⃣ Upload to FTP
-        Storage::disk('str_moon')->put($path, $qrImage);
-
-        // 6️⃣ Public image URL
-        $urlImage = "https://moon.lspgatensi.id/files/new_gatensi/{$path}";
+        $urlImage = $qr['url_image'];
 
         // 7️⃣ Save / update DB (resolve id_jadwal from AsesiJadwal so barcode
         //    can be linked back to the jadwal for asesor resolution)
         $idJadwal = AsesiJadwal::where('id_izin', $izinId)->value('jadwal_id');
+
+        $barcodeValues = [
+            'id_jadwal' => $idJadwal,
+            'url_image' => $urlImage,
+            'url_ttd'   => $urlTtd,
+            'id_role'   => auth()->user()->role_id,
+        ];
+
+        // Cap created_at ke tanggal_uji (jam tetap now) bila sekarang lewat tanggal uji
+        if ($idJadwal) {
+            $now = \Carbon\Carbon::now();
+            $jadwal = Jadwal::where('jadwal_id', $idJadwal)->first();
+            if ($jadwal && $jadwal->tanggal_uji) {
+                $tanggalUji = \Carbon\Carbon::parse($jadwal->tanggal_uji)->startOfDay();
+                if ($now->copy()->startOfDay()->gt($tanggalUji)) {
+                    $barcodeValues['created_at'] = $tanggalUji->copy()->setTimeFrom($now);
+                }
+            }
+        }
 
         Barcode::updateOrCreate(
             [
@@ -2848,12 +3106,7 @@ class PraAsesmenController extends Controller
                 'id_izin'       => $izinId,
                 'jenis_dokumen' => $docType,
             ],
-            [
-                'id_jadwal' => $idJadwal,
-                'url_image' => $urlImage,
-                'url_ttd'   => $urlTtd,
-                'id_role'   => auth()->user()->role_id,
-            ]
+            $barcodeValues
         );
 
         return [
@@ -2904,6 +3157,23 @@ class PraAsesmenController extends Controller
             Ia4bAnswer::where('id_izin', $id_izin)->delete();
             Ia5Answer::where('id_izin', $id_izin)->delete();
             Ia5Feedback::where('id_izin', $id_izin)->delete();
+
+            // IA08
+            Ia08Answer::where('id_izin', $id_izin)->delete();
+            Ia08UnitAnswer::where('id_izin', $id_izin)->delete();
+            Ia08Recommendation::where('id_izin', $id_izin)->delete();
+
+            // IA09
+            Ia09Answer::where('id_izin', $id_izin)->delete();
+
+            // IA10
+            Ia10Answer::where('id_izin', $id_izin)->delete();
+            Ia10FormData::where('id_izin', $id_izin)->delete();
+
+            // KAN
+            KanIa4bAnswer::where('id_izin', $id_izin)->delete();
+            KanIa5Answer::where('id_izin', $id_izin)->delete();
+            KanIa6Answer::where('id_izin', $id_izin)->delete();
 
             // Delete other related data
             Barcode::where('id_izin', $id_izin)->delete();
