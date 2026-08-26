@@ -573,8 +573,11 @@ class GenerateDokumenService
         string $asesor2At
     ): array {
         $asesi   = $this->createBarcode($idIzin, $method, $asesiUser->id, 8, $asesiAt);
-        $asesor1 = $asesor1User ? $this->createBarcode($idIzin, $method, $asesor1User->id, $asesor1User->role_id ?? 2, $asesor1At) : null;
-        $asesor2 = $asesor2User ? $this->createBarcode($idIzin, $method, $asesor2User->id, $asesor2User->role_id ?? 2, $asesor2At) : null;
+        // Asesor SELALU role 5 di barcode — jangan pakai role_id user (user bisa berubah
+        // role, mis. asesor yg juga admin LSP → role_id=2 → barcode jadi role 2 & tidak
+        // terdeteksi sebagai asesor oleh resolveDocumentBarcodes fallback).
+        $asesor1 = $asesor1User ? $this->createBarcode($idIzin, $method, $asesor1User->id, 5, $asesor1At) : null;
+        $asesor2 = $asesor2User ? $this->createBarcode($idIzin, $method, $asesor2User->id, 5, $asesor2At) : null;
 
         return [
             'asesi'   => [
