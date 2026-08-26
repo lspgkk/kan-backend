@@ -3329,10 +3329,21 @@ class AsesmenController extends Controller
             ->first();
 
         if (!$jadwal) {
+            // Fallback: jadwal tidak ada (asesi_jadwals kosong / id_jadwal barcode kosong).
+            // Pilih 2 barcode asesor (id_role=5) dgn ID TERKECIL — itu set asli batch generate
+            // (asesi→asesor1→asesor2 dibuat berurutan). Set duplikat punya id lebih besar.
+            // Lalu sort ASC by created_at: asesor1 = yg paling awal, asesor2 berikutnya.
+            $asesiBc = $barcodes->firstWhere('id_role', 8);
+            $asesorBarcodes = $barcodes->filter(fn ($b) => $b->id_role == 5)
+                ->sortBy('id')
+                ->take(2)
+                ->sortBy('created_at')
+                ->values();
+
             return [
-                'asesi' => $map($barcodes->firstWhere('id_role', 8)),
-                'asesor1' => null,
-                'asesor2' => null,
+                'asesi'   => $map($asesiBc),
+                'asesor1' => $map($asesorBarcodes->get(0)),
+                'asesor2' => $map($asesorBarcodes->get(1)),
             ];
         }
 
