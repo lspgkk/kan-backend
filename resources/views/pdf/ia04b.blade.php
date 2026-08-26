@@ -191,11 +191,9 @@
             @foreach($soal as $item)
             <tr>
                 <td style="text-align: center; vertical-align: top;">{{ $item['no'] }}</td>
+                <td style="vertical-align: top;">{{ $item['soal'] }}</td>
                 <td style="vertical-align: top;">
-                    <div style="text-align: center; font-weight: bold;">{{ $item['soal1'] }}</div>
-                </td>
-                <td style="vertical-align: top;">
-                    <div>{{ $item['soal'] }}</div>
+                    <div>{{ $item['soal1'] }}</div>
                     <p style="margin: 8px 0 4px 0; font-size: 12px; font-weight: bold;">Jawaban asesi:</p>
                     <div style="min-height: 50px; border: 1px solid #ccc; padding: 6px; font-size: 12px; background: #f9f9f9;">
                         {{ $item['jawaban'] ?? '-' }}
