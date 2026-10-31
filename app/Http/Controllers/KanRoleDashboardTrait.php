@@ -12,8 +12,29 @@ use Illuminate\Support\Facades\DB;
 
 trait KanRoleDashboardTrait
 {
+    /**
+     * Scope dashboard by the authenticated role: penyusun (14) only sees
+     * skema where they are kan_penyusun_id, validator (15) only sees
+     * skema where they are kan_validator_id. Other roles see everything.
+     */
+    private function kanRoleScope(): ?array
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return null;
+        }
+
+        return match ((int) $user->role_id) {
+            14 => ['column' => 'kan_penyusun_id', 'user_id' => (int) $user->id],
+            15 => ['column' => 'kan_validator_id', 'user_id' => (int) $user->id],
+            default => null,
+        };
+    }
+
     public function jabker(): JsonResponse
     {
+        $scope = $this->kanRoleScope();
+
         $jabkers = JabatanKerja::select([
                 'jabatan_kerjas.id_jabatan_kerja',
                 'jabatan_kerjas.jabatan_kerja',
@@ -22,10 +43,20 @@ trait KanRoleDashboardTrait
             ->addSelect([
                 'jumlah_skema' => JabatanConfigA::selectRaw('count(*)')
                     ->whereColumn('id_jabatan', 'jabatan_kerjas.id_jabatan_kerja')
-                    ->whereNotNull('kan_no_skema'),
+                    ->whereNotNull('kan_no_skema')
+                    ->when($scope, fn ($q) => $q->where($scope['column'], $scope['user_id'])),
             ])
             ->where('lsp_id_klasifikasi', 'SI')
             ->where('versi', 2)
+            ->when($scope, function ($q) use ($scope) {
+                $q->whereExists(function ($sub) use ($scope) {
+                    $sub->select(DB::raw(1))
+                        ->from('jabatan_config_a')
+                        ->whereColumn('jabatan_config_a.id_jabatan', 'jabatan_kerjas.id_jabatan_kerja')
+                        ->where('jabatan_config_a.' . $scope['column'], $scope['user_id'])
+                        ->whereNotNull('jabatan_config_a.kan_no_skema');
+                });
+            })
             ->get();
 
         $jabkerIds = $jabkers->pluck('id_jabatan_kerja');
@@ -74,10 +105,13 @@ trait KanRoleDashboardTrait
 
     public function skema(): JsonResponse
     {
+        $scope = $this->kanRoleScope();
+
         $skemas = JabatanConfigA::with([
                 'jabatan:id_jabatan_kerja,jabatan_kerja',
             ])
             ->whereNotNull('kan_no_skema')
+            ->when($scope, fn ($q) => $q->where($scope['column'], $scope['user_id']))
             ->select(['id_jabatan', 'kan_no_skema', 'kan_penyusun_id', 'kan_validator_id'])
             ->get();
 

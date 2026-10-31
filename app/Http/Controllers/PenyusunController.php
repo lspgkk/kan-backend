@@ -29,6 +29,11 @@ class PenyusunController extends Controller
         $config = JabatanConfigA::with('jabatan:id_jabatan_kerja,jabatan_kerja')
             ->where('id_jabatan', $idSkema)->firstOrFail();
 
+        $user = auth()->user();
+        if ($user && (int) $user->role_id === 14 && (int) $config->kan_penyusun_id !== (int) $user->id) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
         $jabatanNama = $config->jabatan?->jabatan_kerja;
 
         // Get praktisi from KanPraktisiJabatan (KAN flow)
